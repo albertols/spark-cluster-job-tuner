@@ -1,4 +1,3 @@
-B11
 -- Reusable parsing CTEs: normalize log lines
 -- Select your time range in the Log Analytics UI; this query respects that range.
 WITH base AS (
@@ -27,8 +26,7 @@ WITH base AS (
     -- If your logs contain applicationId, uncomment the line below and use it in joins
     -- JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(json_payload, "$.message"), "$.application_id") AS application_id
   FROM
-    `$(gcp_project_id).global._Default._Default`
-
+    `db-prd-rn63-pwcclake-es.global._Default._Default`
   WHERE
     resource.type = "cloud_dataproc_job"
     AND JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(json_payload, "$.message"), "$.clusterName") IS NOT NULL
