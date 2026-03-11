@@ -1,14 +1,14 @@
 {
   "clusterConf": {
     "cluster-wf_spark_16": {
-      "num_workers": 12,
-      "master_machine_type": "n2d-highcpu-224",
-      "worker_machine_type": "n2d-highcpu-224",
+      "num_workers": 82,
+      "master_machine_type": "e2-highcpu-32",
+      "worker_machine_type": "e2-highcpu-32",
       "autoscaling_policy": "extra-large-workload-autoscaling",
       "tuner_version": "2025_20_12",
       "total_no_of_jobs": 151,
-      "cluster_max_total_memory_gb": 5376,
-      "cluster_max_total_cores": 2688,
+      "cluster_max_total_memory_gb": 5248,
+      "cluster_max_total_cores": 2624,
       "accumulated_max_total_memory_per_jobs_gb": 4744
     }
   },

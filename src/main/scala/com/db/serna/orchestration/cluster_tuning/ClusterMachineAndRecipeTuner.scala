@@ -66,15 +66,15 @@ object MachineCatalog {
   private val n4dHighmem = gen("n4d", "highmem", List(2, 4, 8, 16, 32, 48, 64, 80, 96), 8.0)
   private val n4dHighcpu = gen("n4d", "highcpu", List(2, 4, 8, 16, 32, 48, 64, 80, 96), 2.0)
 
-  // Full default candidate catalog
+  // Full default candidate catalog (all families — filtering is done by MachineSelectionPreference)
   val defaults: List[MachineType] =
     e2Standard ++ e2Highmem ++ e2Highcpu ++
       n2Standard ++ n2Highmem ++ n2Highcpu ++
-      n2dStandard ++ n2dHighmem ++ n2dHighcpu
-  //c3Standard  ++ c3Highmem  ++ c3Highcpu  ++
-  //c4Standard  ++ c4Highmem  ++ c4Highcpu  ++
-  //n4Standard  ++ n4Highmem  ++ n4Highcpu  ++
-  //n4dStandard ++ n4dHighmem ++ n4dHighcpu
+      n2dStandard ++ n2dHighmem ++ n2dHighcpu ++
+      c3Standard ++ c3Highmem ++ c3Highcpu ++
+      c4Standard ++ c4Highmem ++ c4Highcpu ++
+      n4Standard ++ n4Highmem ++ n4Highcpu ++
+      n4dStandard ++ n4dHighmem ++ n4dHighcpu
 
   def byName(name: String): Option[MachineType] = defaults.find(_.name == name)
 }
@@ -139,15 +139,15 @@ final case class TuningPolicy(
                                capHitThreshold: Double,
                                preferMaxWorkers: Int,
                                perWorkerPenaltyPct: Double,
-                               // New: multi-objective selection tuned for “enough capacity” and good utilization
-                               parallelismWeight: Double = 0.0, // kept for compatibility
-                               costWeight: Double = 0.4, // importance of hourly cost
-                               concurrencyBufferPct: Double = 0.25, // buffer over required slots
-                               preferEightCoreExecutors: Boolean = true, // plan capacity in 8-core terms when enabled
-                               sufficiencyWeight: Double = 0.5, // reward having enough cores vs desired
-                               utilizationWeight: Double = 0.3, // reward utilizing cores close to desired
-                               workerPenaltyWeight: Double = 0.3, // penalize higher worker counts
-                               oversizePenaltyWeight: Double = 0.2 // penalize huge oversizing for tiny workloads
+                               // Multi-objective selection weights
+                               parallelismWeight: Double = 0.0,
+                               costWeight: Double = 0.4,
+                               concurrencyBufferPct: Double = 0.25,
+                               preferEightCoreExecutors: Boolean = true,
+                               sufficiencyWeight: Double = 0.5,
+                               utilizationWeight: Double = 0.3,
+                               workerPenaltyWeight: Double = 0.3,
+                               oversizePenaltyWeight: Double = 0.2
                              )
 
 /**
@@ -354,32 +354,6 @@ object ClusterMachineAndRecipeTuner {
     }
   }
 
-  // Central policy used for all sizing decisions (see TuningPolicy doc above)
-  val policy = TuningPolicy(
-    executorCores = 4,
-    executorMemoryGb = 8,
-    memoryOverheadRatio = 0.10,
-    osAndDaemonsReserveGb = 4,
-    defaultWorker = MachineCatalog.byName("e2-standard-8").get,
-    defaultMaster = MachineCatalog.byName("e2-standard-8").get,
-    manualInstancesFrom = "p95",
-    minExecutorInstances = 1,
-    daMinFrom = "avg",
-    daInitialEqualsMin = true,
-    capHitBoostPct = 0.20,
-    capHitThreshold = 0.30,
-    preferMaxWorkers = 6,
-    perWorkerPenaltyPct = 0.05,
-    // New tuned weights
-    costWeight = 0.4,
-    concurrencyBufferPct = 0.25,
-    preferEightCoreExecutors = true,
-    sufficiencyWeight = 0.5,
-    utilizationWeight = 0.3,
-    workerPenaltyWeight = 0.3,
-    oversizePenaltyWeight = 0.2
-  )
-
   def loadMetrics(cfg: Config): Map[(String, String), RecipeMetrics] = {
     logger.info(s"Loading metrics. useFlattened=${cfg.useFlattened}, inputDir=${cfg.inputDir.getPath}")
     if (cfg.useFlattened) loadFlattened(cfg)
@@ -582,17 +556,12 @@ object ClusterMachineAndRecipeTuner {
     merged
   }
 
-  /**
-   * ms to minutes
-   * - Reads b1/b12/b3/b8/b5/b11 CSVs and merges them by (cluster_name, recipe_filename).
-   */
   private def clusterActiveMinutes(metrics: Iterable[RecipeMetrics]): Double =
-    //metrics.map (m => (m.avgJobDurationMs * m.runs) / 60000.0).sum // old
-    metrics.map(m => (m.avgJobDurationMs) / 60000.0).sum // new
+    metrics.map(m => m.avgJobDurationMs / 60000.0).sum
 
   private def hourlyPrice(machine: MachineType): Double = PriceCatalog.pricePerHourEUR.getOrElse(machine.name, 0.0)
 
-  private def penalizedHourlyClusterCost(worker: MachineType, workers: Int, master: MachineType): Double = {
+  private def penalizedHourlyClusterCost(worker: MachineType, workers: Int, master: MachineType, policy: TuningPolicy): Double = {
     val base: Double = hourlyPrice(worker) * workers + hourlyPrice(master)
     val penalty: Double = if (workers > policy.preferMaxWorkers)
       base * policy.perWorkerPenaltyPct * (workers - policy.preferMaxWorkers)
@@ -606,12 +575,10 @@ object ClusterMachineAndRecipeTuner {
     if (parts.length >= 2) parts(1) else "standard"
   }
 
+  private def familyOf(machineName: String): String = machineName.takeWhile(_ != '-')
+
   // Helper: recommended executor memory (GB) given worker type and executor cores.
-  // Policy: base = variantMemoryPerCore * cores; clamp:
-  // - not below policy.executorMemoryGb (floor)
-  // - not above what's possible to run at least 1 executor per worker (reserve + overhead respected)
-  // - cap at ~32 GB to retain compressed oops and avoid excessive GC
-  private def recommendedExecutorMemoryGb(worker: MachineType, executorCores: Int): Int = {
+  private def recommendedExecutorMemoryGb(worker: MachineType, executorCores: Int, policy: TuningPolicy): Int = {
     val variant = variantOf(worker.name).toLowerCase
 
     // Adopt 1/2/4 GB per core by variant (highcpu/standard/highmem)
@@ -639,16 +606,27 @@ object ClusterMachineAndRecipeTuner {
 
   /**
    * Multi-objective machine selection that:
-   * - Satisfies buffered required slots computed with preferred executor cores (8 if enabled).
-   * - Avoids under-capacity (heavy penalty) and extreme oversizing for tiny workloads.
-   * - Prefers fewer, larger workers and reasonable utilization vs desired cores.
+   * - Filters candidates by MachineSelectionPreference (excluded families, allowed families).
+   * - Applies a score bonus for machines matching preferredCores (horizontal scalability).
+   * - Uses QuotaTracker to skip over-quota candidates (soft; falls back if all exhausted).
+   * - Tie-breaks within equal scores using family priority (N2 > N2D > E2 > C3 > C4).
    */
-  private def chooseMachines(clusterName: String, requiredSlotsRaw: Double): (MachineType, MachineType, Int, Int) = {
+  private def chooseMachines(
+    clusterName: String,
+    requiredSlotsRaw: Double,
+    policy: TuningPolicy,
+    quotaTracker: QuotaTracker,
+    pref: MachineSelectionPreference
+  ): (MachineType, MachineType, Int, Int) = {
     val corePref: Int = if (policy.preferEightCoreExecutors) 8 else policy.executorCores
     val reqSlots: Double = math.max(1.0, requiredSlotsRaw * (1.0 + policy.concurrencyBufferPct))
-    val candidates: List[MachineType] = MachineCatalog.defaults
 
-    val evaluated: List[(MachineType, MachineType, Int, Int, Double, Int, Int, Double, Double, Double, Double)] = candidates.map { w =>
+    // Filter by preference: excluded and allowed families
+    val candidates: List[MachineType] = MachineCatalog.defaults
+      .filterNot(m => pref.excludedFamilies.contains(familyOf(m.name)))
+      .filter(m => pref.allowedFamilies.contains(familyOf(m.name)))
+
+    val evaluated = candidates.map { w =>
       val epw: Int = Sizing.executorsPerWorker(w, corePref, policy.executorMemoryGb,
         policy.memoryOverheadRatio, policy.osAndDaemonsReserveGb)
       val workersNeeded: Int = math.max(2, ceil(reqSlots / math.max(1, epw)).toInt)
@@ -656,12 +634,14 @@ object ClusterMachineAndRecipeTuner {
       val capacitySlots: Int = epw * workersNeeded
       val totalCores: Int = w.cores * workersNeeded
       val desiredCores: Double = corePref * reqSlots
-      val coreSufficiency: Double = math.min(1.0, totalCores / math.max(1.0, desiredCores)) // 1 if enough cores
-      val utilization: Double = math.min(1.0, (corePref * reqSlots) / math.max(1.0, totalCores)) // desire / total
-      val cost: Double = penalizedHourlyClusterCost(w, workersNeeded, masterType)
-      val oversizeRatio: Double = totalCores / math.max(1.0, desiredCores) // >1 means oversized
-      val capacityShortfall: Double = math.max(0.0, reqSlots - capacitySlots.toDouble) // slots shortfall
-      (w, masterType, workersNeeded, epw, cost, totalCores, capacitySlots, coreSufficiency, utilization, oversizeRatio, capacityShortfall)
+      val coreSufficiency: Double = math.min(1.0, totalCores / math.max(1.0, desiredCores))
+      val utilization: Double = math.min(1.0, (corePref * reqSlots) / math.max(1.0, totalCores))
+      val cost: Double = penalizedHourlyClusterCost(w, workersNeeded, masterType, policy)
+      val oversizeRatio: Double = totalCores / math.max(1.0, desiredCores)
+      val capacityShortfall: Double = math.max(0.0, reqSlots - capacitySlots.toDouble)
+      val quotaOk: Boolean = quotaTracker.withinQuota(w, workersNeeded, pref)
+      (w, masterType, workersNeeded, epw, cost, totalCores, capacitySlots,
+       coreSufficiency, utilization, oversizeRatio, capacityShortfall, quotaOk)
     }
 
     val minCost = evaluated.map(_._5).min
@@ -671,38 +651,61 @@ object ClusterMachineAndRecipeTuner {
     val maxWorkers = evaluated.map(_._3).max
     val workerRange = math.max(1e-9, maxWorkers - minWorkers)
 
-    val scored = evaluated.map { case (w, m, workers, epw, cost, totalCores, capacitySlots, coreSuff, util, oversize, shortfall) =>
+    val scored = evaluated.map { case (w, m, workers, epw, cost, totalCores, capacitySlots,
+                                       coreSuff, util, oversize, shortfall, quotaOk) =>
       val costNorm = (cost - minCost) / costRange
       val workersNorm = (workers - minWorkers).toDouble / workerRange
       val capacityPenalty = if (shortfall > 0) 100.0 * (shortfall / reqSlots) else 0.0
       val oversizePenalty = if (oversize > 1.5) policy.oversizePenaltyWeight * (oversize - 1.5) else 0.0
+      // Bonus for preferred core count (e.g. 32-core machines for horizontal scalability)
+      val preferredCoreBonus = if (w.cores == pref.preferredCores) -0.10 else 0.0
       val score = policy.costWeight * costNorm +
         policy.workerPenaltyWeight * workersNorm -
         policy.sufficiencyWeight * coreSuff -
         policy.utilizationWeight * util +
-        capacityPenalty + oversizePenalty
-      (w, m, workers, epw, cost, totalCores, capacitySlots, score)
+        capacityPenalty + oversizePenalty +
+        preferredCoreBonus
+      (w, m, workers, epw, cost, totalCores, capacitySlots, score, quotaOk)
     }
 
-    val best = scored.minBy(_._8)
+    // Prefer quota-compliant candidates; fall back to all if none are compliant
+    val admissible = scored.filter(_._9)
+    val pool = if (admissible.nonEmpty) admissible else {
+      logger.warn(s"Cluster '$clusterName': all quota-compliant candidates exhausted; using best available")
+      scored
+    }
+
+    // Sort by score, then by family priority as tie-breaker
+    val best = pool.sortBy { case (w, _, _, _, _, _, _, score, _) =>
+      (score, pref.familyPriority.getOrElse(familyOf(w.name), 99).toDouble)
+    }.head
+
     logger.info(f"Cluster '$clusterName' selection: reqSlotsBuffered=$reqSlots%.2f => " +
       s"worker=${best._1.name}, epw=${best._4}, workers=${best._3}, totalCores=${best._6}, " +
       f"hourlyCost≈${best._5}%.4f EUR, score=${best._8}%.4f")
     (best._1, best._2, best._3, best._4)
   }
 
-  def planCluster(clusterName: String, metrics: Iterable[RecipeMetrics]): ClusterPlan = {
+  def planCluster(
+    clusterName: String,
+    metrics: Iterable[RecipeMetrics],
+    policy: TuningPolicy,
+    quotaTracker: QuotaTracker,
+    pref: MachineSelectionPreference
+  ): ClusterPlan = {
     val maxConc: Int = metrics.flatMap(_.maxConcurrentJobs).reduceOption(_ max _).getOrElse(1)
     val targetExecPerJob: Double = metrics.map(_.p95RunMaxExecutors).reduceOption(_ max _).getOrElse(1.0)
     val requiredSlotsRaw: Double = targetExecPerJob * maxConc
 
-    val (workerType, masterType, workers, epwPref) = chooseMachines(clusterName, requiredSlotsRaw)
+    val (workerType, masterType, workers, epwPref) = chooseMachines(clusterName, requiredSlotsRaw, policy, quotaTracker, pref)
+    quotaTracker.recordCluster(workerType, workers, pref)
+
     val maxExecSupported: Int = workers * epwPref
     logger.info(s"Cluster '$clusterName': execsPerWorker=$epwPref, maxConc=$maxConc, targetExecPerJob=$targetExecPerJob, workers=$workers, maxExecSupported=$maxExecSupported")
     ClusterPlan(clusterName, masterType, workerType, workers, epwPref, maxExecSupported)
   }
 
-  def planManualRecipes(cluster: ClusterPlan, recipes: Iterable[RecipeMetrics]): Seq[RecipePlanManual] = {
+  def planManualRecipes(cluster: ClusterPlan, recipes: Iterable[RecipeMetrics], policy: TuningPolicy): Seq[RecipePlanManual] = {
     val epw8: Int = Sizing.executorsPerWorker(cluster.workerMachineType, 8, policy.executorMemoryGb,
       policy.memoryOverheadRatio, policy.osAndDaemonsReserveGb)
     val maxEightCoreExecs = epw8 * cluster.workers
@@ -724,7 +727,7 @@ object ClusterMachineAndRecipeTuner {
       val canUseEight = policy.preferEightCoreExecutors && (maxEightCoreExecs >= capped)
       val cores: Int = if (canUseEight) 8 else policy.executorCores
 
-      val memGb: Int = recommendedExecutorMemoryGb(cluster.workerMachineType, cores)
+      val memGb: Int = recommendedExecutorMemoryGb(cluster.workerMachineType, cores, policy)
 
       logger.info(s"Manual plan ${cluster.clusterName}/${m.recipe}: base=$base boosted=$boosted desired=$desired capped=$capped cores=$cores memGb=$memGb (max8core=$maxEightCoreExecs)")
       RecipePlanManual(
@@ -736,7 +739,7 @@ object ClusterMachineAndRecipeTuner {
     }
   }
 
-  def planDARecipes(cluster: ClusterPlan, recipes: Iterable[RecipeMetrics]): Seq[RecipePlanDA] = {
+  def planDARecipes(cluster: ClusterPlan, recipes: Iterable[RecipeMetrics], policy: TuningPolicy): Seq[RecipePlanDA] = {
     recipes.toSeq.map { m =>
       val minEraw: Int = policy.daMinFrom match {
         case "avg" => Sizing.roundUp(m.avgExecutorsPerJob)
@@ -751,7 +754,7 @@ object ClusterMachineAndRecipeTuner {
       val maxE: Int = Sizing.clamp(maxRaw, initialE, cluster.maxExecutorsSupported)
 
       val coresPreferred: Int = if (policy.preferEightCoreExecutors) 8 else policy.executorCores
-      val memGb: Int = recommendedExecutorMemoryGb(cluster.workerMachineType, coresPreferred)
+      val memGb: Int = recommendedExecutorMemoryGb(cluster.workerMachineType, coresPreferred, policy)
 
       logger.info(s"DA plan ${cluster.clusterName}/${m.recipe}: min=$minE initial=$initialE max=$maxE cores=${coresPreferred} memGb=$memGb (p95=${m.p95RunMaxExecutors})")
       RecipePlanDA(
@@ -766,38 +769,46 @@ object ClusterMachineAndRecipeTuner {
   }
 
   /**
-   * - Emits <cluster>-manually-tuned.json in a shape aligned with existing cluster configs.
-   * - Adds capacity envelopes and new fields:
-   *   - total_no_of_jobs
-   *   - total_executor_minimum_allocated_memory_gb / total_executor_maximum_allocated_memory_gb per recipe
-   *   - tuner_version: "YYYY_DD_MM" derived from CLI arg date "YYYY_MM_DD"
+   * Emits <cluster>-manually-tuned.json. Optional driverOverride injects driver resource
+   * fields into clusterConf when YARN driver eviction has been detected for this cluster.
    */
-  private def manualJson(cluster: ClusterPlan, plans: Seq[RecipePlanManual], tunerVersion: String): String = {
+  private def manualJson(
+    cluster: ClusterPlan,
+    plans: Seq[RecipePlanManual],
+    tunerVersion: String,
+    driverOverride: Option[DriverResourceOverride]
+  ): String = {
     import Json._
-    // Resolve the autoscaling policy based on num_workers dynamically
     val autoscalingPolicy = AutoscalingPolicyConfig.resolvePolicy(cluster.workers)
     val clusterMaxMemGb: Int = cluster.workers * cluster.workerMachineType.memoryGb
     val clusterMaxCores: Int = cluster.workers * cluster.workerMachineType.cores
     val accumMemGb: Int = plans.map(p => p.sparkExecutorInstances * p.sparkExecutorMemoryGb).sum
     val totalJobs: Int = plans.size
-    val clusterConf: String =
-      obj(
-        cluster.clusterName -> obj(
-          "num_workers" -> num(cluster.workers),
-          "master_machine_type" -> str(cluster.masterMachineType.name),
-          "worker_machine_type" -> str(cluster.workerMachineType.name),
-          "autoscaling_policy" -> str(autoscalingPolicy),
-          "tuner_version" -> str(tunerVersion),
-          "total_no_of_jobs" -> num(totalJobs),
-          "cluster_max_total_memory_gb" -> num(clusterMaxMemGb),
-          "cluster_max_total_cores" -> num(clusterMaxCores),
-          "accumulated_max_total_memory_per_jobs_gb" -> num(accumMemGb)
-        )
-      )
+
+    val baseFields: Seq[(String, String)] = Seq(
+      "num_workers" -> num(cluster.workers),
+      "master_machine_type" -> str(cluster.masterMachineType.name),
+      "worker_machine_type" -> str(cluster.workerMachineType.name),
+      "autoscaling_policy" -> str(autoscalingPolicy),
+      "tuner_version" -> str(tunerVersion),
+      "total_no_of_jobs" -> num(totalJobs),
+      "cluster_max_total_memory_gb" -> num(clusterMaxMemGb),
+      "cluster_max_total_cores" -> num(clusterMaxCores),
+      "accumulated_max_total_memory_per_jobs_gb" -> num(accumMemGb)
+    )
+
+    val driverFields: Seq[(String, String)] = driverOverride.toSeq.flatMap { o =>
+      o.driverMemoryGb.map(m => "driver_memory_gb" -> num(m)).toSeq ++
+      o.driverCores.map(c => "driver_cores" -> num(c)).toSeq ++
+      o.driverMemoryOverheadGb.map(g => "driver_memory_overhead_gb" -> num(g)).toSeq ++
+      Seq("diagnostic_reason" -> str(o.diagnosticReason))
+    }
+
+    val clusterConf: String = obj(cluster.clusterName -> obj((baseFields ++ driverFields): _*))
 
     val recipes: Seq[(String, String)] = plans.map { p =>
       val minTotalMemGb = p.sparkExecutorInstances * p.sparkExecutorMemoryGb
-      val maxTotalMemGb = minTotalMemGb // manual mode: min == max
+      val maxTotalMemGb = minTotalMemGb
       p.recipe -> obj(
         "parallelizationFactor" -> num(5),
         "sparkOptsMap" -> obj(
@@ -813,41 +824,45 @@ object ClusterMachineAndRecipeTuner {
     }
 
     val recipeSparkConf: String = obj(recipes.map { case (k, v) => k -> v }: _*)
-    Json.pretty(
-      obj(
-        "clusterConf" -> clusterConf,
-        "recipeSparkConf" -> recipeSparkConf
-      )
-    )
+    Json.pretty(obj("clusterConf" -> clusterConf, "recipeSparkConf" -> recipeSparkConf))
   }
 
   /**
-   * - Emits <cluster>-auto-scale-tuned.json with dynamic allocation guidance per recipe.
-   * - Adds fields mirrored from manualJson and per-recipe min/max totals.
-   * - Adds tuner_version "YYYY_DD_MM"
+   * Emits <cluster>-auto-scale-tuned.json. Optional driverOverride injected same as manualJson.
    */
-  private def daJson(cluster: ClusterPlan, plans: Seq[RecipePlanDA], tunerVersion: String): String = {
+  private def daJson(
+    cluster: ClusterPlan,
+    plans: Seq[RecipePlanDA],
+    tunerVersion: String,
+    driverOverride: Option[DriverResourceOverride]
+  ): String = {
     import Json._
-    // Resolve the autoscaling policy based on num_workers dynamically
     val autoscalingPolicy = AutoscalingPolicyConfig.resolvePolicy(cluster.workers)
     val clusterMaxMemGb: Int = cluster.workers * cluster.workerMachineType.memoryGb
     val clusterMaxCores: Int = cluster.workers * cluster.workerMachineType.cores
     val accumMemGb: Int = plans.map(p => p.maxExecutors * p.sparkExecutorMemoryGb).sum
     val totalJobs: Int = plans.size
-    val clusterConf: String =
-      obj(
-        cluster.clusterName -> obj(
-          "num_workers" -> num(cluster.workers),
-          "master_machine_type" -> str(cluster.masterMachineType.name),
-          "worker_machine_type" -> str(cluster.workerMachineType.name),
-          "autoscaling_policy" -> str(autoscalingPolicy),
-          "tuner_version" -> str(tunerVersion),
-          "total_no_of_jobs" -> num(totalJobs),
-          "cluster_max_total_memory_gb" -> num(clusterMaxMemGb),
-          "cluster_max_total_cores" -> num(clusterMaxCores),
-          "accumulated_max_total_memory_per_jobs_gb" -> num(accumMemGb)
-        )
-      )
+
+    val baseFields: Seq[(String, String)] = Seq(
+      "num_workers" -> num(cluster.workers),
+      "master_machine_type" -> str(cluster.masterMachineType.name),
+      "worker_machine_type" -> str(cluster.workerMachineType.name),
+      "autoscaling_policy" -> str(autoscalingPolicy),
+      "tuner_version" -> str(tunerVersion),
+      "total_no_of_jobs" -> num(totalJobs),
+      "cluster_max_total_memory_gb" -> num(clusterMaxMemGb),
+      "cluster_max_total_cores" -> num(clusterMaxCores),
+      "accumulated_max_total_memory_per_jobs_gb" -> num(accumMemGb)
+    )
+
+    val driverFields: Seq[(String, String)] = driverOverride.toSeq.flatMap { o =>
+      o.driverMemoryGb.map(m => "driver_memory_gb" -> num(m)).toSeq ++
+      o.driverCores.map(c => "driver_cores" -> num(c)).toSeq ++
+      o.driverMemoryOverheadGb.map(g => "driver_memory_overhead_gb" -> num(g)).toSeq ++
+      Seq("diagnostic_reason" -> str(o.diagnosticReason))
+    }
+
+    val clusterConf: String = obj(cluster.clusterName -> obj((baseFields ++ driverFields): _*))
 
     val recipes: Seq[(String, String)] = plans.map { p =>
       val minTotalMemGb = p.minExecutors * p.sparkExecutorMemoryGb
@@ -870,17 +885,9 @@ object ClusterMachineAndRecipeTuner {
     }
 
     val recipeSparkConf: String = obj(recipes.map { case (k, v) => k -> v }: _*)
-    Json.pretty(
-      obj(
-        "clusterConf" -> clusterConf,
-        "recipeSparkConf" -> recipeSparkConf
-      )
-    )
+    Json.pretty(obj("clusterConf" -> clusterConf, "recipeSparkConf" -> recipeSparkConf))
   }
 
-  /**
-   * Utility for writing a string to a file; creates output directory if needed.
-   */
   private def writeFile(outDir: File, fileName: String, content: String): Unit = {
     if (!outDir.exists()) {
       val ok = outDir.mkdirs()
@@ -907,15 +914,11 @@ object ClusterMachineAndRecipeTuner {
   def sortByTotalActiveMinutes(summaries: Seq[ClusterSummary]): Seq[ClusterSummary] =
     summaries.sortBy(s => (-s.totalActiveMinutes, s.clusterName))
 
-  /**
-   * Common CSV writer (now includes dag_id and TIMER_NAME/TIMER_TIME columns).
-   */
   private def writeCsv(outDir: File, fileName: String, rows: Seq[ClusterSummary]): Unit = {
     if (!outDir.exists()) outDir.mkdirs()
     val f = new File(outDir, fileName)
     val bw = new BufferedWriter(new FileWriter(f))
     try {
-      // Extended header with TIMER_NAME and TIMER_TIME (uppercase as requested)
       bw.write("cluster_name,dag_id,no_of_jobs,num_of_workers,worker_machine_type,master_machine_type,total_active_minutes,estimated_cost_eur,TIMER_NAME,TIMER_TIME\n")
       rows.foreach { s =>
         bw.write(
@@ -926,22 +929,11 @@ object ClusterMachineAndRecipeTuner {
     } finally bw.close()
   }
 
-  /**
-   * writeSummaryCsv:
-   * Emit a concise CSV sorted by num_of_workers desc, then no_of_jobs desc, then clusterName asc.
-   * Includes TIMER_NAME/TIMER_TIME columns.
-   */
   private def writeSummaryCsv(outDir: File, summaries: Seq[ClusterSummary]): Unit = {
     val sorted = summaries.sortBy(s => (-s.numOfWorkers, -s.noOfJobs, s.clusterName))
     writeCsv(outDir, "_clusters-summary.csv", sorted)
   }
 
-  /**
-   * writeSummaryCsvOnlyClustersWf:
-   * Emit a CSV with only clusters whose name starts with "cluster-wf-",
-   * preserving the same ordering as _clusters-summary.csv.
-   * Includes TIMER_NAME/TIMER_TIME columns.
-   */
   private def writeSummaryCsvOnlyClustersWf(outDir: File, summaries: Seq[ClusterSummary]): Unit = {
     val sorted = summaries.sortBy(s => (-s.numOfWorkers, -s.noOfJobs, s.clusterName))
     val filtered = sorted.filter(_.clusterName.startsWith("cluster-wf-"))
@@ -969,14 +961,7 @@ object ClusterMachineAndRecipeTuner {
   }
 
   /**
-   * New: Global cores-and-machines CSV aggregated by worker MACHINE_TYPE.
-   * Columns:
-   * - MACHINE_TYPE
-   * - ESTIMATED_MAX_NO_OF_WORKERS (sum of num_of_workers across clusters using MACHINE_TYPE)
-   * - ESTIMATED_MAX_NO_OF_CORES (ESTIMATED_MAX_NO_OF_WORKERS * machine cores)
-   * - REAL_MAX_NO_OF_WORKERS (sum of max_number_of_workers_from_policy for each cluster, derived via resolvePolicy brackets)
-   * - REAL_MAX_NO_OF_CORES (REAL_MAX_NO_OF_WORKERS * machine cores)
-   * - CLUSTERS_LIST (semicolon-separated list of clusters contributing to the aggregation)
+   * Global cores-and-machines CSV aggregated by worker MACHINE_TYPE.
    */
   private def writeGlobalCoresAndMachinesCsv(outDir: File, summaries: Seq[ClusterSummary]): Unit = {
     if (!outDir.exists()) outDir.mkdirs()
@@ -985,11 +970,9 @@ object ClusterMachineAndRecipeTuner {
     try {
       bw.write("MACHINE_TYPE, ESTIMATED_MAX_NO_OF_WORKERS, ESTIMATED_MAX_NO_OF_CORES, REAL_MAX_NO_OF_WORKERS, REAL_MAX_NO_OF_CORES, CLUSTERS_LIST\n")
 
-      // Group by worker MACHINE_TYPE
       val grouped = summaries.groupBy(_.workerMachineType)
 
       grouped.toSeq.sortBy { case (mt, clusters) =>
-        // Sort descending by estimated cores to keep top at top (optional)
         val cores = MachineCatalog.byName(mt).map(_.cores).getOrElse(0)
         -clusters.map(_.numOfWorkers).sum * cores
       }.foreach { case (machineTypeName, clusterRows) =>
@@ -999,7 +982,6 @@ object ClusterMachineAndRecipeTuner {
         val estimatedWorkersSum: Int = clusterRows.map(_.numOfWorkers).sum
         val estimatedCoresSum: Int = estimatedWorkersSum * coresPerWorker
 
-        // For each cluster, map its num_of_workers to the policy bracket's max
         val realMaxWorkersSum: Int = clusterRows.map { c =>
           AutoscalingPolicyConfig.maxWorkersForCluster(c.numOfWorkers)
         }.sum
@@ -1018,11 +1000,13 @@ object ClusterMachineAndRecipeTuner {
    * run:
    * - Loads metrics (flattened or individual).
    * - Loads dag_id map and timer map.
-   * - Plans cluster shape and recipe tuning for each cluster.
-   * - Writes JSONs and summary CSV/JSON.
+   * - Loads b14 diagnostics and computes driver resource overrides.
+   * - Plans cluster shape and recipe tuning for each cluster (quota-aware).
+   * - Writes per-cluster JSONs, all existing summary CSVs, and new generation summary.
    */
-  def run(cfg: Config): Unit = {
-    logger.info(s"Starting ClusterMachineAndRecipeTuner. inputDir=${cfg.inputDir.getPath} outputDir=${cfg.outputDir.getPath} flattened=${cfg.useFlattened}")
+  def run(cfg: Config, strategy: TuningStrategy = DefaultTuningStrategy): Unit = {
+    logger.info(s"Starting ClusterMachineAndRecipeTuner. inputDir=${cfg.inputDir.getPath} outputDir=${cfg.outputDir.getPath} flattened=${cfg.useFlattened} strategy=${strategy.name}")
+
     val metricsByKey: Map[(String, String), RecipeMetrics] = loadMetrics(cfg)
     if (metricsByKey.isEmpty) {
       logger.warn("No metrics loaded. No JSONs will be produced. Ensure CSVs exist in the input directory and the query was executed.")
@@ -1031,25 +1015,37 @@ object ClusterMachineAndRecipeTuner {
     val metricsByCluster = metricsByKey.values.groupBy(_.cluster)
     logger.info(s"Found ${metricsByCluster.size} clusters in metrics.")
 
-    // Load DAG_ID per cluster mapping once
     val dagByCluster: Map[String, String] = loadDagClusterRelationshipMap()
-
-    // Load TIMER_NAME/TIME per cluster mapping once
     val timerByCluster: Map[String, (String, String)] = loadDagClusterCreationTimeMap()
-
-    // Prepare tuner_version once from CLI date
     val tunerVersion: String = toTunerVersion(cfg.date)
 
-    // 2. ClusterSummary Entries
-    val summaries: ArrayBuffer[ClusterSummary] = scala.collection.mutable.ArrayBuffer.empty[ClusterSummary]
+    // Load b14 diagnostics (computed once, before the cluster-planning loop)
+    val b14File = new File(cfg.inputDir, "b14_clusters_with_nonzero_exit_codes.csv")
+    val allDiagnosticSignals: Map[String, Seq[DiagnosticSignal]] =
+      ClusterDiagnosticsProcessor.detectSignals(
+        ClusterDiagnosticsProcessor.loadExitCodes(b14File)
+      )
+    val driverOverrides: Map[String, DriverResourceOverride] =
+      ClusterDiagnosticsProcessor.computeOverrides(allDiagnosticSignals)
+
+    // Derive policy and quota tracker from the active strategy
+    val defaultMachine: MachineType = MachineCatalog.byName("e2-standard-8").get
+    val policy: TuningPolicy = strategy.toTuningPolicy(defaultMachine)
+    val quotaTracker = new QuotaTracker(strategy.quotas)
+
+    val summaries: ArrayBuffer[ClusterSummary] = ArrayBuffer.empty[ClusterSummary]
+    val summaryEntries: ArrayBuffer[GenerationSummaryEntry] = ArrayBuffer.empty[GenerationSummaryEntry]
+
     metricsByCluster.foreach { case (clusterName, recMetrics) =>
       logger.info(s"Planning cluster: $clusterName with ${recMetrics.size} recipes.")
-      val clusterPlan: ClusterPlan = planCluster(clusterName, recMetrics)
-      val manualPlans: Seq[RecipePlanManual] = planManualRecipes(clusterPlan, recMetrics)
-      val daPlans: Seq[RecipePlanDA] = planDARecipes(clusterPlan, recMetrics)
+      val clusterPlan: ClusterPlan = planCluster(clusterName, recMetrics, policy, quotaTracker, strategy.machinePreference)
+      val manualPlans: Seq[RecipePlanManual] = planManualRecipes(clusterPlan, recMetrics, policy)
+      val daPlans: Seq[RecipePlanDA] = planDARecipes(clusterPlan, recMetrics, policy)
 
-      val manualJsonStr: String = manualJson(clusterPlan, manualPlans, tunerVersion)
-      val daJsonStr: String = daJson(clusterPlan, daPlans, tunerVersion)
+      val driverOverride: Option[DriverResourceOverride] = driverOverrides.get(clusterName)
+
+      val manualJsonStr: String = manualJson(clusterPlan, manualPlans, tunerVersion, driverOverride)
+      val daJsonStr: String = daJson(clusterPlan, daPlans, tunerVersion, driverOverride)
 
       writeFile(cfg.outputDir, s"$clusterName-manually-tuned.json", manualJsonStr)
       writeFile(cfg.outputDir, s"$clusterName-auto-scale-tuned.json", daJsonStr)
@@ -1059,9 +1055,7 @@ object ClusterMachineAndRecipeTuner {
       val estimatedCost: Double = hourlyCost * (totalMinutes / 60.0)
 
       val resolvedDagId: String = dagByCluster.getOrElse(clusterName, "UNKNOWN_DAG_ID")
-
-      val (resolvedTimerName, resolvedTimerTime) =
-        timerByCluster.getOrElse(clusterName, ("ZERO_TIMER", "00:00"))
+      val (resolvedTimerName, resolvedTimerTime) = timerByCluster.getOrElse(clusterName, ("ZERO_TIMER", "00:00"))
 
       summaries += ClusterSummary(
         clusterName = clusterName,
@@ -1075,20 +1069,49 @@ object ClusterMachineAndRecipeTuner {
         timerName = resolvedTimerName,
         timerTime = resolvedTimerTime
       )
+
+      val signals: Seq[String] = allDiagnosticSignals.getOrElse(clusterName, Seq.empty).map(_.description)
+
+      summaryEntries += GenerationSummaryEntry(
+        clusterName          = clusterName,
+        workerMachineType    = clusterPlan.workerMachineType.name,
+        workerFamily         = familyOf(clusterPlan.workerMachineType.name),
+        numWorkers           = clusterPlan.workers,
+        maxWorkersFromPolicy = AutoscalingPolicyConfig.maxWorkersForCluster(clusterPlan.workers),
+        totalCores           = clusterPlan.workers * clusterPlan.workerMachineType.cores,
+        maxTotalCores        = AutoscalingPolicyConfig.maxWorkersForCluster(clusterPlan.workers) * clusterPlan.workerMachineType.cores,
+        diagnosticSignals    = signals,
+        strategyName         = strategy.name,
+        biasMode             = strategy.biasMode.name,
+        topologyPreset       = strategy.executorTopology.label
+      )
     }
 
-    // 3. Write Cluster Config summary
+    // All existing _clusters-*.csv outputs — written identically to pre-refactoring behaviour
     writeSummaryCsv(cfg.outputDir, summaries.toSeq)
     writeSummaryCsvOnlyClustersWf(cfg.outputDir, summaries.toSeq)
-
-    // 4. Additional ranked summaries (written with timer columns via writeCsv)
     writeSummaryCsvTopJobs(cfg.outputDir, summaries.toSeq)
     writeSummaryCsvNumOfWorkers(cfg.outputDir, summaries.toSeq)
     writeSummaryCsvEstimatedCostEur(cfg.outputDir, summaries.toSeq)
     writeSummaryCsvTotalActiveMinutes(cfg.outputDir, summaries.toSeq)
-
-    // 5. Global cores-and-machines CSV
     writeGlobalCoresAndMachinesCsv(cfg.outputDir, summaries.toSeq)
+
+    // New: generation summary
+    val genSummary = GenerationSummary(
+      generatedAt                     = java.time.Instant.now().toString,
+      date                            = cfg.date,
+      strategyName                    = strategy.name,
+      biasMode                        = strategy.biasMode.name,
+      topologyPreset                  = strategy.executorTopology.label,
+      quotas                          = strategy.quotas,
+      totalClusters                   = summaryEntries.size,
+      totalPredictedNodes             = summaryEntries.map(_.numWorkers + 1).sum,
+      totalMaxNodes                   = summaryEntries.map(_.maxWorkersFromPolicy + 1).sum,
+      quotaUsageByFamily              = quotaTracker.usageSummary,
+      clustersWithDiagnosticOverrides = driverOverrides.size,
+      entries                         = summaryEntries.toSeq
+    )
+    GenerationSummaryWriter.writeSummary(cfg.outputDir, genSummary)
 
     logger.info("ClusterMachineAndRecipeTuner finished successfully.")
   }
@@ -1097,170 +1120,75 @@ object ClusterMachineAndRecipeTuner {
    * CLI Main Method
    * - Requires the date in `YYYY_MM_DD` format.
    * - Optional `flattened=false` flag to switch to non-flattened mode.
+   * - Optional `--strategy=<name>` to select tuning strategy (default, cost_biased, performance_biased).
+   * - Optional `--topology=<label>` to override executor topology (e.g. 8cx2GBpc).
    */
   def main(args: Array[String]): Unit = {
-    // Parse CLI arguments (date and optional useFlattened flag)
     val dateArg = args.find(_.matches("\\d{4}_\\d{2}_\\d{2}"))
     val useFlattened = !args.exists(_.toLowerCase.contains("flattened=false"))
 
-    // Ensure `YYYY_MM_DD` date is provided
     if (dateArg.isEmpty) {
       logger.error("A date argument in YYYY_MM_DD format must be provided (e.g., 2025_12_20).")
       sys.exit(1)
     }
 
-    // Extract validated date and construct Config
+    // Resolve strategy from optional --strategy=<name> arg
+    val strategyName = args.collectFirst { case a if a.startsWith("--strategy=") => a.stripPrefix("--strategy=") }
+    val baseStrategy: TuningStrategy = strategyName.flatMap(TuningStrategy.fromName).getOrElse(DefaultTuningStrategy)
+
+    // Optionally override executor topology via --topology=<label>
+    val topoLabel = args.collectFirst { case a if a.startsWith("--topology=") => a.stripPrefix("--topology=") }
+    val strategy: TuningStrategy = topoLabel.flatMap(ExecutorTopologyPreset.fromLabel) match {
+      case Some(topo) =>
+        // Wrap the base strategy to override the topology only
+        new TuningStrategy {
+          val name                  = s"${baseStrategy.name}+${topo.label}"
+          val biasMode              = baseStrategy.biasMode
+          val executorTopology      = topo
+          val machinePreference     = baseStrategy.machinePreference
+          val quotas                = baseStrategy.quotas
+          val capHitBoostPct        = baseStrategy.capHitBoostPct
+          val capHitThreshold       = baseStrategy.capHitThreshold
+          val preferMaxWorkers      = baseStrategy.preferMaxWorkers
+          val perWorkerPenaltyPct   = baseStrategy.perWorkerPenaltyPct
+          val memoryOverheadRatio   = baseStrategy.memoryOverheadRatio
+          val osAndDaemonsReserveGb = baseStrategy.osAndDaemonsReserveGb
+          val manualInstancesFrom   = baseStrategy.manualInstancesFrom
+          val minExecutorInstances  = baseStrategy.minExecutorInstances
+          val daMinFrom             = baseStrategy.daMinFrom
+          val daInitialEqualsMin    = baseStrategy.daInitialEqualsMin
+        }
+      case None => baseStrategy
+    }
+
     val date = dateArg.get
     val cfg = Config(useFlattened = useFlattened, date = date)
 
-    // Log configuration and run the process
-    logger.info(s"Starting ClusterMachineAndRecipeTuner with Config: $cfg")
-    run(cfg)
+    logger.info(s"Starting ClusterMachineAndRecipeTuner with Config: $cfg, strategy=${strategy.name}")
+    run(cfg, strategy)
     println(s"Input directory: ${cfg.inputDir}")
     println(s"Output directory: ${cfg.outputDir}")
   }
 
   object AutoscalingPolicyConfig {
 
-    /**
-     * Dynamically resolves the autoscaling policy based on the "num_workers" of the cluster.
-     *
-     * @param numWorkers The number of workers for the cluster.
-     * @return The name of the autoscaling policy based on the worker range.
-     */
     def resolvePolicy(numWorkers: Int): String = {
       numWorkers match {
-        case n if n <= 4 => "small-workload-autoscaling" // S (Small): Up to 4 workers
-        case n if n <= 6 => "medium-workload-autoscaling" // M (Medium): Up to 6 workers
-        case n if n <= 8 => "large-workload-autoscaling" // L (Large): Up to 8 workers
-        case n if n <= 10 => "extra-large-workload-autoscaling" // XL (Extra Large): Up to 10 workers
-        case _ => "extra-large-workload-autoscaling" // Default policy
+        case n if n <= 4 => "small-workload-autoscaling"
+        case n if n <= 6 => "medium-workload-autoscaling"
+        case n if n <= 8 => "large-workload-autoscaling"
+        case n if n <= 10 => "extra-large-workload-autoscaling"
+        case _ => "extra-large-workload-autoscaling"
       }
     }
 
-    /**
-     * Returns the maximum number of workers allowed by the policy bracket for a given cluster size.
-     * For sizes > 10 (mapped to the "extra-large-workload-autoscaling" policy), we conservatively use the
-     * current number of workers as the cap (no explicit upper bound defined).
-     *
-     * Check: ############################################################
-     * ## Autoscaling Policies
-     * ############################################################
-     *
-     * resource "google_dataproc_autoscaling_policy" "policy_s" {
-     * project   = var.project_id
-     * location  = var.region
-     * policy_id = "small-workload-autoscaling"
-     *
-     * worker_config {
-     * min_instances = 2  # Minimum baseline
-     * max_instances = 4  # Up to 4 workers
-     * weight        = 2
-     * }
-     *
-     * secondary_worker_config {
-     * min_instances = 0
-     * max_instances = 0
-     * weight        = 1
-     * }
-     *
-     * basic_algorithm {
-     * cooldown_period = "120s"
-     * yarn_config {
-     * graceful_decommission_timeout = "120s"
-     * scale_up_factor               = 1.0
-     * scale_down_factor             = 0.5
-     * }
-     * }
-     * }
-     *
-     * resource "google_dataproc_autoscaling_policy" "policy_m" {
-     * project   = var.project_id
-     * location  = var.region
-     * policy_id = "medium-workload-autoscaling"
-     *
-     * worker_config {
-     * min_instances = 2  # Minimum baseline
-     * max_instances = 6  # Up to 6 workers
-     * weight        = 2
-     * }
-     *
-     * secondary_worker_config {
-     * min_instances = 0
-     * max_instances = 0
-     * weight        = 1
-     * }
-     *
-     * basic_algorithm {
-     * cooldown_period = "120s"
-     * yarn_config {
-     * graceful_decommission_timeout = "120s"
-     * scale_up_factor               = 1.0
-     * scale_down_factor             = 0.5
-     * }
-     * }
-     * }
-     *
-     * resource "google_dataproc_autoscaling_policy" "policy_l" {
-     * project   = var.project_id
-     * location  = var.region
-     * policy_id = "large-workload-autoscaling"
-     *
-     * worker_config {
-     * min_instances = 3  # Minimum baseline
-     * max_instances = 8  # Up to 8 workers
-     * weight        = 2
-     * }
-     *
-     * secondary_worker_config {
-     * min_instances = 0
-     * max_instances = 0
-     * weight        = 1
-     * }
-     *
-     * basic_algorithm {
-     * cooldown_period = "120s"
-     * yarn_config {
-     * graceful_decommission_timeout = "120s"
-     * scale_up_factor               = 1.0
-     * scale_down_factor             = 0.5
-     * }
-     * }
-     * }
-     *
-     * resource "google_dataproc_autoscaling_policy" "policy_xl" {
-     * project   = var.project_id
-     * location  = var.region
-     * policy_id = "extra-large-workload-autoscaling"
-     *
-     * worker_config {
-     * min_instances = 3  # Minimum baseline
-     * max_instances = 15  # Up to 15 workers
-     * weight        = 2
-     * }
-     *
-     * secondary_worker_config {
-     * min_instances = 0
-     * max_instances = 0
-     * weight        = 1
-     * }
-     *
-     * basic_algorithm {
-     * cooldown_period = "300s"
-     * yarn_config {
-     * graceful_decommission_timeout = "1800s"
-     * scale_up_factor               = 1.0
-     * scale_down_factor             = 0.1
-     * }
-     * }
-     */
     def maxWorkersForCluster(numWorkers: Int): Int = {
       numWorkers match {
         case n if n <= 4 => 4
         case n if n <= 6 => 6
         case n if n <= 8 => 8
         case n if n <= 10 => 10
-        case n => n // "extra-large-workload-autoscaling" : fallback to observed workers as lower-bound cap
+        case n => n
       }
     }
   }
