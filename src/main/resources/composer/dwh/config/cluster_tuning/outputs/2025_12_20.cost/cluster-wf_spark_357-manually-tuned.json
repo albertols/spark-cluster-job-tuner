@@ -1,0 +1,101 @@
+{
+  "clusterConf": {
+    "cluster-wf_spark_357": {
+      "num_workers": 2,
+      "master_machine_type": "e2-highcpu-32",
+      "worker_machine_type": "e2-highcpu-32",
+      "autoscaling_policy": "small-workload-autoscaling",
+      "tuner_version": "2025_20_12",
+      "total_no_of_jobs": 7,
+      "cluster_max_total_memory_gb": 128,
+      "cluster_max_total_cores": 64,
+      "accumulated_max_total_memory_per_jobs_gb": 112
+    }
+  },
+  "recipeSparkConf": {
+    "_SPARK_JOB_recipe_filename_4554.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "2",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 16,
+      "total_executor_maximum_allocated_memory_gb": 16
+    },
+    "_SPARK_JOB_recipe_filename_4555.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "2",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 16,
+      "total_executor_maximum_allocated_memory_gb": 16
+    },
+    "_SPARK_JOB_recipe_filename_4517.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "2",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 16,
+      "total_executor_maximum_allocated_memory_gb": 16
+    },
+    "_SPARK_JOB_recipe_filename_4590.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "2",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 16,
+      "total_executor_maximum_allocated_memory_gb": 16
+    },
+    "_SPARK_JOB_recipe_filename_4912.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "2",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 16,
+      "total_executor_maximum_allocated_memory_gb": 16
+    },
+    "_SPARK_JOB_recipe_filename_4553.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "2",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 16,
+      "total_executor_maximum_allocated_memory_gb": 16
+    },
+    "_SPARK_JOB_recipe_filename_4549.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "2",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 16,
+      "total_executor_maximum_allocated_memory_gb": 16
+    }
+  }
+}

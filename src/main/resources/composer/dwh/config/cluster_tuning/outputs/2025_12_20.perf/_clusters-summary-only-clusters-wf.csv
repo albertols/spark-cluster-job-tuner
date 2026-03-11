@@ -1,0 +1,1 @@
+cluster_name,dag_id,no_of_jobs,num_of_workers,worker_machine_type,master_machine_type,total_active_minutes,estimated_cost_eur,TIMER_NAME,TIMER_TIME
