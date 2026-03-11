@@ -659,21 +659,37 @@ object ClusterMachineAndRecipeTuner {
       val oversizePenalty = if (oversize > 1.5) policy.oversizePenaltyWeight * (oversize - 1.5) else 0.0
       // Bonus for preferred core count (e.g. 32-core machines for horizontal scalability)
       val preferredCoreBonus = if (w.cores == pref.preferredCores) -0.10 else 0.0
+      // Dynamic quota-balance penalty: rises as a family's proportional usage (usedCores/quota)
+      // increases, naturally distributing allocations across N2/N2D/E2 in ratio to quota limits.
+      // At equal proportional fill (e.g. N2=50%, N2D=50%, E2=50%) all penalties are equal, so
+      // cost decides the winner.  As one family overflows its quota, its pressure > 1.0 pushes
+      // the scorer toward less-pressured families.
+      val quotaBalancePenalty = pref.familyPriorityWeight * quotaTracker.quotaPressure(familyOf(w.name))
       val score = policy.costWeight * costNorm +
         policy.workerPenaltyWeight * workersNorm -
         policy.sufficiencyWeight * coreSuff -
         policy.utilizationWeight * util +
         capacityPenalty + oversizePenalty +
-        preferredCoreBonus
+        preferredCoreBonus + quotaBalancePenalty
       (w, m, workers, epw, cost, totalCores, capacitySlots, score, quotaOk)
     }
 
-    // Prefer quota-compliant candidates; fall back to all if none are compliant
-    val admissible = scored.filter(_._9)
-    val pool = if (admissible.nonEmpty) admissible else {
-      logger.warn(s"Cluster '$clusterName': all quota-compliant candidates exhausted; using best available")
-      scored
-    }
+    // Admission pools — applied in priority order:
+    //   1. soft-admissible: passes both hard constraints AND core quota (preferred)
+    //   2. hard-admissible: passes hard constraints only (excluded families, C3/C4 caps) — used
+    //      when core quota is exhausted but we must still respect cluster-count caps
+    //   3. full pool: last resort, logged as warning (should only happen with severely under-
+    //      provisioned quotas relative to fleet size)
+    val admissible     = scored.filter(_._9)   // withinQuota (soft)
+    val hardAdmissible = scored.filterNot(t => quotaTracker.isHardBlocked(t._1, pref))
+    val pool = if (admissible.nonEmpty) admissible
+               else if (hardAdmissible.nonEmpty) {
+                 logger.warn(s"Cluster '$clusterName': core quota exhausted for all families; selecting within hard constraints")
+                 hardAdmissible
+               } else {
+                 logger.warn(s"Cluster '$clusterName': all constraints exhausted; using best available (check quotas)")
+                 scored
+               }
 
     // Sort by score, then by family priority as tie-breaker
     val best = pool.sortBy { case (w, _, _, _, _, _, _, score, _) =>
@@ -779,6 +795,10 @@ object ClusterMachineAndRecipeTuner {
     driverOverride: Option[DriverResourceOverride]
   ): String = {
     import Json._
+    // When a YARN eviction override is present, use the promoted master machine type.
+    val effectiveMaster: MachineType =
+      driverOverride.flatMap(_.promotedMasterMachineType).getOrElse(cluster.masterMachineType)
+
     val autoscalingPolicy = AutoscalingPolicyConfig.resolvePolicy(cluster.workers)
     val clusterMaxMemGb: Int = cluster.workers * cluster.workerMachineType.memoryGb
     val clusterMaxCores: Int = cluster.workers * cluster.workerMachineType.cores
@@ -787,7 +807,7 @@ object ClusterMachineAndRecipeTuner {
 
     val baseFields: Seq[(String, String)] = Seq(
       "num_workers" -> num(cluster.workers),
-      "master_machine_type" -> str(cluster.masterMachineType.name),
+      "master_machine_type" -> str(effectiveMaster.name),
       "worker_machine_type" -> str(cluster.workerMachineType.name),
       "autoscaling_policy" -> str(autoscalingPolicy),
       "tuner_version" -> str(tunerVersion),
@@ -837,6 +857,9 @@ object ClusterMachineAndRecipeTuner {
     driverOverride: Option[DriverResourceOverride]
   ): String = {
     import Json._
+    val effectiveMaster: MachineType =
+      driverOverride.flatMap(_.promotedMasterMachineType).getOrElse(cluster.masterMachineType)
+
     val autoscalingPolicy = AutoscalingPolicyConfig.resolvePolicy(cluster.workers)
     val clusterMaxMemGb: Int = cluster.workers * cluster.workerMachineType.memoryGb
     val clusterMaxCores: Int = cluster.workers * cluster.workerMachineType.cores
@@ -845,7 +868,7 @@ object ClusterMachineAndRecipeTuner {
 
     val baseFields: Seq[(String, String)] = Seq(
       "num_workers" -> num(cluster.workers),
-      "master_machine_type" -> str(cluster.masterMachineType.name),
+      "master_machine_type" -> str(effectiveMaster.name),
       "worker_machine_type" -> str(cluster.workerMachineType.name),
       "autoscaling_policy" -> str(autoscalingPolicy),
       "tuner_version" -> str(tunerVersion),
@@ -1042,7 +1065,12 @@ object ClusterMachineAndRecipeTuner {
       val manualPlans: Seq[RecipePlanManual] = planManualRecipes(clusterPlan, recMetrics, policy)
       val daPlans: Seq[RecipePlanDA] = planDARecipes(clusterPlan, recMetrics, policy)
 
-      val driverOverride: Option[DriverResourceOverride] = driverOverrides.get(clusterName)
+      // Enrich the pre-computed override with the promoted master machine type, which
+      // depends on the cluster plan's workerMachineType (resolved in the line above).
+      val driverOverride: Option[DriverResourceOverride] = driverOverrides.get(clusterName).map { o =>
+        val promoted = ClusterDiagnosticsProcessor.promoteMasterForEviction(clusterPlan.masterMachineType)
+        o.copy(promotedMasterMachineType = Some(promoted))
+      }
 
       val manualJsonStr: String = manualJson(clusterPlan, manualPlans, tunerVersion, driverOverride)
       val daJsonStr: String = daJson(clusterPlan, daPlans, tunerVersion, driverOverride)

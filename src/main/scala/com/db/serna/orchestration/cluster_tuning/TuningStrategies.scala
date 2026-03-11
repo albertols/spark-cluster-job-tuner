@@ -92,7 +92,13 @@ final case class MachineSelectionPreference(
   familyPriority: Map[String, Int],
   c3MaxClusters: Int,
   c4MaxClusters: Int,
-  excludedFamilies: Set[String]
+  excludedFamilies: Set[String],
+  // Weight applied to the dynamic quota-pressure term in the scoring formula.
+  // Penalty = familyPriorityWeight * (usedCores / quotaCores) per family.
+  // Families that have consumed more of their proportional quota receive a higher penalty,
+  // distributing allocations across N2/N2D/E2 roughly in ratio to their quota limits.
+  // 0.20 keeps quota balancing competitive with cost while avoiding lock-in to any one family.
+  familyPriorityWeight: Double = 0.20
 )
 
 object MachineSelectionPreference {

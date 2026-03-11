@@ -2,8 +2,8 @@
   "clusterConf": {
     "cluster-wf_spark_327": {
       "num_workers": 7,
-      "master_machine_type": "e2-highcpu-32",
-      "worker_machine_type": "e2-highcpu-32",
+      "master_machine_type": "n2-highcpu-32",
+      "worker_machine_type": "n2-highcpu-32",
       "autoscaling_policy": "large-workload-autoscaling",
       "tuner_version": "2025_20_12",
       "total_no_of_jobs": 3,

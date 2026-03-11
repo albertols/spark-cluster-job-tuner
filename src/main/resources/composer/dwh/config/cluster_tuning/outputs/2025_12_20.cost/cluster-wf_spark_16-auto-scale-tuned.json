@@ -1,10 +1,10 @@
 {
   "clusterConf": {
     "cluster-wf_spark_16": {
-      "num_workers": 8,
-      "master_machine_type": "c4-highcpu-288",
-      "worker_machine_type": "c4-highcpu-288",
-      "autoscaling_policy": "large-workload-autoscaling",
+      "num_workers": 24,
+      "master_machine_type": "n2-highcpu-96",
+      "worker_machine_type": "n2-highcpu-96",
+      "autoscaling_policy": "extra-large-workload-autoscaling",
       "tuner_version": "2025_20_12",
       "total_no_of_jobs": 152,
       "cluster_max_total_memory_gb": 4608,

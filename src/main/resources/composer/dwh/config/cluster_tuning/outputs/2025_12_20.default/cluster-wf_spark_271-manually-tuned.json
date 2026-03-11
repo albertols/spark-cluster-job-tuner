@@ -2,14 +2,14 @@
   "clusterConf": {
     "cluster-wf_spark_271": {
       "num_workers": 2,
-      "master_machine_type": "n2d-highcpu-2",
-      "worker_machine_type": "n2d-highcpu-2",
+      "master_machine_type": "n2-highcpu-4",
+      "worker_machine_type": "n2-highcpu-4",
       "autoscaling_policy": "small-workload-autoscaling",
       "tuner_version": "2025_20_12",
       "total_no_of_jobs": 1,
-      "cluster_max_total_memory_gb": 8,
-      "cluster_max_total_cores": 4,
-      "accumulated_max_total_memory_per_jobs_gb": 1
+      "cluster_max_total_memory_gb": 16,
+      "cluster_max_total_cores": 8,
+      "accumulated_max_total_memory_per_jobs_gb": 3
     }
   },
   "recipeSparkConf": {
@@ -20,10 +20,10 @@
         "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
         "spark.executor.instances": "1",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "3g"
       },
-      "total_executor_minimum_allocated_memory_gb": 1,
-      "total_executor_maximum_allocated_memory_gb": 1
+      "total_executor_minimum_allocated_memory_gb": 3,
+      "total_executor_maximum_allocated_memory_gb": 3
     }
   }
 }

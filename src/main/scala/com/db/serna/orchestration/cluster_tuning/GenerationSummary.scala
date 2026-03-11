@@ -21,6 +21,16 @@ class QuotaTracker(quotas: Quotas) {
   private var c3ClusterCount: Int = 0
   private var c4ClusterCount: Int = 0
 
+  // Returns true if this machine is permanently blocked regardless of core quota.
+  // Hard constraints: excluded families and C3/C4 cluster-count caps.
+  // These are NEVER bypassed, even when the soft-quota fallback is triggered.
+  def isHardBlocked(machine: MachineType, pref: MachineSelectionPreference): Boolean = {
+    val family = familyOf(machine.name)
+    pref.excludedFamilies.contains(family) ||
+      (family == "c3" && c3ClusterCount >= pref.c3MaxClusters) ||
+      (family == "c4" && c4ClusterCount >= pref.c4MaxClusters)
+  }
+
   // Returns true if adding this machine×workers combination stays within quota.
   def withinQuota(machine: MachineType, workers: Int, pref: MachineSelectionPreference): Boolean = {
     val family = familyOf(machine.name)
@@ -58,6 +68,15 @@ class QuotaTracker(quotas: Quotas) {
     if (family == "c3") c3ClusterCount += 1
     if (family == "c4") c4ClusterCount += 1
     logger.debug(s"QuotaTracker: recorded $family +$addedCores cores (total=${usedCores(family)}, c3=$c3ClusterCount, c4=$c4ClusterCount)")
+  }
+
+  // Returns proportional quota usage for a family: usedCores / quotaCores.
+  // Returns 0.0 when quota is 0 (unlimited). Exceeds 1.0 when over quota.
+  // Used in chooseMachines to penalise families proportionally as they fill relative to quota,
+  // naturally distributing allocations across N2/N2D/E2 in proportion to their quota limits.
+  def quotaPressure(family: String): Double = {
+    val quota = quotas.forFamily(family)
+    if (quota <= 0) 0.0 else usedCores(family).toDouble / quota
   }
 
   // family -> (usedCores, quotaCores)

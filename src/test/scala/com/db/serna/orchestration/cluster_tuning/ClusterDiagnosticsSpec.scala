@@ -139,6 +139,73 @@ class ClusterDiagnosticsSpec extends AnyFunSuite with Matchers {
     records.head.clusterName shouldBe "cluster-a"
   }
 
+  // ── promoteMasterForEviction ──────────────────────────────────────────────
+
+  test("promoteMasterForEviction: n2-highcpu-32 → n2-standard-32 (variant step up)") {
+    val m = MachineCatalog.byName("n2-highcpu-32").get
+    ClusterDiagnosticsProcessor.promoteMasterForEviction(m).name shouldBe "n2-standard-32"
+  }
+
+  test("promoteMasterForEviction: n2-standard-32 → n2-highmem-32 (variant step up)") {
+    val m = MachineCatalog.byName("n2-standard-32").get
+    ClusterDiagnosticsProcessor.promoteMasterForEviction(m).name shouldBe "n2-highmem-32"
+  }
+
+  test("promoteMasterForEviction: n2-highmem-32 → n2-highmem-48 (variant exhausted, core step up)") {
+    val m = MachineCatalog.byName("n2-highmem-32").get
+    ClusterDiagnosticsProcessor.promoteMasterForEviction(m).name shouldBe "n2-highmem-48"
+  }
+
+  test("promoteMasterForEviction: e2-standard-32 → n2-standard-32 (e2-highmem-32 absent, cross-family)") {
+    // e2-highmem only goes up to 16 cores in the catalog — so e2-standard-32 promotes to n2
+    val m = MachineCatalog.byName("e2-standard-32").get
+    val promoted = ClusterDiagnosticsProcessor.promoteMasterForEviction(m)
+    promoted.name shouldBe "n2-standard-32"
+  }
+
+  test("promoteMasterForEviction: e2-standard-16 → e2-highmem-16 (variant step; e2-highmem-16 exists)") {
+    val m = MachineCatalog.byName("e2-standard-16").get
+    ClusterDiagnosticsProcessor.promoteMasterForEviction(m).name shouldBe "e2-highmem-16"
+  }
+
+  test("promoteMasterForEviction: e2-highcpu-8 → e2-standard-8 (variant step)") {
+    val m = MachineCatalog.byName("e2-highcpu-8").get
+    ClusterDiagnosticsProcessor.promoteMasterForEviction(m).name shouldBe "e2-standard-8"
+  }
+
+  test("promoteMasterForEviction: n2d-standard-32 → n2d-highmem-32 (variant step)") {
+    val m = MachineCatalog.byName("n2d-standard-32").get
+    ClusterDiagnosticsProcessor.promoteMasterForEviction(m).name shouldBe "n2d-highmem-32"
+  }
+
+  test("promoteMasterForEviction: promoted machine has more memory than original") {
+    Seq("n2-highcpu-32", "n2-standard-32", "e2-standard-16", "n2d-highcpu-32").foreach { name =>
+      val m = MachineCatalog.byName(name).get
+      val promoted = ClusterDiagnosticsProcessor.promoteMasterForEviction(m)
+      withClue(s"$name → ${promoted.name}: ") {
+        promoted.memoryGb should be >= m.memoryGb
+      }
+    }
+  }
+
+  test("parseMachineName round-trips family/variant/cores for all families") {
+    val cases = Seq(
+      ("n2-standard-32",  "n2",  "standard", 32),
+      ("n2d-highmem-48",  "n2d", "highmem",  48),
+      ("e2-highcpu-8",    "e2",  "highcpu",   8),
+      ("c3-standard-44",  "c3",  "standard", 44),
+      ("c4-highmem-96",   "c4",  "highmem",  96)
+    )
+    cases.foreach { case (name, expectedFamily, expectedVariant, expectedCores) =>
+      val (family, variant, cores) = ClusterDiagnosticsProcessor.parseMachineName(name)
+      withClue(s"parsing '$name': ") {
+        family  shouldBe expectedFamily
+        variant shouldBe expectedVariant
+        cores   shouldBe expectedCores
+      }
+    }
+  }
+
   // ── triple-quote stripping logic ──────────────────────────────────────────
 
   test("triple-quote stripping: replaceAll quotes gives clean cluster name") {

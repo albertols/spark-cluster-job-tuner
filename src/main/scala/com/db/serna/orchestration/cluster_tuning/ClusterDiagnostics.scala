@@ -50,12 +50,15 @@ final case class NonZeroExitPattern(
 // ── Driver resource override ──────────────────────────────────────────────────
 // Applied to clusterConf in manualJson / daJson when a YarnDriverEviction is detected.
 // Fields are injected as additional keys into the cluster's JSON config block.
+// promotedMasterMachineType: upgraded master machine selected by promoteMasterForEviction();
+//   replaces master_machine_type in the output JSON when set.
 final case class DriverResourceOverride(
   clusterName: String,
   driverMemoryGb: Option[Int],
   driverCores: Option[Int],
   driverMemoryOverheadGb: Option[Int],
-  diagnosticReason: String
+  diagnosticReason: String,
+  promotedMasterMachineType: Option[MachineType] = None
 )
 
 // ── Diagnostics processor ─────────────────────────────────────────────────────
@@ -117,6 +120,68 @@ object ClusterDiagnosticsProcessor {
       cluster -> signals.toSeq
     }
   }
+
+  // ── Master machine promotion for YARN driver evictions ───────────────────
+  // Promotion path: highcpu → standard → highmem (same family + cores).
+  // If that machine doesn't exist in the catalog (e.g. e2-highmem-32 is absent),
+  // try the next available core count within the same family+variant.
+  // If e2 and no upgrade exists within e2, cross-promote to n2-{variant}-{cores}.
+  //
+  // Examples:
+  //   n2-highcpu-32  → n2-standard-32   (variant step)
+  //   n2-standard-32 → n2-highmem-32    (variant step)
+  //   n2-highmem-32  → n2-highmem-48    (core step, highmem at max variant)
+  //   e2-standard-32 → n2-standard-32   (e2-highmem-32 absent, cross-family)
+  //   e2-standard-16 → e2-highmem-16    (variant step — e2-highmem-16 exists)
+  def promoteMasterForEviction(current: MachineType): MachineType = {
+    val (fam, variant, cores) = parseMachineName(current.name)
+
+    // Step 1: variant promotion (highcpu→standard, standard→highmem), same cores
+    val variantUpgraded: Option[MachineType] = variant match {
+      case "highcpu" => MachineCatalog.byName(s"$fam-standard-$cores")
+      case "standard" => MachineCatalog.byName(s"$fam-highmem-$cores")
+      case _ => None
+    }
+
+    // Step 2: next core step within same family+variant
+    val coreUpgraded: Option[MachineType] = variantUpgraded.orElse {
+      nextCoreStepMachine(fam, variant, cores)
+    }
+
+    // Step 3: cross-family to n2 when e2 has no valid upgrade
+    val familyUpgraded: Option[MachineType] = coreUpgraded.orElse {
+      if (fam == "e2") {
+        MachineCatalog.byName(s"n2-$variant-$cores")
+          .orElse(MachineCatalog.byName(s"n2-standard-$cores"))
+      } else None
+    }
+
+    val promoted = familyUpgraded.getOrElse(current)
+    if (promoted.name != current.name)
+      logger.info(s"Master promotion: ${current.name} → ${promoted.name}")
+    else
+      logger.warn(s"Master promotion: no upgrade found for ${current.name}, keeping as-is")
+    promoted
+  }
+
+  // Returns the smallest available core count above currentCores for the given family+variant.
+  private def nextCoreStepMachine(family: String, variant: String, currentCores: Int): Option[MachineType] =
+    MachineCatalog.defaults
+      .filter(m => familyOf(m.name) == family && variantOf(m.name) == variant && m.cores > currentCores)
+      .sortBy(_.cores)
+      .headOption
+
+  // Decompose "n2-standard-32" → ("n2", "standard", 32); handles n2d, e2, c3, c4, etc.
+  private[cluster_tuning] def parseMachineName(name: String): (String, String, Int) = {
+    val family = name.takeWhile(_ != '-')
+    val rest   = name.drop(family.length + 1)
+    val cores  = rest.reverse.takeWhile(_ != '-').reverse.toInt
+    val variant = rest.dropRight(cores.toString.length + 1)
+    (family, variant, cores)
+  }
+
+  private def familyOf(n: String): String  = n.takeWhile(_ != '-')
+  private def variantOf(n: String): String = { val p = n.split("-"); if (p.length >= 2) p(1) else "standard" }
 
   // Compute DriverResourceOverride for clusters with YarnDriverEviction signals.
   // Heuristic: boost driver memory by +4 GB and ensure at least 4 driver cores.
