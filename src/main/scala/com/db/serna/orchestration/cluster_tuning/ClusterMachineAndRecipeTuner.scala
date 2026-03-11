@@ -18,9 +18,9 @@ final case class MachineType(name: String, cores: Int, memoryGb: Int)
  *
  * Notes:
  * - Memory per vCPU for most families is an integer multiple (e.g., 4/8/2 GB). We round to the nearest whole GB to keep
- *   MachineType.memoryGb as Int. This keeps sizing logic simple and deterministic.
+ * MachineType.memoryGb as Int. This keeps sizing logic simple and deterministic.
  * - The lists of vCPU counts are commonly-available shapes for each family; adjust if your region
- *   supports additional sizes.
+ * supports additional sizes.
  */
 object MachineCatalog {
 
@@ -35,18 +35,18 @@ object MachineCatalog {
 
   // E2 (general-purpose, cost-optimized)
   private val e2Standard = gen("e2", "standard", List(2, 4, 8, 16, 32), 4.0)
-  private val e2Highmem  = gen("e2", "highmem",  List(2, 4, 8, 16),     8.0)
-  private val e2Highcpu  = gen("e2", "highcpu",  List(2, 4, 8, 16, 32), 2.0)
+  private val e2Highmem = gen("e2", "highmem", List(2, 4, 8, 16), 8.0)
+  private val e2Highcpu = gen("e2", "highcpu", List(2, 4, 8, 16, 32), 2.0)
 
   // N2 (newer general-purpose, Intel)
   private val n2Standard = gen("n2", "standard", List(2, 4, 8, 16, 32, 48, 64, 80, 96), 4.0)
-  private val n2Highmem  = gen("n2", "highmem",  List(2, 4, 8, 16, 32, 48, 64, 80),     8.0)
-  private val n2Highcpu  = gen("n2", "highcpu",  List(2, 4, 8, 16, 32, 48, 64, 80, 96), 2.0)
+  private val n2Highmem = gen("n2", "highmem", List(2, 4, 8, 16, 32, 48, 64, 80), 8.0)
+  private val n2Highcpu = gen("n2", "highcpu", List(2, 4, 8, 16, 32, 48, 64, 80, 96), 2.0)
 
   // N2D (newer general-purpose, AMD)
   private val n2dStandard = gen("n2d", "standard", List(2, 4, 8, 16, 32, 48, 64, 80, 96, 128, 224), 4.0)
-  private val n2dHighmem  = gen("n2d", "highmem",  List(2, 4, 8, 16, 32, 48, 64, 80, 96), 8.0)
-  private val n2dHighcpu  = gen("n2d", "highcpu",  List(2, 4, 8, 16, 32, 48, 64, 80, 96, 128, 224), 2.0)
+  private val n2dHighmem = gen("n2d", "highmem", List(2, 4, 8, 16, 32, 48, 64, 80, 96), 8.0)
+  private val n2dHighcpu = gen("n2d", "highcpu", List(2, 4, 8, 16, 32, 48, 64, 80, 96, 128, 224), 2.0)
 
   // C3 (compute-optimized, Dataproc supported)
   private val c3Standard = gen("c3", "standard", List(4, 8, 22, 44, 88, 177, 192), 4.0)
@@ -63,18 +63,18 @@ object MachineCatalog {
   private val n4Highmem = gen("n4", "highmem", List(2, 4, 8, 16, 32, 48, 64, 80), 8.0)
   private val n4Highcpu = gen("n4", "highcpu", List(2, 4, 8, 16, 32, 48, 64, 80), 2.0)
   private val n4dStandard = gen("n4d", "standard", List(2, 4, 8, 16, 32, 48, 64, 80, 96), 4.0)
-  private val n4dHighmem  = gen("n4d", "highmem",  List(2, 4, 8, 16, 32, 48, 64, 80, 96), 8.0)
-  private val n4dHighcpu  = gen("n4d", "highcpu",  List(2, 4, 8, 16, 32, 48, 64, 80, 96), 2.0)
+  private val n4dHighmem = gen("n4d", "highmem", List(2, 4, 8, 16, 32, 48, 64, 80, 96), 8.0)
+  private val n4dHighcpu = gen("n4d", "highcpu", List(2, 4, 8, 16, 32, 48, 64, 80, 96), 2.0)
 
   // Full default candidate catalog
   val defaults: List[MachineType] =
-    e2Standard  ++ e2Highmem  ++ e2Highcpu  ++
-      n2Standard  ++ n2Highmem  ++ n2Highcpu  ++
-      n2dStandard ++ n2dHighmem ++ n2dHighcpu ++
-      c3Standard  ++ c3Highmem  ++ c3Highcpu  ++
-      c4Standard  ++ c4Highmem  ++ c4Highcpu  ++
-      n4Standard  ++ n4Highmem  ++ n4Highcpu  ++
-      n4dStandard ++ n4dHighmem ++ n4dHighcpu
+    e2Standard ++ e2Highmem ++ e2Highcpu ++
+      n2Standard ++ n2Highmem ++ n2Highcpu ++
+      n2dStandard ++ n2dHighmem ++ n2dHighcpu
+  //c3Standard  ++ c3Highmem  ++ c3Highcpu  ++
+  //c4Standard  ++ c4Highmem  ++ c4Highcpu  ++
+  //n4Standard  ++ n4Highmem  ++ n4Highcpu  ++
+  //n4dStandard ++ n4dHighmem ++ n4dHighcpu
 
   def byName(name: String): Option[MachineType] = defaults.find(_.name == name)
 }
@@ -84,13 +84,13 @@ object PriceCatalog {
   private final case class Rate(vCpu: Double, memGb: Double)
 
   private val familyRates: Map[String, Rate] = Map(
-    "e2"  -> Rate(vCpu = 0.0336, memGb = 0.0042),
-    "n2"  -> Rate(vCpu = 0.0470, memGb = 0.0065),
+    "e2" -> Rate(vCpu = 0.0336, memGb = 0.0042),
+    "n2" -> Rate(vCpu = 0.0470, memGb = 0.0065),
     "n2d" -> Rate(vCpu = 0.0430, memGb = 0.0060),
-    "n1"  -> Rate(vCpu = 0.0500, memGb = 0.0068),
-    "c3"  -> Rate(vCpu = 0.0600, memGb = 0.0050),
-    "c4"  -> Rate(vCpu = 0.0650, memGb = 0.0055),
-    "n4"  -> Rate(vCpu = 0.0490, memGb = 0.0063),
+    "n1" -> Rate(vCpu = 0.0500, memGb = 0.0068),
+    "c3" -> Rate(vCpu = 0.0600, memGb = 0.0050),
+    "c4" -> Rate(vCpu = 0.0650, memGb = 0.0055),
+    "n4" -> Rate(vCpu = 0.0490, memGb = 0.0063),
     "n4d" -> Rate(vCpu = 0.0460, memGb = 0.0061)
   )
 
@@ -140,14 +140,14 @@ final case class TuningPolicy(
                                preferMaxWorkers: Int,
                                perWorkerPenaltyPct: Double,
                                // New: multi-objective selection tuned for “enough capacity” and good utilization
-                               parallelismWeight: Double = 0.0,          // kept for compatibility
-                               costWeight: Double = 0.4,                 // importance of hourly cost
-                               concurrencyBufferPct: Double = 0.25,      // buffer over required slots
+                               parallelismWeight: Double = 0.0, // kept for compatibility
+                               costWeight: Double = 0.4, // importance of hourly cost
+                               concurrencyBufferPct: Double = 0.25, // buffer over required slots
                                preferEightCoreExecutors: Boolean = true, // plan capacity in 8-core terms when enabled
-                               sufficiencyWeight: Double = 0.5,          // reward having enough cores vs desired
-                               utilizationWeight: Double = 0.3,          // reward utilizing cores close to desired
-                               workerPenaltyWeight: Double = 0.3,        // penalize higher worker counts
-                               oversizePenaltyWeight: Double = 0.2       // penalize huge oversizing for tiny workloads
+                               sufficiencyWeight: Double = 0.5, // reward having enough cores vs desired
+                               utilizationWeight: Double = 0.3, // reward utilizing cores close to desired
+                               workerPenaltyWeight: Double = 0.3, // penalize higher worker counts
+                               oversizePenaltyWeight: Double = 0.2 // penalize huge oversizing for tiny workloads
                              )
 
 /**
@@ -212,8 +212,11 @@ object Csv {
       }
     } finally src.close()
   }
+
   def toDouble(s: String): Option[Double] = Try(s.trim).toOption.flatMap(x => Try(x.toDouble).toOption)
+
   def toLong(s: String): Option[Long] = Try(s.trim).toOption.flatMap(x => Try(x.toLong).toOption)
+
   def toInt(s: String): Option[Int] = Try(s.trim).toOption.flatMap(x => Try(x.toInt).toOption)
 }
 
@@ -221,24 +224,31 @@ object Csv {
 object Json {
   private def esc(s: String): String =
     s.flatMap {
-      case '"'  => "\\\""
+      case '"' => "\\\""
       case '\\' => "\\\\"
       case '\b' => "\\b"
       case '\f' => "\\f"
       case '\n' => "\\n"
       case '\r' => "\\r"
       case '\t' => "\\t"
-      case c    => c.toString
+      case c => c.toString
     }
+
   def obj(fields: (String, String)*): String = {
     val inner = fields.map { case (k, v) => s""""${esc(k)}": $v""" }.mkString(",")
     s"{$inner}"
   }
+
   def arr(elems: String*): String = elems.mkString("[", ",", "]")
+
   def str(s: String): String = s""""${esc(s)}""""
+
   def num(n: Any): String = n.toString
+
   def bool(b: Boolean): String = if (b) "true" else "false"
+
   def nul: String = "null"
+
   def pretty(raw: String, indentSize: Int = 2): String = {
     val sb = new StringBuilder
     var indent = 0
@@ -284,6 +294,7 @@ object Sizing {
   }
 
   def clamp(v: Int, lo: Int, hi: Int): Int = math.max(lo, math.min(v, hi))
+
   def roundUp(v: Double): Int = math.ceil(v).toInt
 }
 
@@ -444,8 +455,12 @@ object ClusterMachineAndRecipeTuner {
     val f13: File = new File(cfg.inputDir, "b13_recommendations_inputs_per_recipe_per_cluster.csv")
     val f15: File = new File(cfg.inputDir, "b15_recommendation_inputs_per_recipe_per_cluster.csv")
     val f =
-      if (f13.exists()) { logger.info(s"Using flattened CSV: ${f13.getPath}"); f13 }
-      else if (f15.exists()) { logger.info(s"Using flattened CSV: ${f15.getPath}"); f15 }
+      if (f13.exists()) {
+        logger.info(s"Using flattened CSV: ${f13.getPath}"); f13
+      }
+      else if (f15.exists()) {
+        logger.info(s"Using flattened CSV: ${f15.getPath}"); f15
+      }
       else {
         logger.warn(s"No flattened CSV found at ${f13.getPath} or ${f15.getPath}.")
         return Map.empty
@@ -456,18 +471,18 @@ object ClusterMachineAndRecipeTuner {
     rows.flatMap { r =>
       (for {
         cluster <- r.get("cluster_name")
-        recipe  <- r.get("recipe_filename")
+        recipe <- r.get("recipe_filename")
         avgExec <- r.get("avg_executors_per_job").flatMap(Csv.toDouble)
-        p95Max  <- r.get("p95_run_max_executors").flatMap(Csv.toDouble)
-        avgDur  <- r.get("avg_job_duration_ms").flatMap(Csv.toDouble)
-        p95Dur  <- r.get("p95_job_duration_ms").flatMap(Csv.toDouble)
-        runs    <- r.get("runs").flatMap(Csv.toLong)
+        p95Max <- r.get("p95_run_max_executors").flatMap(Csv.toDouble)
+        avgDur <- r.get("avg_job_duration_ms").flatMap(Csv.toDouble)
+        p95Dur <- r.get("p95_job_duration_ms").flatMap(Csv.toDouble)
+        runs <- r.get("runs").flatMap(Csv.toLong)
       } yield {
-        val secCap  = r.get("seconds_at_cap").flatMap(Csv.toLong)
-        val rAtCap  = r.get("runs_reaching_cap").flatMap(Csv.toLong)
-        val tRuns   = r.get("total_runs").flatMap(Csv.toLong)
+        val secCap = r.get("seconds_at_cap").flatMap(Csv.toLong)
+        val rAtCap = r.get("runs_reaching_cap").flatMap(Csv.toLong)
+        val tRuns = r.get("total_runs").flatMap(Csv.toLong)
         val fracCap = r.get("fraction_reaching_cap").flatMap(Csv.toDouble)
-        val conc    = r.get("max_concurrent_jobs").flatMap(Csv.toInt)
+        val conc = r.get("max_concurrent_jobs").flatMap(Csv.toInt)
         (cluster -> recipe) -> RecipeMetrics(
           cluster, recipe,
           avgExec, p95Max, avgDur, p95Dur, runs,
@@ -485,9 +500,11 @@ object ClusterMachineAndRecipeTuner {
    * - Missing optional files/fields are tolerated with sane defaults.
    */
   private def loadFromIndividualCSVs(cfg: Config): Map[(String, String), RecipeMetrics] = {
-    def readCsv(name: String): Vector[Map[String,String]] = {
+    def readCsv(name: String): Vector[Map[String, String]] = {
       val f = new File(cfg.inputDir, name)
-      if (!f.exists()) { logger.warn(s"CSV not found: ${f.getPath}"); Vector.empty }
+      if (!f.exists()) {
+        logger.warn(s"CSV not found: ${f.getPath}"); Vector.empty
+      }
       else {
         val rows = Csv.parse(f)
         logger.info(s"Read ${rows.size} rows from ${f.getName}")
@@ -495,28 +512,28 @@ object ClusterMachineAndRecipeTuner {
       }
     }
 
-    val b1  = readCsv("b1_average_number_of_executors_per_job_by_cluster.csv").map { r =>
-      val k = (r.getOrElse("cluster_name",""), r.getOrElse("recipe_filename",""))
+    val b1 = readCsv("b1_average_number_of_executors_per_job_by_cluster.csv").map { r =>
+      val k = (r.getOrElse("cluster_name", ""), r.getOrElse("recipe_filename", ""))
       k -> r.get("avg_executors_per_job").flatMap(Csv.toDouble)
     }.toMap
 
     val b12 = readCsv("b12_p95_max_executors_per_recipe_per_cluster.csv").map { r =>
-      val k = (r.getOrElse("cluster_name",""), r.getOrElse("recipe_filename",""))
+      val k = (r.getOrElse("cluster_name", ""), r.getOrElse("recipe_filename", ""))
       k -> (r.get("p95_run_max_executors").flatMap(Csv.toDouble), r.get("avg_run_max_executors").flatMap(Csv.toDouble), r.get("runs").flatMap(Csv.toLong))
     }.toMap
 
-    val b3  = readCsv("b3_average_recipefilename_per_cluster.csv").map { r =>
-      val k = (r.getOrElse("cluster_name",""), r.getOrElse("recipe_filename",""))
+    val b3 = readCsv("b3_average_recipefilename_per_cluster.csv").map { r =>
+      val k = (r.getOrElse("cluster_name", ""), r.getOrElse("recipe_filename", ""))
       k -> r.get("avg_job_duration_ms").flatMap(Csv.toDouble)
     }.toMap
 
-    val b8  = readCsv("b8_P95_job_duration_per_recipe_per_cluster.csv").map { r =>
-      val k = (r.getOrElse("cluster_name",""), r.getOrElse("recipe_filename",""))
+    val b8 = readCsv("b8_P95_job_duration_per_recipe_per_cluster.csv").map { r =>
+      val k = (r.getOrElse("cluster_name", ""), r.getOrElse("recipe_filename", ""))
       k -> (r.get("p95_job_duration_ms").flatMap(Csv.toDouble), r.get("runs").flatMap(Csv.toLong))
     }.toMap
 
-    val b5  = readCsv("b5_a_times_job_reaches_max_executor_per_cluster.csv").map { r =>
-      val k = (r.getOrElse("cluster_name",""), r.getOrElse("recipe_filename",""))
+    val b5 = readCsv("b5_a_times_job_reaches_max_executor_per_cluster.csv").map { r =>
+      val k = (r.getOrElse("cluster_name", ""), r.getOrElse("recipe_filename", ""))
       k -> (
         r.get("seconds_at_cap").flatMap(Csv.toLong),
         r.get("runs_reaching_cap").flatMap(Csv.toLong),
@@ -526,7 +543,7 @@ object ClusterMachineAndRecipeTuner {
     }.toMap
 
     val b11 = readCsv("b11_max_concurrent_jobs_per_cluster_in_window.csv").map { r =>
-      val cluster = r.getOrElse("cluster_name","")
+      val cluster = r.getOrElse("cluster_name", "")
       cluster -> r.get("max_concurrent_jobs").flatMap(Csv.toInt)
     }.toMap
 
@@ -571,7 +588,7 @@ object ClusterMachineAndRecipeTuner {
    */
   private def clusterActiveMinutes(metrics: Iterable[RecipeMetrics]): Double =
     //metrics.map (m => (m.avgJobDurationMs * m.runs) / 60000.0).sum // old
-    metrics.map (m => (m.avgJobDurationMs) / 60000.0).sum // new
+    metrics.map(m => (m.avgJobDurationMs) / 60000.0).sum // new
 
   private def hourlyPrice(machine: MachineType): Double = PriceCatalog.pricePerHourEUR.getOrElse(machine.name, 0.0)
 
@@ -601,7 +618,7 @@ object ClusterMachineAndRecipeTuner {
     val memPerCore = variant match {
       case "highcpu" => 1
       case "highmem" => 4
-      case _         => 2 // standard
+      case _ => 2 // standard
     }
 
     val base = memPerCore * executorCores
@@ -613,7 +630,7 @@ object ClusterMachineAndRecipeTuner {
 
     // Floor to avoid starving memory-heavy workloads; cap to ~32 GB
     val lowerBound = policy.executorMemoryGb // e.g., 8GB
-    val upperCap   = 32                      // GB
+    val upperCap = 32 // GB
 
     val proposed = math.min(base, maxAllowed)
     val withFloor = math.max(lowerBound, proposed)
@@ -642,8 +659,8 @@ object ClusterMachineAndRecipeTuner {
       val coreSufficiency: Double = math.min(1.0, totalCores / math.max(1.0, desiredCores)) // 1 if enough cores
       val utilization: Double = math.min(1.0, (corePref * reqSlots) / math.max(1.0, totalCores)) // desire / total
       val cost: Double = penalizedHourlyClusterCost(w, workersNeeded, masterType)
-      val oversizeRatio: Double = totalCores / math.max(1.0, desiredCores)                    // >1 means oversized
-      val capacityShortfall: Double = math.max(0.0, reqSlots - capacitySlots.toDouble)        // slots shortfall
+      val oversizeRatio: Double = totalCores / math.max(1.0, desiredCores) // >1 means oversized
+      val capacityShortfall: Double = math.max(0.0, reqSlots - capacitySlots.toDouble) // slots shortfall
       (w, masterType, workersNeeded, epw, cost, totalCores, capacitySlots, coreSufficiency, utilization, oversizeRatio, capacityShortfall)
     }
 
@@ -692,14 +709,14 @@ object ClusterMachineAndRecipeTuner {
 
     recipes.toSeq.sortBy(-_.p95RunMaxExecutors).map { m =>
       val base = policy.manualInstancesFrom match {
-        case "p95"           => m.p95RunMaxExecutors
-        case "avg"           => m.avgExecutorsPerJob
-        case "round_up_p95"  => Sizing.roundUp(m.p95RunMaxExecutors).toDouble
-        case _               => m.p95RunMaxExecutors
+        case "p95" => m.p95RunMaxExecutors
+        case "avg" => m.avgExecutorsPerJob
+        case "round_up_p95" => Sizing.roundUp(m.p95RunMaxExecutors).toDouble
+        case _ => m.p95RunMaxExecutors
       }
       val boosted = m.fractionReachingCap.filter(_ >= policy.capHitThreshold) match {
         case Some(_) => base * (1.0 + policy.capHitBoostPct)
-        case None    => base
+        case None => base
       }
       val desired: Int = Sizing.roundUp(boosted)
       val capped: Int = Sizing.clamp(desired, policy.minExecutorInstances, cluster.maxExecutorsSupported)
@@ -722,9 +739,9 @@ object ClusterMachineAndRecipeTuner {
   def planDARecipes(cluster: ClusterPlan, recipes: Iterable[RecipeMetrics]): Seq[RecipePlanDA] = {
     recipes.toSeq.map { m =>
       val minEraw: Int = policy.daMinFrom match {
-        case "avg"    => Sizing.roundUp(m.avgExecutorsPerJob)
+        case "avg" => Sizing.roundUp(m.avgExecutorsPerJob)
         case "fixed2" => 2
-        case _        => Sizing.roundUp(m.avgExecutorsPerJob)
+        case _ => Sizing.roundUp(m.avgExecutorsPerJob)
       }
       val minE: Int = math.max(2, math.max(policy.minExecutorInstances, minEraw))
       val initialE: Int = math.max(2, if (policy.daInitialEqualsMin) minE else min(minE + 1, cluster.maxExecutorsSupported))
@@ -769,11 +786,11 @@ object ClusterMachineAndRecipeTuner {
           "num_workers" -> num(cluster.workers),
           "master_machine_type" -> str(cluster.masterMachineType.name),
           "worker_machine_type" -> str(cluster.workerMachineType.name),
-          "autoscaling_policy"  -> str(autoscalingPolicy),
+          "autoscaling_policy" -> str(autoscalingPolicy),
           "tuner_version" -> str(tunerVersion),
           "total_no_of_jobs" -> num(totalJobs),
           "cluster_max_total_memory_gb" -> num(clusterMaxMemGb),
-          "cluster_max_total_cores"     -> num(clusterMaxCores),
+          "cluster_max_total_cores" -> num(clusterMaxCores),
           "accumulated_max_total_memory_per_jobs_gb" -> num(accumMemGb)
         )
       )
@@ -823,11 +840,11 @@ object ClusterMachineAndRecipeTuner {
           "num_workers" -> num(cluster.workers),
           "master_machine_type" -> str(cluster.masterMachineType.name),
           "worker_machine_type" -> str(cluster.workerMachineType.name),
-          "autoscaling_policy"  -> str(autoscalingPolicy),
+          "autoscaling_policy" -> str(autoscalingPolicy),
           "tuner_version" -> str(tunerVersion),
           "total_no_of_jobs" -> num(totalJobs),
           "cluster_max_total_memory_gb" -> num(clusterMaxMemGb),
-          "cluster_max_total_cores"     -> num(clusterMaxCores),
+          "cluster_max_total_cores" -> num(clusterMaxCores),
           "accumulated_max_total_memory_per_jobs_gb" -> num(accumMemGb)
         )
       )
@@ -1108,35 +1125,142 @@ object ClusterMachineAndRecipeTuner {
     /**
      * Dynamically resolves the autoscaling policy based on the "num_workers" of the cluster.
      *
-     * Check: https://github.com/gvc9-t9df/lz-125479-2-001-main-a/blob/RELEASE_dbc_dev/main.tf
-     *
      * @param numWorkers The number of workers for the cluster.
      * @return The name of the autoscaling policy based on the worker range.
      */
     def resolvePolicy(numWorkers: Int): String = {
       numWorkers match {
-        case n if n <= 4  => "small-workload-autoscaling"      // S (Small): Up to 4 workers
-        case n if n <= 8  => "medium-workload-autoscaling"     // M (Medium): Up to 8 workers
-        case n if n <= 12 => "large-workload-autoscaling"      // L (Large): Up to 12 workers
-        case n if n <= 20 => "extra-large-workload-autoscaling" // XL (Extra Large): Up to 20 workers
-        case _            => "mixed-workload-autoscaling"      // Default policy
+        case n if n <= 4 => "small-workload-autoscaling" // S (Small): Up to 4 workers
+        case n if n <= 6 => "medium-workload-autoscaling" // M (Medium): Up to 6 workers
+        case n if n <= 8 => "large-workload-autoscaling" // L (Large): Up to 8 workers
+        case n if n <= 10 => "extra-large-workload-autoscaling" // XL (Extra Large): Up to 10 workers
+        case _ => "extra-large-workload-autoscaling" // Default policy
       }
     }
 
     /**
      * Returns the maximum number of workers allowed by the policy bracket for a given cluster size.
-     * For sizes > 20 (mapped to the "mixed-workload-autoscaling" policy), we conservatively use the
+     * For sizes > 10 (mapped to the "extra-large-workload-autoscaling" policy), we conservatively use the
      * current number of workers as the cap (no explicit upper bound defined).
      *
-     * Check: https://github.com/gvc9-t9df/lz-125479-2-001-main-a/blob/RELEASE_dbc_dev/main.tf
+     * Check: ############################################################
+     * ## Autoscaling Policies
+     * ############################################################
+     *
+     * resource "google_dataproc_autoscaling_policy" "policy_s" {
+     * project   = var.project_id
+     * location  = var.region
+     * policy_id = "small-workload-autoscaling"
+     *
+     * worker_config {
+     * min_instances = 2  # Minimum baseline
+     * max_instances = 4  # Up to 4 workers
+     * weight        = 2
+     * }
+     *
+     * secondary_worker_config {
+     * min_instances = 0
+     * max_instances = 0
+     * weight        = 1
+     * }
+     *
+     * basic_algorithm {
+     * cooldown_period = "120s"
+     * yarn_config {
+     * graceful_decommission_timeout = "120s"
+     * scale_up_factor               = 1.0
+     * scale_down_factor             = 0.5
+     * }
+     * }
+     * }
+     *
+     * resource "google_dataproc_autoscaling_policy" "policy_m" {
+     * project   = var.project_id
+     * location  = var.region
+     * policy_id = "medium-workload-autoscaling"
+     *
+     * worker_config {
+     * min_instances = 2  # Minimum baseline
+     * max_instances = 6  # Up to 6 workers
+     * weight        = 2
+     * }
+     *
+     * secondary_worker_config {
+     * min_instances = 0
+     * max_instances = 0
+     * weight        = 1
+     * }
+     *
+     * basic_algorithm {
+     * cooldown_period = "120s"
+     * yarn_config {
+     * graceful_decommission_timeout = "120s"
+     * scale_up_factor               = 1.0
+     * scale_down_factor             = 0.5
+     * }
+     * }
+     * }
+     *
+     * resource "google_dataproc_autoscaling_policy" "policy_l" {
+     * project   = var.project_id
+     * location  = var.region
+     * policy_id = "large-workload-autoscaling"
+     *
+     * worker_config {
+     * min_instances = 3  # Minimum baseline
+     * max_instances = 8  # Up to 8 workers
+     * weight        = 2
+     * }
+     *
+     * secondary_worker_config {
+     * min_instances = 0
+     * max_instances = 0
+     * weight        = 1
+     * }
+     *
+     * basic_algorithm {
+     * cooldown_period = "120s"
+     * yarn_config {
+     * graceful_decommission_timeout = "120s"
+     * scale_up_factor               = 1.0
+     * scale_down_factor             = 0.5
+     * }
+     * }
+     * }
+     *
+     * resource "google_dataproc_autoscaling_policy" "policy_xl" {
+     * project   = var.project_id
+     * location  = var.region
+     * policy_id = "extra-large-workload-autoscaling"
+     *
+     * worker_config {
+     * min_instances = 3  # Minimum baseline
+     * max_instances = 15  # Up to 15 workers
+     * weight        = 2
+     * }
+     *
+     * secondary_worker_config {
+     * min_instances = 0
+     * max_instances = 0
+     * weight        = 1
+     * }
+     *
+     * basic_algorithm {
+     * cooldown_period = "300s"
+     * yarn_config {
+     * graceful_decommission_timeout = "1800s"
+     * scale_up_factor               = 1.0
+     * scale_down_factor             = 0.1
+     * }
+     * }
      */
     def maxWorkersForCluster(numWorkers: Int): Int = {
       numWorkers match {
-        case n if n <= 4  => 4
-        case n if n <= 8  => 8
-        case n if n <= 12 => 12
-        case n if n <= 20 => 20
-        case n            => n // mixed-workload-autoscaling: fallback to observed workers as lower-bound cap
+        case n if n <= 4 => 4
+        case n if n <= 6 => 6
+        case n if n <= 8 => 8
+        case n if n <= 10 => 10
+        case n => n // "extra-large-workload-autoscaling" : fallback to observed workers as lower-bound cap
       }
     }
   }
