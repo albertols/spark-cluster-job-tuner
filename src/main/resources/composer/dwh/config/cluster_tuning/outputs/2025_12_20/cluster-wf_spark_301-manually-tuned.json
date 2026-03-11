@@ -6,10 +6,10 @@
       "worker_machine_type": "e2-highcpu-32",
       "autoscaling_policy": "extra-large-workload-autoscaling",
       "tuner_version": "2025_20_12",
-      "total_no_of_jobs": 67,
+      "total_no_of_jobs": 80,
       "cluster_max_total_memory_gb": 768,
       "cluster_max_total_cores": 384,
-      "accumulated_max_total_memory_per_jobs_gb": 2920
+      "accumulated_max_total_memory_per_jobs_gb": 3024
     }
   },
   "recipeSparkConf": {
@@ -793,6 +793,66 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
+    "_SPARK_JOB_recipe_filename_5162.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "1",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 8,
+      "total_executor_maximum_allocated_memory_gb": 8
+    },
+    "_SPARK_JOB_recipe_filename_5192.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "1",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 8,
+      "total_executor_maximum_allocated_memory_gb": 8
+    },
+    "_SPARK_JOB_recipe_filename_4850.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "1",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 8,
+      "total_executor_maximum_allocated_memory_gb": 8
+    },
+    "_SPARK_JOB_recipe_filename_5193.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "1",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 8,
+      "total_executor_maximum_allocated_memory_gb": 8
+    },
+    "_SPARK_JOB_recipe_filename_5186.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "1",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 8,
+      "total_executor_maximum_allocated_memory_gb": 8
+    },
     "_SPARK_JOB_recipe_filename_5194.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
@@ -805,7 +865,103 @@
       "total_executor_minimum_allocated_memory_gb": 8,
       "total_executor_maximum_allocated_memory_gb": 8
     },
+    "_SPARK_JOB_recipe_filename_5587.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "1",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 8,
+      "total_executor_maximum_allocated_memory_gb": 8
+    },
+    "_SPARK_JOB_recipe_filename_5183.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "1",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 8,
+      "total_executor_maximum_allocated_memory_gb": 8
+    },
+    "_SPARK_JOB_recipe_filename_5163.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "1",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 8,
+      "total_executor_maximum_allocated_memory_gb": 8
+    },
+    "_SPARK_JOB_recipe_filename_5190.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "1",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 8,
+      "total_executor_maximum_allocated_memory_gb": 8
+    },
+    "_SPARK_JOB_recipe_filename_5203.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "1",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 8,
+      "total_executor_maximum_allocated_memory_gb": 8
+    },
+    "_SPARK_JOB_recipe_filename_5199.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "1",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 8,
+      "total_executor_maximum_allocated_memory_gb": 8
+    },
     "_SPARK_JOB_recipe_filename_5575.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "1",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 8,
+      "total_executor_maximum_allocated_memory_gb": 8
+    },
+    "_SPARK_JOB_recipe_filename_5169.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "1",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 8,
+      "total_executor_maximum_allocated_memory_gb": 8
+    },
+    "_SPARK_JOB_recipe_filename_5167.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",

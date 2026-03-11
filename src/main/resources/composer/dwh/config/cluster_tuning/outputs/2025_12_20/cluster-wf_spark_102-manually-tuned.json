@@ -9,7 +9,7 @@
       "total_no_of_jobs": 41,
       "cluster_max_total_memory_gb": 6528,
       "cluster_max_total_cores": 3264,
-      "accumulated_max_total_memory_per_jobs_gb": 856
+      "accumulated_max_total_memory_per_jobs_gb": 880
     }
   },
   "recipeSparkConf": {
@@ -18,12 +18,12 @@
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
         "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
-        "spark.executor.instances": "12",
+        "spark.executor.instances": "15",
         "spark.executor.cores": "8",
         "spark.executor.memory": "8g"
       },
-      "total_executor_minimum_allocated_memory_gb": 96,
-      "total_executor_maximum_allocated_memory_gb": 96
+      "total_executor_minimum_allocated_memory_gb": 120,
+      "total_executor_maximum_allocated_memory_gb": 120
     },
     "_SPARK_JOB_recipe_filename_3406.json": {
       "parallelizationFactor": 5,

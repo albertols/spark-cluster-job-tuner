@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-03-11T10:48:55.974839Z",
+  "generated_at": "2026-03-11T17:59:29.052498Z",
   "date": "2025_12_20",
   "strategy": "default",
   "bias_mode": "cost_performance_balance",
   "topology_preset": "8cx1GBpc",
-  "total_clusters": 360,
-  "total_predicted_nodes": 4537,
-  "total_max_nodes": 4761,
+  "total_clusters": 369,
+  "total_predicted_nodes": 4564,
+  "total_max_nodes": 4806,
   "clusters_with_diagnostic_overrides": 4,
   "quota_usage_by_family": {
     "c3": {
@@ -20,9 +20,9 @@
       "pct_used": "12.8"
     },
     "e2": {
-      "used_cores": 124608,
+      "used_cores": 124776,
       "quota_cores": 5000,
-      "pct_used": "2492.2"
+      "pct_used": "2495.5"
     },
     "n2": {
       "used_cores": 5000,
@@ -30,9 +30,9 @@
       "pct_used": "100.0"
     },
     "n2d": {
-      "used_cores": 2996,
+      "used_cores": 3000,
       "quota_cores": 3000,
-      "pct_used": "99.9"
+      "pct_used": "100.0"
     },
     "n4": {
       "used_cores": 0,
@@ -1817,6 +1817,21 @@
       ]
     },
     {
+      "cluster_name": "cluster-wf_spark_271",
+      "worker_machine_type": "n2d-highcpu-2",
+      "worker_family": "n2d",
+      "num_workers": 2,
+      "max_workers_from_policy": 4,
+      "total_cores": 4,
+      "max_total_cores": 8,
+      "strategy": "default",
+      "bias_mode": "cost_performance_balance",
+      "topology_preset": "8cx1GBpc",
+      "diagnostic_signals": [
+        
+      ]
+    },
+    {
       "cluster_name": "cluster-wf_spark_76",
       "worker_machine_type": "e2-highcpu-32",
       "worker_family": "e2",
@@ -1974,6 +1989,21 @@
       "max_workers_from_policy": 4,
       "total_cores": 96,
       "max_total_cores": 128,
+      "strategy": "default",
+      "bias_mode": "cost_performance_balance",
+      "topology_preset": "8cx1GBpc",
+      "diagnostic_signals": [
+        
+      ]
+    },
+    {
+      "cluster_name": "cluster-wf_spark_42",
+      "worker_machine_type": "e2-highcpu-4",
+      "worker_family": "e2",
+      "num_workers": 2,
+      "max_workers_from_policy": 4,
+      "total_cores": 8,
+      "max_total_cores": 16,
       "strategy": "default",
       "bias_mode": "cost_performance_balance",
       "topology_preset": "8cx1GBpc",
@@ -2192,6 +2222,21 @@
       ]
     },
     {
+      "cluster_name": "cluster-wf_spark_92",
+      "worker_machine_type": "e2-highcpu-4",
+      "worker_family": "e2",
+      "num_workers": 2,
+      "max_workers_from_policy": 4,
+      "total_cores": 8,
+      "max_total_cores": 16,
+      "strategy": "default",
+      "bias_mode": "cost_performance_balance",
+      "topology_preset": "8cx1GBpc",
+      "diagnostic_signals": [
+        
+      ]
+    },
+    {
       "cluster_name": "cluster-wf_spark_3",
       "worker_machine_type": "e2-highcpu-32",
       "worker_family": "e2",
@@ -2199,6 +2244,21 @@
       "max_workers_from_policy": 10,
       "total_cores": 320,
       "max_total_cores": 320,
+      "strategy": "default",
+      "bias_mode": "cost_performance_balance",
+      "topology_preset": "8cx1GBpc",
+      "diagnostic_signals": [
+        
+      ]
+    },
+    {
+      "cluster_name": "cluster-wf_spark_142",
+      "worker_machine_type": "e2-highcpu-16",
+      "worker_family": "e2",
+      "num_workers": 2,
+      "max_workers_from_policy": 4,
+      "total_cores": 32,
+      "max_total_cores": 64,
       "strategy": "default",
       "bias_mode": "cost_performance_balance",
       "topology_preset": "8cx1GBpc",
@@ -2259,6 +2319,21 @@
       "max_workers_from_policy": 8,
       "total_cores": 256,
       "max_total_cores": 256,
+      "strategy": "default",
+      "bias_mode": "cost_performance_balance",
+      "topology_preset": "8cx1GBpc",
+      "diagnostic_signals": [
+        
+      ]
+    },
+    {
+      "cluster_name": "cluster-wf_spark_7",
+      "worker_machine_type": "e2-highcpu-32",
+      "worker_family": "e2",
+      "num_workers": 2,
+      "max_workers_from_policy": 4,
+      "total_cores": 64,
+      "max_total_cores": 128,
       "strategy": "default",
       "bias_mode": "cost_performance_balance",
       "topology_preset": "8cx1GBpc",
@@ -2394,6 +2469,21 @@
       "max_workers_from_policy": 4,
       "total_cores": 128,
       "max_total_cores": 128,
+      "strategy": "default",
+      "bias_mode": "cost_performance_balance",
+      "topology_preset": "8cx1GBpc",
+      "diagnostic_signals": [
+        
+      ]
+    },
+    {
+      "cluster_name": "cluster-wf_spark_143",
+      "worker_machine_type": "e2-highcpu-4",
+      "worker_family": "e2",
+      "num_workers": 2,
+      "max_workers_from_policy": 4,
+      "total_cores": 8,
+      "max_total_cores": 16,
       "strategy": "default",
       "bias_mode": "cost_performance_balance",
       "topology_preset": "8cx1GBpc",
@@ -3309,6 +3399,21 @@
       "max_workers_from_policy": 4,
       "total_cores": 128,
       "max_total_cores": 128,
+      "strategy": "default",
+      "bias_mode": "cost_performance_balance",
+      "topology_preset": "8cx1GBpc",
+      "diagnostic_signals": [
+        
+      ]
+    },
+    {
+      "cluster_name": "cluster-wf_spark_250",
+      "worker_machine_type": "e2-highcpu-16",
+      "worker_family": "e2",
+      "num_workers": 2,
+      "max_workers_from_policy": 4,
+      "total_cores": 32,
+      "max_total_cores": 64,
       "strategy": "default",
       "bias_mode": "cost_performance_balance",
       "topology_preset": "8cx1GBpc",
@@ -4847,6 +4952,21 @@
       ]
     },
     {
+      "cluster_name": "cluster-wf_spark_240",
+      "worker_machine_type": "e2-highcpu-4",
+      "worker_family": "e2",
+      "num_workers": 2,
+      "max_workers_from_policy": 4,
+      "total_cores": 8,
+      "max_total_cores": 16,
+      "strategy": "default",
+      "bias_mode": "cost_performance_balance",
+      "topology_preset": "8cx1GBpc",
+      "diagnostic_signals": [
+        
+      ]
+    },
+    {
       "cluster_name": "cluster-wf_spark_112",
       "worker_machine_type": "e2-highcpu-32",
       "worker_family": "e2",
@@ -5094,6 +5214,21 @@
       "max_workers_from_policy": 4,
       "total_cores": 32,
       "max_total_cores": 64,
+      "strategy": "default",
+      "bias_mode": "cost_performance_balance",
+      "topology_preset": "8cx1GBpc",
+      "diagnostic_signals": [
+        
+      ]
+    },
+    {
+      "cluster_name": "cluster-wf_spark_11",
+      "worker_machine_type": "e2-highcpu-4",
+      "worker_family": "e2",
+      "num_workers": 2,
+      "max_workers_from_policy": 4,
+      "total_cores": 8,
+      "max_total_cores": 16,
       "strategy": "default",
       "bias_mode": "cost_performance_balance",
       "topology_preset": "8cx1GBpc",
