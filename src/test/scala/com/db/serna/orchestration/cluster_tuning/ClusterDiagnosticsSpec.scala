@@ -111,8 +111,8 @@ class ClusterDiagnosticsSpec extends AnyFunSuite with Matchers {
     val pw = new PrintWriter(tmpFile)
     try {
       pw.println("timestamp,job_id,cluster_name,driver_exit_code,msg")
-      pw.println("""2026-01-01T00:00:00Z,job-1,"""cluster-wf-foo""",247,some message""")
-      pw.println("""2026-01-01T00:01:00Z,job-2,"""cluster-wf-bar""",1,other message""")
+      pw.println("2026-01-01T00:00:00Z,job-1,\"\"\"cluster-wf-foo\"\"\",247,some message")
+      pw.println("2026-01-01T00:01:00Z,job-2,\"\"\"cluster-wf-bar\"\"\",1,other message")
     } finally pw.close()
 
     val records = ClusterDiagnosticsProcessor.loadExitCodes(tmpFile)

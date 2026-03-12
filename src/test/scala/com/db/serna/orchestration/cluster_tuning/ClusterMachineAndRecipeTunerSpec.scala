@@ -260,7 +260,7 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     val tightPref = MachineSelectionPreference(
       preferredCores   = 32,
       minCores         = 32,
-      maxCores         = 48,
+      maxCores         = 32,
       allowedFamilies  = List("n2"),
       familyPriority   = Map("n2" -> 1),
       c3MaxClusters    = 0,
@@ -546,7 +546,7 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
         Seq.empty, "default", "cost_performance_balance", "8cx1GBpc")
     )
     val predicted = entries.map(_.numWorkers + 1).sum
-    predicted shouldBe 7  // (4+1) + (2+1)
+    predicted shouldBe 8  // (4+1) + (2+1)
   }
 
   test("GenerationSummary totalMaxNodes = sum of (maxWorkersFromPolicy + 1) across entries") {

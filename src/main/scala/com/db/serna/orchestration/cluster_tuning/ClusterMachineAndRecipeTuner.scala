@@ -773,7 +773,10 @@ object ClusterMachineAndRecipeTuner {
         case _ => Sizing.roundUp(m.avgExecutorsPerJob)
       }
       val minE: Int = math.max(2, math.max(policy.minExecutorInstances, minEraw))
-      val initialE: Int = math.max(2, if (policy.daInitialEqualsMin) minE else min(minE + 1, cluster.maxExecutorsSupported))
+      val initialE: Int = math.max(2, math.min(
+        if (policy.daInitialEqualsMin) minE else min(minE + 1, cluster.maxExecutorsSupported),
+        cluster.maxExecutorsSupported
+      ))
 
       val needMore: Boolean = m.p95RunMaxExecutors > (minE + 1)
       val maxRaw: Int = if (needMore) Sizing.roundUp(m.p95RunMaxExecutors) else (minE + 1)
