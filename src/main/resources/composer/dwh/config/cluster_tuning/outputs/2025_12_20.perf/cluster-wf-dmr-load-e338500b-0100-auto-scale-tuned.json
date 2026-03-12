@@ -1,15 +1,15 @@
 {
   "clusterConf": {
     "cluster-wf-dmr-load-e338500b-0100": {
-      "num_workers": 454,
-      "master_machine_type": "n2d-standard-2",
-      "worker_machine_type": "n2d-highcpu-2",
+      "num_workers": 114,
+      "master_machine_type": "n2-highmem-32",
+      "worker_machine_type": "n2-standard-32",
       "autoscaling_policy": "extra-large-workload-autoscaling",
       "tuner_version": "2025_20_12",
       "total_no_of_jobs": 134,
-      "cluster_max_total_memory_gb": 1816,
-      "cluster_max_total_cores": 908,
-      "accumulated_max_total_memory_per_jobs_gb": 479,
+      "cluster_max_total_memory_gb": 14592,
+      "cluster_max_total_cores": 3648,
+      "accumulated_max_total_memory_per_jobs_gb": 7664,
       "driver_memory_gb": 8,
       "driver_cores": 4,
       "driver_memory_overhead_gb": 2,
@@ -27,10 +27,10 @@
         "spark.dynamicAllocation.maxExecutors": "5",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 5
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 80
     },
     "_ETL_m_DQ3_ODS_TID72_MAEPAS.json": {
       "parallelizationFactor": 5,
@@ -42,10 +42,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_TIPO_TPV.json": {
       "parallelizationFactor": 5,
@@ -57,10 +57,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_F_OPER_ECOM_TJ_AUT.json": {
       "parallelizationFactor": 5,
@@ -72,10 +72,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DQ3_ODS_F_TS_CONT_TARJETA.json": {
       "parallelizationFactor": 5,
@@ -87,10 +87,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_TIPO_AUTEN_REDSYS_INSERT.json": {
       "parallelizationFactor": 5,
@@ -102,10 +102,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_E_D_IMPAGADO_REC_TJ.json": {
       "parallelizationFactor": 5,
@@ -117,10 +117,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_LOTES_COMERCIOS.json": {
       "parallelizationFactor": 5,
@@ -132,10 +132,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_REGISTRO_WALLET_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -147,10 +147,10 @@
         "spark.dynamicAllocation.maxExecutors": "8",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 8
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 128
     },
     "_ETL_m_DWH_D_ERRORES_INCOMING_TS_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -162,10 +162,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_IMPAGADO_TJ.json": {
       "parallelizationFactor": 5,
@@ -177,10 +177,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_METODO_AUTEN_REDSYS_INSERT.json": {
       "parallelizationFactor": 5,
@@ -192,10 +192,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_IMPAGADO_TJ_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -207,10 +207,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_FACTURAS_INAPLICABLES_TS.json": {
       "parallelizationFactor": 5,
@@ -222,10 +222,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_CONTRATOS_TARJETA_DELETE.json": {
       "parallelizationFactor": 5,
@@ -237,10 +237,10 @@
         "spark.dynamicAllocation.maxExecutors": "8",
         "spark.dynamicAllocation.initialExecutors": "5",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 4,
-      "total_executor_maximum_allocated_memory_gb": 8
+      "total_executor_minimum_allocated_memory_gb": 64,
+      "total_executor_maximum_allocated_memory_gb": 128
     },
     "_ETL_m_DQ3_ODS_TID05_EXTTRA.json": {
       "parallelizationFactor": 5,
@@ -252,10 +252,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DQ3_ODS_TATA9.json": {
       "parallelizationFactor": 5,
@@ -267,10 +267,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_EXTRACTO_CONTRATO_TJ_INSERT.json": {
       "parallelizationFactor": 5,
@@ -282,10 +282,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_COD_ACTIVIDAD_INSERT.json": {
       "parallelizationFactor": 5,
@@ -297,10 +297,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_MOD_MOV_OPER_ESPECIALES_TJ.json": {
       "parallelizationFactor": 5,
@@ -312,10 +312,10 @@
         "spark.dynamicAllocation.maxExecutors": "4",
         "spark.dynamicAllocation.initialExecutors": "4",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 3,
-      "total_executor_maximum_allocated_memory_gb": 4
+      "total_executor_minimum_allocated_memory_gb": 48,
+      "total_executor_maximum_allocated_memory_gb": 64
     },
     "_ETL_m_DQ3_ODS_TID_37_MOVIMIENTO.json": {
       "parallelizationFactor": 5,
@@ -327,10 +327,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_E_D_IMPAGADO_TJ.json": {
       "parallelizationFactor": 5,
@@ -342,10 +342,10 @@
         "spark.dynamicAllocation.maxExecutors": "4",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 4
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 64
     },
     "_ETL_m_DWH_AGENTE_AUTEN_REDSYS_INSERT.json": {
       "parallelizationFactor": 5,
@@ -357,10 +357,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_REMESA_COMERCIO_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -372,10 +372,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_F_MOVIMIENTOS_TJ_INSERT.json": {
       "parallelizationFactor": 5,
@@ -387,10 +387,10 @@
         "spark.dynamicAllocation.maxExecutors": "4",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 4
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 64
     },
     "_ETL_m_DQ3_ODS_TID14_MOROSO.json": {
       "parallelizationFactor": 5,
@@ -402,10 +402,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_COMERCIOS.json": {
       "parallelizationFactor": 5,
@@ -417,10 +417,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_TIPO_AUTEN_REDSYS.json": {
       "parallelizationFactor": 5,
@@ -432,10 +432,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_TPV_COMERCIO_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -447,10 +447,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_REMESA_COMERCIO_INSERT.json": {
       "parallelizationFactor": 5,
@@ -462,10 +462,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_TRAMO_APLAZADO_EXTR_TJ_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -477,10 +477,10 @@
         "spark.dynamicAllocation.maxExecutors": "6",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 6
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 96
     },
     "_ETL_m_DQ3_ODS_TID11_EXTRAC.json": {
       "parallelizationFactor": 5,
@@ -492,10 +492,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_E_TIPO_AUTEN_REDSYS.json": {
       "parallelizationFactor": 5,
@@ -507,10 +507,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DQ3_ODS_OPER_ECOM_TJ_AUT_DENE.json": {
       "parallelizationFactor": 5,
@@ -522,10 +522,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_E_ESTADO_OPER_REDSYS.json": {
       "parallelizationFactor": 5,
@@ -537,10 +537,10 @@
         "spark.dynamicAllocation.maxExecutors": "4",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 4
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 64
     },
     "_ETL_m_DWH_D_IMPAGADO_TJ_INSERT.json": {
       "parallelizationFactor": 5,
@@ -552,10 +552,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DQ3_ODS_F_TS_MENSUAL.json": {
       "parallelizationFactor": 5,
@@ -567,10 +567,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_COD_ACCION_PRICE.json": {
       "parallelizationFactor": 5,
@@ -582,10 +582,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_REGISTRO_WALLET.json": {
       "parallelizationFactor": 5,
@@ -597,10 +597,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_TRAMO_APLAZADO_EXTR_TJ.json": {
       "parallelizationFactor": 5,
@@ -612,10 +612,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_COD_ACT_MARCA_TARJETA.json": {
       "parallelizationFactor": 5,
@@ -627,10 +627,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_AUTORIZACION_MOV_TJ_SIA.json": {
       "parallelizationFactor": 5,
@@ -642,10 +642,10 @@
         "spark.dynamicAllocation.maxExecutors": "4",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 4
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 64
     },
     "_ETL_m_DQ3_ODS_TID97.json": {
       "parallelizationFactor": 5,
@@ -657,10 +657,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_AUTORIZACION_MOV_TJ_SIA.json": {
       "parallelizationFactor": 5,
@@ -672,10 +672,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_EXTRACTO_CONTRATO_TJ_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -687,10 +687,10 @@
         "spark.dynamicAllocation.maxExecutors": "8",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 8
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 128
     },
     "_ETL_m_DWH_D_COD_ACT_MARCA_TARJETA_INSERT.json": {
       "parallelizationFactor": 5,
@@ -702,10 +702,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_IMPAGADO_REC_TJ.json": {
       "parallelizationFactor": 5,
@@ -717,10 +717,10 @@
         "spark.dynamicAllocation.maxExecutors": "4",
         "spark.dynamicAllocation.initialExecutors": "4",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 3,
-      "total_executor_maximum_allocated_memory_gb": 4
+      "total_executor_minimum_allocated_memory_gb": 48,
+      "total_executor_maximum_allocated_memory_gb": 64
     },
     "_ETL_m_DWH_D_IMPAGADO_REC_TJ_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -732,10 +732,10 @@
         "spark.dynamicAllocation.maxExecutors": "6",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 6
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 96
     },
     "_ETL_m_DWH_D_TPV_OLD_COMERCIO_INSERT.json": {
       "parallelizationFactor": 5,
@@ -747,10 +747,10 @@
         "spark.dynamicAllocation.maxExecutors": "4",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 4
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 64
     },
     "_ETL_m_DQ3_ODS_TID_01_COMERC.json": {
       "parallelizationFactor": 5,
@@ -762,10 +762,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_E_D_BENEFICIARIO_TJ.json": {
       "parallelizationFactor": 5,
@@ -777,10 +777,10 @@
         "spark.dynamicAllocation.maxExecutors": "7",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 7
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 112
     },
     "_ETL_m_DWH_AGENTE_AUTEN_REDSYS_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -792,10 +792,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_MOD_COMERCIOS_ESTADISTICA_PAR.json": {
       "parallelizationFactor": 5,
@@ -807,10 +807,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_COD_ACCION_PRICE_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -822,10 +822,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_MOD_OPER_ECOM_TJ_AUT.json": {
       "parallelizationFactor": 5,
@@ -837,10 +837,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_TASAS_DTO_COMERCIOS.json": {
       "parallelizationFactor": 5,
@@ -852,10 +852,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_FACT_REMESA_COMERCIO_INSERT.json": {
       "parallelizationFactor": 5,
@@ -867,10 +867,10 @@
         "spark.dynamicAllocation.maxExecutors": "4",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 4
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 64
     },
     "_ETL_m_DWH_D_ERRORES_INCOMING_TS_INSERT.json": {
       "parallelizationFactor": 5,
@@ -882,10 +882,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DQ3_ODS_TID_46_AMORTIZACION.json": {
       "parallelizationFactor": 5,
@@ -897,10 +897,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_E_D_CONTRATOS_TARJETA.json": {
       "parallelizationFactor": 5,
@@ -912,10 +912,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_COD_ACTIVIDAD.json": {
       "parallelizationFactor": 5,
@@ -927,10 +927,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_TPV_OLD_COMERCIOS_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -942,10 +942,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_OPER_DENEG_TJ_REDSYS_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -957,10 +957,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_CONTRATOS_TARJETA_INSERT.json": {
       "parallelizationFactor": 5,
@@ -972,10 +972,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DQ3_ODS_F_TS_PRODUCTO.json": {
       "parallelizationFactor": 5,
@@ -987,10 +987,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DQ3_ODS_TID_20_FACT_REMESA.json": {
       "parallelizationFactor": 5,
@@ -1002,10 +1002,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_TPV_COMERCIO_INSERT.json": {
       "parallelizationFactor": 5,
@@ -1017,10 +1017,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_FACTURAS_INAPLICABLES_TS_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -1032,10 +1032,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_LOTES_COMERCIOS_INSERT.json": {
       "parallelizationFactor": 5,
@@ -1047,10 +1047,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_F_COMERCIOS_ESTADISTIC_PAR.json": {
       "parallelizationFactor": 5,
@@ -1062,10 +1062,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DQ3_ODS_TID96.json": {
       "parallelizationFactor": 5,
@@ -1077,10 +1077,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_CONTRATOS_TARJETA_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -1092,10 +1092,10 @@
         "spark.dynamicAllocation.maxExecutors": "12",
         "spark.dynamicAllocation.initialExecutors": "4",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 3,
-      "total_executor_maximum_allocated_memory_gb": 12
+      "total_executor_minimum_allocated_memory_gb": 48,
+      "total_executor_maximum_allocated_memory_gb": 192
     },
     "_ETL_m_DM_LKP_INCIDENCIAS_INCOMING_TS.json": {
       "parallelizationFactor": 5,
@@ -1107,10 +1107,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_METODO_FIN_AUTEN_REDSYS_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -1122,10 +1122,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_E_F_OP_ECOM_TJ_AUT.json": {
       "parallelizationFactor": 5,
@@ -1137,10 +1137,10 @@
         "spark.dynamicAllocation.maxExecutors": "4",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 4
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 64
     },
     "_ETL_m_DM_MOD_OPER_ECOM_TJ_AUT_DENEG.json": {
       "parallelizationFactor": 5,
@@ -1152,10 +1152,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_COMERCIO_TIPO_TARJETA.json": {
       "parallelizationFactor": 5,
@@ -1167,10 +1167,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_FACT_REMESA_COMERCIO_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -1182,10 +1182,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_TIPO_AUTEN_REDSYS_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -1197,10 +1197,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DQ3_ODS_TID_19_REMESA.json": {
       "parallelizationFactor": 5,
@@ -1212,10 +1212,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_EXTRACTO_CONTRATO_TJ.json": {
       "parallelizationFactor": 5,
@@ -1227,10 +1227,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_E_METODO_FIN_AUTEN_REDSYS.json": {
       "parallelizationFactor": 5,
@@ -1242,10 +1242,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_METODO_AUTEN_REDSYS_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -1257,10 +1257,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DQ3_ODS_TIDB1.json": {
       "parallelizationFactor": 5,
@@ -1272,10 +1272,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_INCIDENCIAS_INCOMING_TS_INSERT.json": {
       "parallelizationFactor": 5,
@@ -1287,10 +1287,10 @@
         "spark.dynamicAllocation.maxExecutors": "6",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 6
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 96
     },
     "_ETL_m_DM_LKP_METODO_AUTEN_REDSYS.json": {
       "parallelizationFactor": 5,
@@ -1302,10 +1302,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_TPV_COMERCIO.json": {
       "parallelizationFactor": 5,
@@ -1317,10 +1317,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DQ3_ODS_TUA_31.json": {
       "parallelizationFactor": 5,
@@ -1332,10 +1332,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_METODO_FIN_AUTEN_REDSYS.json": {
       "parallelizationFactor": 5,
@@ -1347,10 +1347,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_F_MOVIMIENTOS_TJ_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -1362,10 +1362,10 @@
         "spark.dynamicAllocation.maxExecutors": "12",
         "spark.dynamicAllocation.initialExecutors": "5",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 4,
-      "total_executor_maximum_allocated_memory_gb": 12
+      "total_executor_minimum_allocated_memory_gb": 64,
+      "total_executor_maximum_allocated_memory_gb": 192
     },
     "_ETL_m_DQ3_ODS_F_TS_DIARIO.json": {
       "parallelizationFactor": 5,
@@ -1377,10 +1377,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_E_AGENTE_AUTEN_REDSYS.json": {
       "parallelizationFactor": 5,
@@ -1392,10 +1392,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_MOD_MOVIMIENTOS_TJ.json": {
       "parallelizationFactor": 5,
@@ -1407,10 +1407,10 @@
         "spark.dynamicAllocation.maxExecutors": "9",
         "spark.dynamicAllocation.initialExecutors": "7",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 6,
-      "total_executor_maximum_allocated_memory_gb": 9
+      "total_executor_minimum_allocated_memory_gb": 96,
+      "total_executor_maximum_allocated_memory_gb": 144
     },
     "_ETL_m_DWH_D_INCIDENCIAS_INCOMING_TS_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -1422,10 +1422,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_TASAS_DTO_COMERCIOS_INSERT.json": {
       "parallelizationFactor": 5,
@@ -1437,10 +1437,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DQ3_ODS_TID_B6_COMERC.json": {
       "parallelizationFactor": 5,
@@ -1452,10 +1452,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_FACT_REMESA_COMERCIO.json": {
       "parallelizationFactor": 5,
@@ -1467,10 +1467,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_F_MOV_OPER_ESPECIALES_TJ_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -1482,10 +1482,10 @@
         "spark.dynamicAllocation.maxExecutors": "6",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 6
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 96
     },
     "_ETL_m_DM_LKP_ESTADO_OPER_REDSYS.json": {
       "parallelizationFactor": 5,
@@ -1497,10 +1497,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DQ3_ODS_OPERSIA.json": {
       "parallelizationFactor": 5,
@@ -1512,10 +1512,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_OPER_DENEGADAS_TJ_REDSYS.json": {
       "parallelizationFactor": 5,
@@ -1527,10 +1527,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_ESTADO_OPER_REDSYS_INSERT.json": {
       "parallelizationFactor": 5,
@@ -1542,10 +1542,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_F_MOV_OPER_ESPECIALES_TJ_INSERT.json": {
       "parallelizationFactor": 5,
@@ -1557,10 +1557,10 @@
         "spark.dynamicAllocation.maxExecutors": "4",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 4
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 64
     },
     "_ETL_m_DM_LKP_REMESA_COMERCIO.json": {
       "parallelizationFactor": 5,
@@ -1572,10 +1572,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_TPV_OLD_COMERCIO.json": {
       "parallelizationFactor": 5,
@@ -1587,10 +1587,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DQ3_ODS_TID98.json": {
       "parallelizationFactor": 5,
@@ -1602,10 +1602,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_COMERCIO_TIPO_TARJETA_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -1617,10 +1617,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_E_METODO_AUTEN_REDSYS.json": {
       "parallelizationFactor": 5,
@@ -1632,10 +1632,10 @@
         "spark.dynamicAllocation.maxExecutors": "5",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 5
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 80
     },
     "_ETL_m_DQ3_ODS_TID_90_ESTCOM.json": {
       "parallelizationFactor": 5,
@@ -1647,10 +1647,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_AGENTE_AUTEN_REDSYS.json": {
       "parallelizationFactor": 5,
@@ -1662,10 +1662,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_IMPAGADO_REC_TJ_INSERT.json": {
       "parallelizationFactor": 5,
@@ -1677,10 +1677,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_COMERCIOS_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -1692,10 +1692,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_TRAMO_APLAZADO_EXTR_TJ_INSERT.json": {
       "parallelizationFactor": 5,
@@ -1707,10 +1707,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_BENEFICIARIO_TJ_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -1722,10 +1722,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_COD_ACCION_PRICE_INSERT.json": {
       "parallelizationFactor": 5,
@@ -1737,10 +1737,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DQ3_ODS_SATSECAC.json": {
       "parallelizationFactor": 5,
@@ -1752,10 +1752,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_COMERCIO_TIPO_TARJETA_INSERT.json": {
       "parallelizationFactor": 5,
@@ -1767,10 +1767,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DQ3_ODS_TID08_BENEFI.json": {
       "parallelizationFactor": 5,
@@ -1782,10 +1782,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_BENEFICIARIO_TJ_INSERT.json": {
       "parallelizationFactor": 5,
@@ -1797,10 +1797,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_METODO_FIN_AUTEN_REDSYS_INSERT.json": {
       "parallelizationFactor": 5,
@@ -1812,10 +1812,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_FACTURAS_INAPLICABLES_TS_INSERT.json": {
       "parallelizationFactor": 5,
@@ -1827,10 +1827,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_CONTRATOS_TARJETA.json": {
       "parallelizationFactor": 5,
@@ -1842,10 +1842,10 @@
         "spark.dynamicAllocation.maxExecutors": "8",
         "spark.dynamicAllocation.initialExecutors": "5",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 4,
-      "total_executor_maximum_allocated_memory_gb": 8
+      "total_executor_minimum_allocated_memory_gb": 64,
+      "total_executor_maximum_allocated_memory_gb": 128
     },
     "_ETL_m_DQ3_ODS_TID12.json": {
       "parallelizationFactor": 5,
@@ -1857,10 +1857,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_E_F_OP_ECOM_TJ_AUT_DENEG.json": {
       "parallelizationFactor": 5,
@@ -1872,10 +1872,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_COMERCIOS_INSERT.json": {
       "parallelizationFactor": 5,
@@ -1887,10 +1887,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_COD_ACTIVIDAD_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -1902,10 +1902,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_ESTADO_OPER_REDSYS_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -1917,10 +1917,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DQ3_ODS_OPER_ECOM_TJ_AUT.json": {
       "parallelizationFactor": 5,
@@ -1932,10 +1932,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_LOTES_COMERCIOS_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -1947,10 +1947,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_F_OPER_ECOM_TJ_AUT_DENEG.json": {
       "parallelizationFactor": 5,
@@ -1962,10 +1962,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_OPER_DENEG_TJ_REDSYS_INSERT.json": {
       "parallelizationFactor": 5,
@@ -1977,10 +1977,10 @@
         "spark.dynamicAllocation.maxExecutors": "5",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 5
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 80
     },
     "_ETL_m_DWH_D_COD_ACT_MARCA_TARJETA_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -1992,10 +1992,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DM_LKP_BENEFICIARIO_TJ.json": {
       "parallelizationFactor": 5,
@@ -2007,10 +2007,10 @@
         "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 3
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 48
     },
     "_ETL_m_DWH_D_TASAS_DTO_COMERCIOS_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -2022,10 +2022,10 @@
         "spark.dynamicAllocation.maxExecutors": "4",
         "spark.dynamicAllocation.initialExecutors": "3",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "1g"
+        "spark.executor.memory": "16g"
       },
-      "total_executor_minimum_allocated_memory_gb": 2,
-      "total_executor_maximum_allocated_memory_gb": 4
+      "total_executor_minimum_allocated_memory_gb": 32,
+      "total_executor_maximum_allocated_memory_gb": 64
     }
   }
 }

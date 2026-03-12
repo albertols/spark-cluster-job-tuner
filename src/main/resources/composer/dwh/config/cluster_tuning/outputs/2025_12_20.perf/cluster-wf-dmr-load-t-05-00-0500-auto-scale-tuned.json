@@ -1,14 +1,14 @@
 {
   "clusterConf": {
     "cluster-wf-dmr-load-t-05-00-0500": {
-      "num_workers": 114,
-      "master_machine_type": "n2-standard-32",
-      "worker_machine_type": "n2-standard-32",
+      "num_workers": 13,
+      "master_machine_type": "c4-standard-32",
+      "worker_machine_type": "c4-standard-32",
       "autoscaling_policy": "extra-large-workload-autoscaling",
       "tuner_version": "2025_20_12",
       "total_no_of_jobs": 223,
-      "cluster_max_total_memory_gb": 14592,
-      "cluster_max_total_cores": 3648,
+      "cluster_max_total_memory_gb": 1664,
+      "cluster_max_total_cores": 416,
       "accumulated_max_total_memory_per_jobs_gb": 11280
     }
   },
