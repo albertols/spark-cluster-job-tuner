@@ -13,7 +13,7 @@
     }
   },
   "recipeSparkConf": {
-    "_SPARK_TEST_m_ODS_HOST_AVISOS.json": {
+    "_ETL_m_ODS_HOST_AVISOS.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",

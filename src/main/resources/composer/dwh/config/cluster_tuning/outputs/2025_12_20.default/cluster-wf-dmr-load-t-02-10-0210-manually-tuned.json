@@ -1,19 +1,19 @@
 {
   "clusterConf": {
     "cluster-wf-dmr-load-t-02-10-0210": {
-      "num_workers": 3,
-      "master_machine_type": "n2d-highcpu-80",
-      "worker_machine_type": "n2d-highcpu-80",
-      "autoscaling_policy": "small-workload-autoscaling",
+      "num_workers": 7,
+      "master_machine_type": "e2-highcpu-32",
+      "worker_machine_type": "e2-highcpu-32",
+      "autoscaling_policy": "large-workload-autoscaling",
       "tuner_version": "2025_20_12",
-      "total_no_of_jobs": 38,
-      "cluster_max_total_memory_gb": 480,
-      "cluster_max_total_cores": 240,
-      "accumulated_max_total_memory_per_jobs_gb": 576
+      "total_no_of_jobs": 39,
+      "cluster_max_total_memory_gb": 448,
+      "cluster_max_total_cores": 224,
+      "accumulated_max_total_memory_per_jobs_gb": 584
     }
   },
   "recipeSparkConf": {
-    "_SPARK_TEST_m_DWH_F_SFMC_ACCION_UPDATE.json": {
+    "_ETL_m_DWH_F_SFMC_BAJA_SUSCRIPTOR_UPDATE.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -25,7 +25,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_F_SFMC_RECLAMACION_INSERT.json": {
+    "_ETL_m_DWH_F_SFMC_POSTEVENT_PAR.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -37,7 +37,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_F_SFMC_JOB_INSERT.json": {
+    "_ETL_m_DM_MOD_SFMC_ACTIV_INST_AUTOM.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -49,7 +49,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_E_F_SFMC_JOURNEY.json": {
+    "_ETL_m_DWH_F_SFMC_JOB_INSERT.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -61,7 +61,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_F_SFMC_JOURNEY_UPDATE.json": {
+    "_ETL_m_DWH_F_SFMC_JOURNEY_INSERT.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -73,7 +73,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_E_F_SFMC_ACTIV_JOURNEY.json": {
+    "_ETL_m_DWH_E_F_SFMC_JOURNEY.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -85,7 +85,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_E_F_SFMC_POSTEVENT.json": {
+    "_ETL_m_DM_MOD_SFMC_BAJA_SUSCRIPTOR.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -97,7 +97,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_F_SFMC_INSTANCIA_AUTOM_INSERT.json": {
+    "_ETL_m_DWH_F_SFMC_ACCION_UPDATE.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -109,7 +109,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_F_SFMC_BAJA_SUSCRIPTOR_UPDATE.json": {
+    "_ETL_m_DWH_F_SFMC_BAJA_SUSCRIPTOR_INSERT.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -121,7 +121,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_E_F_SFMC_JOB.json": {
+    "_ETL_m_DWH_F_SFMC_ACTIV_INST_AUTOM_UPDATE.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -133,7 +133,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DM_MOD_SFMC_ACCION.json": {
+    "_ETL_m_DM_MOD_SFMC_JOB.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -145,7 +145,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_E_F_SFMC_ACTIV_INST_AUTOM.json": {
+    "_ETL_m_DM_MOD_SFMC_RECLAMACION.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -157,7 +157,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DM_MOD_SFMC_JOURNEY.json": {
+    "_ETL_m_DWH_E_F_SFMC_ACTIV_JOURNEY.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -169,7 +169,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_D_SFMC_SUSCRIPTOR_UPDATE.json": {
+    "_ETL_m_DM_MOD_SFMC_INSTANCIA_AUTOM.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -181,7 +181,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_E_F_SFMC_RECLAMACION.json": {
+    "_ETL_m_DM_MOD_SFMC_ACCION.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -193,7 +193,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_F_SFMC_ACCION_INSERT.json": {
+    "_ETL_m_DWH_F_SFMC_RECLAMACION_INSERT.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -205,7 +205,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_E_F_SFMC_BAJA_SUSCRIPTOR.json": {
+    "_ETL_m_DWH_E_F_SFMC_POSTEVENT.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -217,7 +217,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_F_SFMC_ACTIVIDAD_JOURNEY_INSERT.json": {
+    "_ETL_m_DWH_F_SFMC_ACTIVIDAD_JOURNEY_INSERT.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -229,7 +229,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DM_MOD_SFMC_POSTEVENT_PAR.json": {
+    "_ETL_m_DWH_F_SFMC_ACCION_INSERT.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -241,7 +241,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_F_SFMC_JOB_UPDATE.json": {
+    "_ETL_m_DM_MOD_SFMC_JOURNEY.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -253,7 +253,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DM_MOD_SFMC_BAJA_SUSCRIPTOR.json": {
+    "_ETL_m_DWH_E_F_SFMC_ACCION.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -265,7 +265,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DM_MOD_SFMC_RECLAMACION.json": {
+    "_ETL_m_DWH_D_SFMC_SUSCRIPTOR_UPDATE.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -277,7 +277,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DM_MOD_SFMC_INSTANCIA_AUTOM.json": {
+    "_ETL_m_DWH_F_SFMC_JOURNEY_UPDATE.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -289,7 +289,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_F_SFMC_BAJA_SUSCRIPTOR_INSERT.json": {
+    "_ETL_m_DWH_F_SFMC_JOB_UPDATE.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -301,7 +301,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_F_SFMC_POSTEVENT_PAR.json": {
+    "_ETL_m_DWH_D_SFMC_SUSCRIPTOR_INSERT.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -313,7 +313,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_F_SFMC_INSTANCIA_AUTOM_UPDATE.json": {
+    "_ETL_m_DWH_F_SFMC_INSTANCIA_AUTOM_UPDATE.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -325,7 +325,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_E_F_SFMC_ACCION.json": {
+    "_ETL_m_DWH_E_F_SFMC_JOB.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -337,7 +337,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DM_LKP_SFMC_SUSCRIPTOR.json": {
+    "_ETL_m_DM_LKP_SFMC_SUSCRIPTOR.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -349,7 +349,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_F_SFMC_JOURNEY_INSERT.json": {
+    "_ETL_m_DWH_E_F_SFMC_RECLAMACION.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -361,7 +361,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_D_SFMC_SUSCRIPTOR_INSERT.json": {
+    "_ETL_m_DWH_F_SFMC_INSTANCIA_AUTOM_INSERT.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -373,7 +373,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_E_D_SFMC_SUSCRIPTOR.json": {
+    "_ETL_m_DWH_E_F_SFMC_ACTIV_INST_AUTOM.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -385,7 +385,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_F_SFMC_ACTIV_INST_AUTOM_UPDATE.json": {
+    "_ETL_m_DWH_E_D_SFMC_SUSCRIPTOR.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -397,7 +397,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DM_MOD_SFMC_ACTIV_INST_AUTOM.json": {
+    "_ETL_m_DM_MOD_SFMC_POSTEVENT_PAR.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -409,7 +409,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DM_MOD_SFMC_JOB.json": {
+    "_ETL_m_DWH_E_F_SFMC_BAJA_SUSCRIPTOR.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -421,7 +421,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_DWH_F_SFMC_ACTIVIDAD_JOURNEY_UPDATE.json": {
+    "_ETL_m_DWH_F_SFMC_ACTIV_INST_AUTOM_INSERT.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -433,7 +433,7 @@
       "total_executor_minimum_allocated_memory_gb": 8,
       "total_executor_maximum_allocated_memory_gb": 8
     },
-    "_SPARK_TEST_m_DWH_F_SFMC_RECLAMACION_UPDATE.json": {
+    "_ETL_m_DWH_E_F_SFMC_INSTANCIA_AUTOM.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -445,7 +445,7 @@
       "total_executor_minimum_allocated_memory_gb": 8,
       "total_executor_maximum_allocated_memory_gb": 8
     },
-    "_SPARK_TEST_m_DWH_F_SFMC_ACTIV_INST_AUTOM_INSERT.json": {
+    "_ETL_m_DWH_F_SFMC_RECLAMACION_UPDATE.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -457,7 +457,19 @@
       "total_executor_minimum_allocated_memory_gb": 8,
       "total_executor_maximum_allocated_memory_gb": 8
     },
-    "_SPARK_TEST_m_DWH_E_F_SFMC_INSTANCIA_AUTOM.json": {
+    "_ETL_m_DM_MOD_SFMC_ACTIVIDAD_JOURNEY.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "1",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 8,
+      "total_executor_maximum_allocated_memory_gb": 8
+    },
+    "_ETL_m_DWH_F_SFMC_ACTIVIDAD_JOURNEY_UPDATE.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",

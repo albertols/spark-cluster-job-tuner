@@ -258,11 +258,14 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     )
     // Force selection of n2-standard-32 by using tight quotas that exclude everything else
     val tightPref = MachineSelectionPreference(
-      preferredCores = 32,
-      allowedFamilies = List("n2"),
-      familyPriority = Map("n2" -> 1),
-      c3MaxClusters = 0,
-      c4MaxClusters = 0,
+      preferredCores   = 32,
+      minCores         = 32,
+      maxCores         = 48,
+      allowedFamilies  = List("n2"),
+      familyPriority   = Map("n2" -> 1),
+      c3MaxClusters    = 0,
+      c4MaxClusters    = 0,
+      c3c4MaxWorkers   = 13,
       excludedFamilies = Set("n4", "n4d", "n2d", "e2", "c3", "c4")
     )
     val n2Machine = MachineCatalog.byName("n2-standard-32").get
@@ -319,6 +322,83 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     val family = plan.workerMachineType.name.takeWhile(_ != '-')
     val (used, _) = tracker.usageSummary(family)
     used should be > 0
+  }
+
+  // ── Core-count window (minCores / maxCores) ───────────────────────────────
+
+  test("planCluster never selects a machine below minCores (32)") {
+    val metrics = Seq(
+      RecipeMetrics("c1", "r1", 1.0, 1.0, 60000, 90000, 10L, None, None, None, None, Some(1))
+    )
+    val tracker = new QuotaTracker(Quotas.Default)
+    val plan = ClusterMachineAndRecipeTuner.planCluster("c1", metrics, defaultPolicy, tracker, defaultPref)
+    // Default pref has minCores=32 — even the smallest eligible cluster should use ≥32 cores/worker
+    plan.workerMachineType.cores should be >= defaultPref.minCores
+  }
+
+  test("planCluster never selects a machine above maxCores (48)") {
+    // Large demand — without the cap the scorer would pick a 224-core machine to minimise workers
+    val metrics = Seq(
+      RecipeMetrics("c1", "r1", 50.0, 200.0, 60000, 90000, 10L, None, None, None, None, Some(10))
+    )
+    val tracker = new QuotaTracker(Quotas.Default)
+    val plan = ClusterMachineAndRecipeTuner.planCluster("c1", metrics, defaultPolicy, tracker, defaultPref)
+    plan.workerMachineType.cores should be <= defaultPref.maxCores
+  }
+
+  test("planCluster with minCores=32 maxCores=32 selects only 32-core machines") {
+    val strictPref = defaultPref.copy(minCores = 32, maxCores = 32)
+    val metrics = Seq(
+      RecipeMetrics("c1", "r1", 4.0, 8.0, 60000, 90000, 10L, None, None, None, None, Some(2))
+    )
+    val tracker = new QuotaTracker(Quotas.Default)
+    val plan = ClusterMachineAndRecipeTuner.planCluster("c1", metrics, defaultPolicy, tracker, strictPref)
+    plan.workerMachineType.cores shouldBe 32
+  }
+
+  // ── C3/C4 worker cap ──────────────────────────────────────────────────────
+
+  test("planCluster caps C3 workers at c3c4MaxWorkers=13 regardless of demand") {
+    // Huge demand that would ordinarily require >13 workers on any machine
+    val metrics = Seq(
+      RecipeMetrics("c1", "r1", 100.0, 500.0, 60000, 90000, 10L, None, None, None, None, Some(20))
+    )
+    // Force C3 by allowing only c3
+    val c3OnlyPref = defaultPref.copy(
+      allowedFamilies = List("c3"),
+      c3MaxClusters   = 99,
+      c4MaxClusters   = 0,
+      excludedFamilies = Set("n4", "n4d", "n2", "n2d", "e2", "c4")
+    )
+    val tracker = new QuotaTracker(Quotas(c3 = 100000))
+    val plan = ClusterMachineAndRecipeTuner.planCluster("c1", metrics, defaultPolicy, tracker, c3OnlyPref)
+    plan.workers should be <= c3OnlyPref.c3c4MaxWorkers
+  }
+
+  test("planCluster does not cap workers for N2 clusters (cap only for C3/C4)") {
+    val metrics = Seq(
+      RecipeMetrics("c1", "r1", 100.0, 500.0, 60000, 90000, 10L, None, None, None, None, Some(20))
+    )
+    val n2OnlyPref = defaultPref.copy(
+      allowedFamilies  = List("n2"),
+      c3MaxClusters    = 0,
+      c4MaxClusters    = 0,
+      excludedFamilies = Set("n4", "n4d", "n2d", "e2", "c3", "c4")
+    )
+    val tracker = new QuotaTracker(Quotas(n2 = 100000))
+    val plan = ClusterMachineAndRecipeTuner.planCluster("c1", metrics, defaultPolicy, tracker, n2OnlyPref)
+    // N2 is uncapped — for large demand it should exceed c3c4MaxWorkers
+    plan.workers should be > defaultPref.c3c4MaxWorkers
+  }
+
+  // ── Demand-ordered C3/C4 allocation ───────────────────────────────────────
+
+  test("QuotaTracker c3 cluster cap ensures at most c3MaxClusters=1 cluster uses c3") {
+    val tracker = new QuotaTracker(Quotas.Default)
+    val c3 = MachineCatalog.defaults.find(_.name.startsWith("c3-standard-44")).get
+    tracker.recordCluster(c3, 5, defaultPref)          // first C3 cluster → recorded
+    tracker.withinQuota(c3, 5, defaultPref) shouldBe false  // second C3 cluster → blocked
+    tracker.isHardBlocked(c3, defaultPref) shouldBe true
   }
 
   // ── planManualRecipes ─────────────────────────────────────────────────────

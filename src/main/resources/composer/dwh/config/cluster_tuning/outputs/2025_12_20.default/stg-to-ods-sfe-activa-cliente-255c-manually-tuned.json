@@ -13,7 +13,7 @@
     }
   },
   "recipeSparkConf": {
-    "_SPARK_TEST_m_ODS_ACT_GAT_JOPAC.json": {
+    "_ETL_m_ODS_ACT_GAT_EXTERNOS.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -25,7 +25,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_ODS_ACT_GAT_EXTERNOS.json": {
+    "_ETL_m_ODS_LKP_ACT_PRODUCTOS.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -37,7 +37,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_ODS_ACT_SUBFAMILIA.json": {
+    "_ETL_m_ODS_ACT_AGENTES_MANUALES.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -49,7 +49,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_ODS_ACT_GESTORES_MANUALES.json": {
+    "_ETL_m_ODS_ACT_SUBFAMILIA.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -61,7 +61,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_ODS_LKP_ACT_PRODUCTOS.json": {
+    "_ETL_m_ODS_ACT_GESTORES_MANUALES.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -73,7 +73,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_ODS_ACT_AGENTES_MANUALES.json": {
+    "_ETL_m_ODS_ACT_GAT_JOPAC.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -85,7 +85,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 16
     },
-    "_SPARK_TEST_m_ODS_ACT_FAMILIA.json": {
+    "_ETL_m_ODS_ACT_FAMILIA.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",

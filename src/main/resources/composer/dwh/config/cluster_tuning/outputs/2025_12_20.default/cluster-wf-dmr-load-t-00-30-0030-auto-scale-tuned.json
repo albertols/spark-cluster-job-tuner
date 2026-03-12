@@ -2,18 +2,18 @@
   "clusterConf": {
     "cluster-wf-dmr-load-t-00-30-0030": {
       "num_workers": 2,
-      "master_machine_type": "c4-highcpu-24",
-      "worker_machine_type": "c4-highcpu-24",
+      "master_machine_type": "n2d-highcpu-32",
+      "worker_machine_type": "n2d-highcpu-32",
       "autoscaling_policy": "small-workload-autoscaling",
       "tuner_version": "2025_20_12",
       "total_no_of_jobs": 5,
-      "cluster_max_total_memory_gb": 96,
-      "cluster_max_total_cores": 48,
+      "cluster_max_total_memory_gb": 128,
+      "cluster_max_total_cores": 64,
       "accumulated_max_total_memory_per_jobs_gb": 120
     }
   },
   "recipeSparkConf": {
-    "_SPARK_TEST_m_DWH_D_SF_CRM_JERARQUIA_INSERT.json": {
+    "_ETL_m_DM_LKP_SF_CRM_JERARQUIA.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -28,7 +28,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_DWH_D_SF_CRM_LISTA_CLIENTES_PAR.json": {
+    "_ETL_m_DWH_E_SF_CRM_JERARQUIA.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -43,7 +43,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_DWH_E_SF_CRM_JERARQUIA.json": {
+    "_ETL_m_DWH_D_SF_CRM_LISTA_CLIENTES_PAR.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -58,7 +58,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_DWH_D_SF_CRM_JERARQUIA_UPDATE.json": {
+    "_ETL_m_DWH_D_SF_CRM_JERARQUIA_UPDATE.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -73,7 +73,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_DM_LKP_SF_CRM_JERARQUIA.json": {
+    "_ETL_m_DWH_D_SF_CRM_JERARQUIA_INSERT.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",

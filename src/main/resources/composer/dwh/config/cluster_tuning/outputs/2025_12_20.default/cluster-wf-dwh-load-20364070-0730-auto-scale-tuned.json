@@ -1,10 +1,10 @@
 {
   "clusterConf": {
     "cluster-wf-dwh-load-20364070-0730": {
-      "num_workers": 2,
-      "master_machine_type": "n2d-highcpu-224",
-      "worker_machine_type": "n2d-highcpu-224",
-      "autoscaling_policy": "small-workload-autoscaling",
+      "num_workers": 14,
+      "master_machine_type": "e2-highcpu-32",
+      "worker_machine_type": "e2-highcpu-32",
+      "autoscaling_policy": "extra-large-workload-autoscaling",
       "tuner_version": "2025_20_12",
       "total_no_of_jobs": 21,
       "cluster_max_total_memory_gb": 896,
@@ -13,7 +13,7 @@
     }
   },
   "recipeSparkConf": {
-    "_SPARK_TEST_m_CDM_LKP_MST_CL49_CLIENT_ID_YTD.json": {
+    "_ETL_m_CDM_LKP_MST_DOCUMENTARY_MTD_YTD.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -28,7 +28,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_0401_AVGE_CBV_NNB_ASS_IPB.json": {
+    "_ETL_m_CDM_LKP_MST_POSTING_AEAT_REVENUES.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -43,7 +43,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_POSTING_AEAT_REVENUES.json": {
+    "_ETL_m_CDM_LKP_MST_0403_AVGE_CBV_NNB_INV_PROD_IPB.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -58,7 +58,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_01_1_REV_IPB_SPAINCENTRAL_STRUCT_2022.json": {
+    "_ETL_m_CDM_LKP_MST_EY_CTAS_INGRESOS.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -73,7 +73,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_MONTHLY_STEF_MTD_YTD.json": {
+    "_ETL_m_CDM_LKP_MST_0402_CON_AVGE_CBV_NNB_LIAB_IPB.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -88,7 +88,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_WM_CLIENTES_AMA_INVESTMENT.json": {
+    "_ETL_m_CDM_LKP_MST_AAR_NIR.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -103,7 +103,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_MONTHLY_CONFIRMING_CALIF_CLI_MTD_YTD.json": {
+    "_ETL_m_CDM_LKP_MST_IPF.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -118,7 +118,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_MONTHLY_GUARANTEES_MTD.json": {
+    "_ETL_m_CDM_LKP_MST_MONTHLY_STEF_MTD_YTD.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -133,7 +133,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_AAR_NIR.json": {
+    "_ETL_m_CDM_LKP_MST_0401_AVGE_CBV_NNB_ASS_IPB.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -148,7 +148,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_DM_LCR_TOTAL_LOANS_COB.json": {
+    "_ETL_m_CDM_LKP_MST_0401_CON_AVGE_CBV_NNB_ASS_IPB.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -163,7 +163,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_0403_CON_AVGE_CBV_NNB_INV_PROD_IPB.json": {
+    "_ETL_m_CDM_LKP_MST_DM_LCR_TOTAL_LOANS_COB.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -178,7 +178,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_LKP_MST_0402_AVGE_CBV_NNB_LIAB_IPB.json": {
+    "_ETL_m_CDM_LKP_MST_MONTHLY_CONFIRMING_CALIF_CLI_MTD_YTD.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -193,7 +193,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_0403_AVGE_CBV_NNB_INV_PROD_IPB.json": {
+    "_ETL_m_CDM_LKP_MST_LKP_MST_0402_AVGE_CBV_NNB_LIAB_IPB.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -208,7 +208,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_0402_CON_AVGE_CBV_NNB_LIAB_IPB.json": {
+    "_ETL_m_CDM_LKP_MST_01_1_REV_IPB_SPAINCENTRAL_STRUCT_2022.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -223,7 +223,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_CM_SALES_REPORT_NON_INT_REVENUES_MIS.json": {
+    "_ETL_m_CDM_LKP_MST_0403_CON_AVGE_CBV_NNB_INV_PROD_IPB.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -238,7 +238,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_IPF.json": {
+    "_ETL_m_CDM_LKP_MST_CM_SALES_REPORT_NON_INT_REVENUES_MIS.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -253,7 +253,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_EY_CTAS_INGRESOS.json": {
+    "_ETL_m_CDM_LKP_MST_CL49_CLIENT_ID_YTD.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -268,7 +268,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_DOCUMENTARY_MTD_YTD.json": {
+    "_ETL_m_CDM_LKP_MST_MONTHLY_GUARANTEES_MTD.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -283,7 +283,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_CUADRE_A3_MAXIMO_DETALLE_IPB.json": {
+    "_ETL_m_CDM_LKP_MST_01_1_REV_IPB_SPAINCENTRAL_NO_MAPEO.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -298,7 +298,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_01_1_REV_IPB_SPAINCENTRAL_NO_MAPEO.json": {
+    "_ETL_m_CDM_LKP_MST_WM_CLIENTES_AMA_INVESTMENT.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -313,7 +313,7 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_CDM_LKP_MST_0401_CON_AVGE_CBV_NNB_ASS_IPB.json": {
+    "_ETL_m_CDM_LKP_MST_CUADRE_A3_MAXIMO_DETALLE_IPB.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",

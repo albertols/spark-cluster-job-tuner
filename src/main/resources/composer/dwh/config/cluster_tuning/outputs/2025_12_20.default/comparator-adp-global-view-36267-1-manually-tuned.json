@@ -1,9 +1,9 @@
 {
   "clusterConf": {
     "comparator-adp-global-view-36267-1": {
-      "num_workers": 2,
-      "master_machine_type": "n2d-highcpu-64",
-      "worker_machine_type": "n2d-highcpu-64",
+      "num_workers": 4,
+      "master_machine_type": "n2d-highcpu-32",
+      "worker_machine_type": "n2d-highcpu-32",
       "autoscaling_policy": "small-workload-autoscaling",
       "tuner_version": "2025_20_12",
       "total_no_of_jobs": 4,
@@ -13,7 +13,7 @@
     }
   },
   "recipeSparkConf": {
-    "_SPARK_TEST_m_ODS_L_SAP_LKP_SIT_LABORAL.json": {
+    "_ETL_m_ODS_L_SAP_LKP_SIT_LABORAL.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -25,7 +25,7 @@
       "total_executor_minimum_allocated_memory_gb": 32,
       "total_executor_maximum_allocated_memory_gb": 32
     },
-    "_SPARK_TEST_m_ODS_L_SAP_LKP_CLASE_SIT.json": {
+    "_ETL_m_ODS_L_SAP_LKP_CLASE_SIT.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -37,7 +37,7 @@
       "total_executor_minimum_allocated_memory_gb": 24,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_ODS_L_SAP_LKP_TIPO_ABSENT.json": {
+    "_ETL_m_ODS_L_SAP_EMPLEADOS.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -49,7 +49,7 @@
       "total_executor_minimum_allocated_memory_gb": 24,
       "total_executor_maximum_allocated_memory_gb": 24
     },
-    "_SPARK_TEST_m_ODS_L_SAP_EMPLEADOS.json": {
+    "_ETL_m_ODS_L_SAP_LKP_TIPO_ABSENT.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",

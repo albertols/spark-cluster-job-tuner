@@ -621,15 +621,25 @@ object ClusterMachineAndRecipeTuner {
     val corePref: Int = if (policy.preferEightCoreExecutors) 8 else policy.executorCores
     val reqSlots: Double = math.max(1.0, requiredSlotsRaw * (1.0 + policy.concurrencyBufferPct))
 
-    // Filter by preference: excluded and allowed families
+    // Filter by preference: excluded families, allowed families, and core-count window.
+    // minCores/maxCores enforce the 32-core sweet spot (horizontal scale, quota-safe):
+    //   - tiny machines (2–16 cores) → too many workers, quota spikes on auto-scale
+    //   - giant machines (64–224 cores) → fragile, concentrates quota on a single node
     val candidates: List[MachineType] = MachineCatalog.defaults
       .filterNot(m => pref.excludedFamilies.contains(familyOf(m.name)))
       .filter(m => pref.allowedFamilies.contains(familyOf(m.name)))
+      .filter(m => m.cores >= pref.minCores && m.cores <= pref.maxCores)
 
     val evaluated = candidates.map { w =>
       val epw: Int = Sizing.executorsPerWorker(w, corePref, policy.executorMemoryGb,
         policy.memoryOverheadRatio, policy.osAndDaemonsReserveGb)
-      val workersNeeded: Int = math.max(2, ceil(reqSlots / math.max(1, epw)).toInt)
+      val rawWorkers: Int = math.max(2, ceil(reqSlots / math.max(1, epw)).toInt)
+      // C3/C4: cap worker count to honour small quota (c3c4MaxWorkers, default 13).
+      // This keeps max nodes ≤ 14 (13 workers + 1 master) = ~416–572 cores depending on shape.
+      val workersNeeded: Int =
+        if ((familyOf(w.name) == "c3" || familyOf(w.name) == "c4") && pref.c3c4MaxWorkers > 0)
+          math.min(rawWorkers, pref.c3c4MaxWorkers)
+        else rawWorkers
       val masterType: MachineType = w
       val capacitySlots: Int = epw * workersNeeded
       val totalCores: Int = w.cores * workersNeeded
@@ -1035,7 +1045,16 @@ object ClusterMachineAndRecipeTuner {
       logger.warn("No metrics loaded. No JSONs will be produced. Ensure CSVs exist in the input directory and the query was executed.")
       return
     }
-    val metricsByCluster = metricsByKey.values.groupBy(_.cluster)
+    // Sort clusters by demand descending so the most demanding cluster is planned first.
+    // This ensures C3/C4 (capped at 1 cluster each) is allocated to the highest-demand
+    // workload before the cluster-count cap is consumed by a smaller cluster.
+    // Demand proxy matches planCluster: max(p95RunMaxExecutors) × max(concurrentJobs).
+    val metricsByCluster: Seq[(String, Iterable[RecipeMetrics])] =
+      metricsByKey.values.groupBy(_.cluster).toSeq.sortBy { case (_, recs) =>
+        val maxP95  = recs.map(_.p95RunMaxExecutors).max
+        val maxConc = recs.flatMap(_.maxConcurrentJobs).maxOption.getOrElse(1)
+        -(maxP95 * maxConc)
+      }
     logger.info(s"Found ${metricsByCluster.size} clusters in metrics.")
 
     val dagByCluster: Map[String, String] = loadDagClusterRelationshipMap()

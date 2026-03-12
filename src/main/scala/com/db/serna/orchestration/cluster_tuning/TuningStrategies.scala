@@ -81,34 +81,45 @@ object BiasMode {
 }
 
 // ── Machine family preference ─────────────────────────────────────────────────
-// preferredCores: machines with exactly this core count receive a score bonus.
+// preferredCores: machines with exactly this core count receive a score bonus (-0.10).
+// minCores/maxCores: hard core-count window applied before scoring.  Setting both to 32
+//   enforces the sweet spot (horizontal scale with many 32-core workers); allowing up to 48
+//   gives one step of flexibility while excluding tiny (2–16) and giant (64–224) machines.
 // allowedFamilies: candidate list is filtered to these families only.
 // familyPriority: tie-break within equal scores (lower number = higher priority).
 // c3/c4MaxClusters: hard cap on number of clusters that may use c3/c4.
+// c3c4MaxWorkers: hard cap on worker count for C3/C4 clusters (to honour small quota).
+//   13 workers × 32-core machine = 416 worker cores + 1 master = 14 nodes / ~448 vCPUs total.
 // excludedFamilies: always filtered out before scoring.
+// familyPriorityWeight: weight of the dynamic quota-pressure term (penalty rises as
+//   usedCores/quota rises, distributing N2/N2D/E2 proportionally to their quotas).
 final case class MachineSelectionPreference(
   preferredCores: Int,
+  minCores: Int,
+  maxCores: Int,
   allowedFamilies: List[String],
   familyPriority: Map[String, Int],
   c3MaxClusters: Int,
   c4MaxClusters: Int,
+  c3c4MaxWorkers: Int,
   excludedFamilies: Set[String],
-  // Weight applied to the dynamic quota-pressure term in the scoring formula.
-  // Penalty = familyPriorityWeight * (usedCores / quotaCores) per family.
-  // Families that have consumed more of their proportional quota receive a higher penalty,
-  // distributing allocations across N2/N2D/E2 roughly in ratio to their quota limits.
-  // 0.20 keeps quota balancing competitive with cost while avoiding lock-in to any one family.
   familyPriorityWeight: Double = 0.20
 )
 
 object MachineSelectionPreference {
-  // Priority: N2-32 > N2D-32 > E2-32; C3/C4 exceptional (max 1 each); N4/N4D excluded.
+  // Sweet spot: 32-core machines for horizontal scalability; allow up to 48 for a step up.
+  // Tiny machines (2–16 cores) cause huge worker counts and quota spikes on auto-scaling.
+  // Giant machines (64–224 cores) are fragile and concentrate quota risk on a single node.
+  // C3/C4 reserved for the single most demanding cluster, capped at 13 workers (~416 cores).
   val Default: MachineSelectionPreference = MachineSelectionPreference(
     preferredCores   = 32,
+    minCores         = 32,
+    maxCores         = 48,
     allowedFamilies  = List("n2", "n2d", "e2", "c3", "c4"),
     familyPriority   = Map("n2" -> 1, "n2d" -> 2, "e2" -> 3, "c3" -> 4, "c4" -> 5),
     c3MaxClusters    = 1,
     c4MaxClusters    = 1,
+    c3c4MaxWorkers   = 13,
     excludedFamilies = Set("n4", "n4d")
   )
 }

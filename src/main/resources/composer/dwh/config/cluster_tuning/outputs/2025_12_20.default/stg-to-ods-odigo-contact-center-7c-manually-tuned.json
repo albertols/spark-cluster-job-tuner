@@ -1,10 +1,10 @@
 {
   "clusterConf": {
     "stg-to-ods-odigo-contact-center-7c": {
-      "num_workers": 4,
-      "master_machine_type": "n2d-highcpu-80",
-      "worker_machine_type": "n2d-highcpu-80",
-      "autoscaling_policy": "small-workload-autoscaling",
+      "num_workers": 10,
+      "master_machine_type": "n2-highcpu-32",
+      "worker_machine_type": "n2-highcpu-32",
+      "autoscaling_policy": "extra-large-workload-autoscaling",
       "tuner_version": "2025_20_12",
       "total_no_of_jobs": 5,
       "cluster_max_total_memory_gb": 640,
@@ -13,7 +13,7 @@
     }
   },
   "recipeSparkConf": {
-    "_SPARK_TEST_m_ODS_ODIGO_GRUPO_AGENTES_DETAIL.json": {
+    "_ETL_m_ODS_ODIGO_GRUPO_AGENTES_DETAIL.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -25,7 +25,7 @@
       "total_executor_minimum_allocated_memory_gb": 80,
       "total_executor_maximum_allocated_memory_gb": 80
     },
-    "_SPARK_TEST_m_ODS_ODIGO_GATES_DDI_DETAIL.json": {
+    "_ETL_m_ODS_ODIGO_GATES_DDI_DETAIL.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -37,7 +37,7 @@
       "total_executor_minimum_allocated_memory_gb": 48,
       "total_executor_maximum_allocated_memory_gb": 48
     },
-    "_SPARK_TEST_m_ODS_ODIGO_GRUPO_AGENTES_HEAD.json": {
+    "_ETL_m_ODS_ODIGO_GRUPO_AGENTES_HEAD.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -49,7 +49,7 @@
       "total_executor_minimum_allocated_memory_gb": 32,
       "total_executor_maximum_allocated_memory_gb": 32
     },
-    "_SPARK_TEST_m_ODS_ODIGO_GATES_DDI_HEADER.json": {
+    "_ETL_m_ODS_ODIGO_GATES_DDI_HEADER.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -61,7 +61,7 @@
       "total_executor_minimum_allocated_memory_gb": 32,
       "total_executor_maximum_allocated_memory_gb": 32
     },
-    "_SPARK_TEST_m_ODS_ODIGO_TU_CAMPAIGNS_WEEKLY.json": {
+    "_ETL_m_ODS_ODIGO_TU_CAMPAIGNS_WEEKLY.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",

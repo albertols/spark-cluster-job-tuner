@@ -1,19 +1,19 @@
 {
   "clusterConf": {
     "comparator-mis-590-2-j": {
-      "num_workers": 4,
-      "master_machine_type": "n2d-highcpu-80",
-      "worker_machine_type": "n2d-highcpu-80",
-      "autoscaling_policy": "small-workload-autoscaling",
+      "num_workers": 10,
+      "master_machine_type": "e2-highcpu-32",
+      "worker_machine_type": "e2-highcpu-32",
+      "autoscaling_policy": "extra-large-workload-autoscaling",
       "tuner_version": "2025_20_12",
-      "total_no_of_jobs": 3,
+      "total_no_of_jobs": 4,
       "cluster_max_total_memory_gb": 640,
       "cluster_max_total_cores": 320,
-      "accumulated_max_total_memory_per_jobs_gb": 120
+      "accumulated_max_total_memory_per_jobs_gb": 128
     }
   },
   "recipeSparkConf": {
-    "_SPARK_TEST_m_ODS_MIS_MISJUAN.json": {
+    "_ETL_m_ODS_MIS_MISJUAN.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -25,7 +25,7 @@
       "total_executor_minimum_allocated_memory_gb": 80,
       "total_executor_maximum_allocated_memory_gb": 80
     },
-    "_SPARK_TEST_m_ODS_MIS_HECHOS1.json": {
+    "_ETL_m_ODS_MIS_HECHOS1.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
@@ -37,7 +37,19 @@
       "total_executor_minimum_allocated_memory_gb": 32,
       "total_executor_maximum_allocated_memory_gb": 32
     },
-    "_SPARK_TEST_m_ODS_MIS_HECHOS2.json": {
+    "_ETL_m_ODS_MIS_COMIGCPC.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "1",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 8,
+      "total_executor_maximum_allocated_memory_gb": 8
+    },
+    "_ETL_m_ODS_MIS_HECHOS2.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",

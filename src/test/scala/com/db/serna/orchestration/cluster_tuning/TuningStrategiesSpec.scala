@@ -110,6 +110,16 @@ class TuningStrategiesSpec extends AnyFunSuite with Matchers {
     MachineSelectionPreference.Default.c4MaxClusters shouldBe 1
   }
 
+  test("MachineSelectionPreference.Default minCores=32 maxCores=48 enforce 32-core sweet spot") {
+    MachineSelectionPreference.Default.minCores shouldBe 32
+    MachineSelectionPreference.Default.maxCores shouldBe 48
+  }
+
+  test("MachineSelectionPreference.Default c3c4MaxWorkers=13 caps C3/C4 nodes at 14 total") {
+    // 13 workers + 1 master = 14 nodes; 14 × 32 cores = 448 vCPUs (fits within 500-core quota)
+    MachineSelectionPreference.Default.c3c4MaxWorkers shouldBe 13
+  }
+
   // ── Quotas ────────────────────────────────────────────────────────────────
 
   test("Quotas.forFamily returns correct values") {

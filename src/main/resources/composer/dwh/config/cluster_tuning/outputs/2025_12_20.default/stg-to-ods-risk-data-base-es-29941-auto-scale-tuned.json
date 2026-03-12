@@ -2,18 +2,18 @@
   "clusterConf": {
     "stg-to-ods-risk-data-base-es-29941": {
       "num_workers": 2,
-      "master_machine_type": "c4-highcpu-24",
-      "worker_machine_type": "c4-highcpu-24",
+      "master_machine_type": "n2-highcpu-32",
+      "worker_machine_type": "n2-highcpu-32",
       "autoscaling_policy": "small-workload-autoscaling",
       "tuner_version": "2025_20_12",
       "total_no_of_jobs": 1,
-      "cluster_max_total_memory_gb": 96,
-      "cluster_max_total_cores": 48,
+      "cluster_max_total_memory_gb": 128,
+      "cluster_max_total_cores": 64,
       "accumulated_max_total_memory_per_jobs_gb": 32
     }
   },
   "recipeSparkConf": {
-    "_SPARK_TEST_m_ODS_F_FRC38DS_REP_GR.json": {
+    "_ETL_m_ODS_F_FRC38DS_REP_GR.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",

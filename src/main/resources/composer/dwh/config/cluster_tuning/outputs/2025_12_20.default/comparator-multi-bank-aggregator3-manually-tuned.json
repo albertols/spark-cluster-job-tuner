@@ -2,8 +2,8 @@
   "clusterConf": {
     "comparator-multi-bank-aggregator3": {
       "num_workers": 2,
-      "master_machine_type": "e2-highcpu-16",
-      "worker_machine_type": "e2-highcpu-16",
+      "master_machine_type": "n2-highcpu-16",
+      "worker_machine_type": "n2-highcpu-16",
       "autoscaling_policy": "small-workload-autoscaling",
       "tuner_version": "2025_20_12",
       "total_no_of_jobs": 1,
@@ -13,7 +13,7 @@
     }
   },
   "recipeSparkConf": {
-    "_SPARK_TEST_m_ODS_EB_05_MBANK_CUSTOMER.json": {
+    "_ETL_m_ODS_EB_05_MBANK_CUSTOMER.json": {
       "parallelizationFactor": 5,
       "sparkOptsMap": {
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
