@@ -1,9 +1,9 @@
 {
   "clusterConf": {
     "cluster-wf-dmr-load-t-05-00-0500": {
-      "num_workers": 30,
-      "master_machine_type": "n2-highcpu-96",
-      "worker_machine_type": "n2-highcpu-96",
+      "num_workers": 90,
+      "master_machine_type": "e2-highcpu-32",
+      "worker_machine_type": "e2-highcpu-32",
       "autoscaling_policy": "extra-large-workload-autoscaling",
       "tuner_version": "2025_20_12",
       "total_no_of_jobs": 223,

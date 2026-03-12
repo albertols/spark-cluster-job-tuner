@@ -1,14 +1,14 @@
 {
   "clusterConf": {
     "comparator-mis-590-2-l": {
-      "num_workers": 7,
-      "master_machine_type": "e2-highcpu-32",
-      "worker_machine_type": "e2-highcpu-32",
-      "autoscaling_policy": "large-workload-autoscaling",
+      "num_workers": 5,
+      "master_machine_type": "n2d-highcpu-48",
+      "worker_machine_type": "n2d-highcpu-48",
+      "autoscaling_policy": "medium-workload-autoscaling",
       "tuner_version": "2025_20_12",
       "total_no_of_jobs": 4,
-      "cluster_max_total_memory_gb": 448,
-      "cluster_max_total_cores": 224,
+      "cluster_max_total_memory_gb": 480,
+      "cluster_max_total_cores": 240,
       "accumulated_max_total_memory_per_jobs_gb": 120
     }
   },

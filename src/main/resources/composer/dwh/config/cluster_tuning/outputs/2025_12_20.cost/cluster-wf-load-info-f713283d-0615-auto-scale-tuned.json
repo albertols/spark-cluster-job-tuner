@@ -1,14 +1,14 @@
 {
   "clusterConf": {
     "cluster-wf-load-info-f713283d-0615": {
-      "num_workers": 16,
-      "master_machine_type": "e2-highcpu-32",
-      "worker_machine_type": "e2-highcpu-32",
+      "num_workers": 11,
+      "master_machine_type": "n2-highcpu-48",
+      "worker_machine_type": "n2-highcpu-48",
       "autoscaling_policy": "extra-large-workload-autoscaling",
       "tuner_version": "2025_20_12",
       "total_no_of_jobs": 14,
-      "cluster_max_total_memory_gb": 1024,
-      "cluster_max_total_cores": 512,
+      "cluster_max_total_memory_gb": 1056,
+      "cluster_max_total_cores": 528,
       "accumulated_max_total_memory_per_jobs_gb": 504
     }
   },
