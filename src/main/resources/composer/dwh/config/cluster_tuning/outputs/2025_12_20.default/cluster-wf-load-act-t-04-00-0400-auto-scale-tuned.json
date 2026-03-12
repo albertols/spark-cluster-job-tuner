@@ -2,14 +2,14 @@
   "clusterConf": {
     "cluster-wf-load-act-t-04-00-0400": {
       "num_workers": 2,
-      "master_machine_type": "n2d-highcpu-4",
-      "worker_machine_type": "n2d-highcpu-4",
+      "master_machine_type": "n2-highcpu-32",
+      "worker_machine_type": "n2-highcpu-32",
       "autoscaling_policy": "small-workload-autoscaling",
       "tuner_version": "2025_20_12",
       "total_no_of_jobs": 3,
-      "cluster_max_total_memory_gb": 16,
-      "cluster_max_total_cores": 8,
-      "accumulated_max_total_memory_per_jobs_gb": 18
+      "cluster_max_total_memory_gb": 128,
+      "cluster_max_total_cores": 64,
+      "accumulated_max_total_memory_per_jobs_gb": 72
     }
   },
   "recipeSparkConf": {
@@ -20,13 +20,13 @@
         "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
         "spark.dynamicAllocation.enabled": "true",
         "spark.dynamicAllocation.minExecutors": "2",
-        "spark.dynamicAllocation.maxExecutors": "2",
+        "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "2",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "3g"
+        "spark.executor.memory": "8g"
       },
-      "total_executor_minimum_allocated_memory_gb": 6,
-      "total_executor_maximum_allocated_memory_gb": 6
+      "total_executor_minimum_allocated_memory_gb": 16,
+      "total_executor_maximum_allocated_memory_gb": 24
     },
     "_ETL_m_LKP_ACT_CLIENTE_EXCLUSION_DELETE.json": {
       "parallelizationFactor": 5,
@@ -35,13 +35,13 @@
         "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
         "spark.dynamicAllocation.enabled": "true",
         "spark.dynamicAllocation.minExecutors": "2",
-        "spark.dynamicAllocation.maxExecutors": "2",
+        "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "2",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "3g"
+        "spark.executor.memory": "8g"
       },
-      "total_executor_minimum_allocated_memory_gb": 6,
-      "total_executor_maximum_allocated_memory_gb": 6
+      "total_executor_minimum_allocated_memory_gb": 16,
+      "total_executor_maximum_allocated_memory_gb": 24
     },
     "_ETL_m_LKP_ACT_CLIENTE_EXCLUSION_UPDATE.json": {
       "parallelizationFactor": 5,
@@ -50,13 +50,13 @@
         "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
         "spark.dynamicAllocation.enabled": "true",
         "spark.dynamicAllocation.minExecutors": "2",
-        "spark.dynamicAllocation.maxExecutors": "2",
+        "spark.dynamicAllocation.maxExecutors": "3",
         "spark.dynamicAllocation.initialExecutors": "2",
         "spark.executor.cores": "8",
-        "spark.executor.memory": "3g"
+        "spark.executor.memory": "8g"
       },
-      "total_executor_minimum_allocated_memory_gb": 6,
-      "total_executor_maximum_allocated_memory_gb": 6
+      "total_executor_minimum_allocated_memory_gb": 16,
+      "total_executor_maximum_allocated_memory_gb": 24
     }
   }
 }

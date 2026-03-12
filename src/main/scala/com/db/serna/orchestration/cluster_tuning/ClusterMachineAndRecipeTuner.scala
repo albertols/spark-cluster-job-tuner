@@ -1052,9 +1052,10 @@ object ClusterMachineAndRecipeTuner {
     val metricsByCluster: Seq[(String, Iterable[RecipeMetrics])] =
       metricsByKey.values.groupBy(_.cluster).toSeq.sortBy { case (_, recs) =>
         val maxP95  = recs.map(_.p95RunMaxExecutors).max
-        val maxConc = recs.flatMap(_.maxConcurrentJobs).maxOption.getOrElse(1)
+        val concSeq = recs.flatMap(_.maxConcurrentJobs)
+        val maxConc = if (concSeq.isEmpty) 1 else concSeq.max
         -(maxP95 * maxConc)
-      }
+      }(Ordering[Double])
     logger.info(s"Found ${metricsByCluster.size} clusters in metrics.")
 
     val dagByCluster: Map[String, String] = loadDagClusterRelationshipMap()
