@@ -30,7 +30,7 @@ src/main/resources/composer/dwh/config/cluster_tuning/inputs/<YYYY_MM_DD>/
 
 | File | Source | Description |
 |------|--------|-------------|
-| `b13_all_metrics_flat.csv` | BigQuery b13 query | All cluster + recipe metrics in one flat file (preferred, flattened mode) |
+| `b13_recommendations_inputs_per_recipe_per_cluster.csv` | BigQuery b13 query | All cluster + recipe metrics in one flat file (preferred, flattened mode) |
 
 ### Optional inputs
 
@@ -200,14 +200,14 @@ The resulting strategy name in outputs becomes `<strategy>+<topology>`, e.g. `co
 
 | Mode | Argument | Input file |
 |------|----------|-----------|
-| **Flattened** (default) | *(nothing — default)* | `b13_all_metrics_flat.csv` |
+| **Flattened** (default) | *(nothing — default)* | `b13_recommendations_inputs_per_recipe_per_cluster.csv` |
 | **Non-flattened** | `flattened=false` | `b1_*.csv` … `b12_*.csv` (individual metric files) |
 
 Flattened mode (b13) is preferred because it requires a single BigQuery export.
 Non-flattened mode is available as a fallback when b13 is unavailable.
 
 ```
-# Flattened — uses b13_all_metrics_flat.csv
+# Flattened — uses b13_recommendations_inputs_per_recipe_per_cluster.csv
 2025_12_20
 
 # Non-flattened — uses b1–b12 individual CSV files

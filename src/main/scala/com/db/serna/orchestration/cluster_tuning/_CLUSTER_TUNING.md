@@ -47,10 +47,17 @@ per-cluster JSON configs for manually tuned and auto-scale tuned Spark.
     - `<cluster>-manually-tuned.json`
     - `<cluster>-auto-scale-tuned.json`
     - `_clusters-summary.csv` (sorted by workers desc, then jobs desc)
-    - `_clusters-summary.json` (for convenience)
+    - `_clusters-summary-only-clusters-wf.csv`
+    - `_clusters-summary_top_jobs.csv`
+    - `_clusters-summary_num_of_workers.csv`
+    - `_clusters-summary_estimated_cost_eur.csv`
+    - `_clusters-summary_total_active_minutes.csv`
+    - `_clusters-summary_global_cores_and_machines.csv`
+    - `_generation_summary.json` — quota usage, node count prediction, per-cluster strategy/diagnostic info
+    - `_generation_summary.csv` — flat version of the above
 
 Outputs are written to:
-`src/main/scala/com/db/pwcclakees/orchestration/cluster_tuning/output` -> [output](output)
+`src/main/resources/composer/dwh/config/cluster_tuning/outputs/<YYYY_MM_DD>/`
 
 ## Key metrics
 All SQL queries are under: [log_analytics](log_analytics)
@@ -68,6 +75,8 @@ All SQL queries are under: [log_analytics](log_analytics)
 - Total jobs per cluster: [b6_total_jobs_per_cluster.sql](log_analytics/b6_total_jobs_per_cluster.sql)
 - Total runtime of all jobs per cluster: [b7_total_runtime_all_jobs_per_cluster.sql](log_analytics/b7_total_runtime_all_jobs_per_cluster.sql)
 - Max concurrent jobs per cluster in window: [b11_max_concurrent_jobs_per_cluster_in_window.sql](log_analytics/b11_max_concurrent_jobs_per_cluster_in_window.sql)
+- Executor churn (adds/removes per job): [b10_executor_churn_per_job_adds_removes.sql](log_analytics/b10_executor_churn_per_job_adds_removes.sql)
+- Driver exit codes (for diagnostic overrides): [b14_clusters_with_nonzero_exit_codes.sql](log_analytics/b14_clusters_with_nonzero_exit_codes.sql)
 
 We recommend using the flattened query: [b13_recommendations_inputs_per_recipe_per_cluster.sql](log_analytics/b13_recommendations_inputs_per_recipe_per_cluster.sql)
 which consolidates these per `(cluster_name, recipe_filename)` so the tuner can read a single CSV.
@@ -83,6 +92,12 @@ Alternative (fine-grained):
 
 - Export individual CSVs for b1, b3, b5, b8, b11, b12.
   The [ClusterMachineAndRecipeTuner.scala](ClusterMachineAndRecipeTuner.scala) supports both modes.
+
+Optional (diagnostics):
+
+- Export [b14_clusters_with_nonzero_exit_codes.csv](log_analytics/b14_clusters_with_nonzero_exit_codes.sql) for YARN driver exit code analysis.
+  When present, clusters with exit code 247 (YARN driver eviction) receive automatic driver resource overrides in the output JSONs.
+  If absent, the tuner runs silently without diagnostics.
 
 ## Tuner logic (ClusterMachineAndRecipeTuner.scala)
 
@@ -113,11 +128,13 @@ Alternative (fine-grained):
 
 2. Run the tuner: [ClusterMachineAndRecipeTuner.run.xml](../../../../../../../../.run/orchestration/cluster_tuning/ClusterMachineAndRecipeTuner.run.xml)
 
-3. Inspect outputs in `output/`:
+3. Inspect outputs in `outputs/<YYYY_MM_DD>/`:
     - `<cluster>-manually-tuned.json`
     - `<cluster>-auto-scale-tuned.json`
     - `_clusters-summary.csv` (sorted, with estimated cost)
-    - `_clusters-summary.json`
+    - `_clusters-summary_*.csv` (sorted by other dimensions)
+    - `_clusters-summary_global_cores_and_machines.csv`
+    - `_generation_summary.json` / `_generation_summary.csv`
 
 ## Cost estimation
 
