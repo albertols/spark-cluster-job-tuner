@@ -1,0 +1,101 @@
+cluster_name,recipe_filename,job_id,app_start_iso,avg_job_duration_in_mins_sec,status,message
+comparator-a-wf-dwh-load-t-05-50,_ETL_m_DWH_F_OPERACION_ONLINE_EB.json,ETL_m_DWH_F_OPERACION_ONLINE_EB_comparator-20260329-1556,2026-03-29T13:56:58.190999Z,267m 33sec,,
+comparator-wf-dwh-load-t-08-15,_ETL_m_DWH_LKP_RESTRICCION_ACT_INSERT.json,ETL_m_DWH_LKP_RESTRICCION_ACT_INSERT_comparator-20260330-1203,2026-03-30T10:03:44.713999Z,230m 23sec,,
+comparator-wf-dwh-load-t-03-30,_ETL_m_DWH_D_NOTIFICACIONES_TEXT_NHUB_INSERT.json,ETL_m_DWH_D_NOTIFICACIONES_TEXT_NHUB_INSERT_comparator-20260330-1339,2026-03-30T11:39:24.614Z,177m 9sec,,
+cluster-wf-dmr-load-t-04-35-0435,_ETL_m_DM_LKP_COSTE_INSTR_FI.json,etl-m-dm-lkp-coste-instr-fi-20260330-1012,2026-03-30T08:12:22.644Z,65m 0sec,SUCCESS,
+comparator-wf-dwh-load-t-05-00,_ETL_m_RDM_D_TITULARES_SMARAG_PAR.json,ETL_m_RDM_D_TITULARES_SMARAG_PAR_comparator-20260329-1832,2026-03-29T16:33:05.177999Z,52m 34sec,,
+cluster-wf-load-info-7e158412-0345,_ETL_m_DWH_D_MOVIMIENTOS_PM_INSERT.json,etl-m-dwh-d-movimientos-pm-insert-20260329-0827,2026-03-29T06:27:41.434Z,38m 12sec,,
+cluster-wf-dmr-load-t-04-35-0435,_ETL_m_DWH_LKP_COSTE_INSTR_FI_UPDATE.json,etl-m-dwh-lkp-coste-instr-fi-update-20260330-0816,2026-03-30T06:17:04.397Z,37m 0sec,SUCCESS,
+cluster-wf-load-info-7e158412-0345,_ETL_m_DWH_D_MOVIMIENTOS_PM_DELETED_INSERT_GCP.json,etl-m-dwh-d-movimientos-pm-deleted-insert-gcp-20260330-0515,2026-03-30T03:15:34.033999Z,36m 2sec,,
+cluster-wf-dmr-load-e338500b-0100,_ETL_m_DWH_F_COMERCIOS_ESTADISTIC_PAR.json,etl-m-dwh-f-comercios-estadistic-par-20260330-0213,2026-03-30T00:14:14.318Z,33m 40sec,FAILURE,"Exception message: writeResultAndErrors failed: Unable to provision, see the following errors:
+
+1) [Guice/ErrorInCustomProvider]: IllegalArgumentException: BigQueryConnectorException$InvalidSchemaException: Destination table's schema is not compatible with dataframe's schema. Number of source fields: 63 is larger than number of destination fields: 62
+  at BigQueryDataSourceWriterModule.provideDirectDataSourceWriterContext(BigQueryDataSourceWriterModule.java:63)
+  while locating BigQueryDirectDataSourceWriterContext
+
+Learn more:
+  https://github.com/google/guice/wiki/ERROR_IN_CUSTOM_PROVIDER
+
+1 error
+
+======================
+Full classname legend:
+======================
+BigQueryConnectorException$InvalidSchemaException: \"com.google.cloud.bigquery.connector.common.BigQueryConnectorException$InvalidSchemaException\"
+BigQueryDataSourceWriterModule:                    \"com.google.cloud.spark.bigquery.write.context.BigQueryDataSourceWriterModule\"
+BigQueryDirectDataSourceWriterContext:             \"com.google.cloud.spark.bigquery.write.context.BigQueryDirectDataSourceWriterContext\"
+========================
+End of classname legend:
+========================"
+cluster-wf-dmr-load-t-02-15-0215,_ETL_m_DQ3_ODS_F_PM_CABE_OPE.json,etl-m-dq3-ods-f-pm-cabe-ope-20260330-0341,2026-03-30T01:42:08.132999Z,33m 32sec,FAILURE,Exception message: writeResultAndErrors failed: Primary key columns must be provided.
+cluster-wf-dwh-load-t-06-50-0650,_ETL_m_DWH_E_MOD_NOTIFICACIONES_CCA_GCP.json,etl-m-dwh-e-mod-notificaciones-cca-gcp-20260330-0803,2026-03-30T06:03:46.470999Z,32m 25sec,FAILURE,"Exception message: writeResultAndErrors failed: Unable to provision, see the following errors:
+
+1) [Guice/ErrorInCustomProvider]: IllegalArgumentException: BigQueryConnectorException$InvalidSchemaException: Destination table's schema is not compatible with dataframe's schema. Incompatible type for field: FCH_ENVIO_NOTIF, cannot write source type: DATETIME to destination type: TIMESTAMP
+  at BigQueryDataSourceWriterModule.provideDirectDataSourceWriterContext(BigQueryDataSourceWriterModule.java:63)
+  while locating BigQueryDirectDataSourceWriterContext
+
+Learn more:
+  https://github.com/google/guice/wiki/ERROR_IN_CUSTOM_PROVIDER
+
+1 error
+
+======================
+Full classname legend:
+======================
+BigQueryConnectorException$InvalidSchemaException: \"com.google.cloud.bigquery.connector.common.BigQueryConnectorException$InvalidSchemaException\"
+BigQueryDataSourceWriterModule:                    \"com.google.cloud.spark.bigquery.write.context.BigQueryDataSourceWriterModule\"
+BigQueryDirectDataSourceWriterContext:             \"com.google.cloud.spark.bigquery.write.context.BigQueryDirectDataSourceWriterContext\"
+========================
+End of classname legend:
+========================"
+comparator-a-wf-dwh-load-t-04-00c,_ETL_m_LOAD_MOD_CONTRATOS_MIS.json,ETL_m_LOAD_MOD_CONTRATOS_MIS_comparator-20260330-1627,2026-03-30T14:27:33.269Z,31m 41sec,,
+comparator-wf-dwh-load-t-08-15,_ETL_m_DWH_LKP_RESTRICCION_INSERT.json,ETL_m_DWH_LKP_RESTRICCION_INSERT_comparator-20260330-1306,2026-03-30T11:06:21.611999Z,30m 39sec,,
+comparator-a-wf-dwh-load-t-04-00c,_ETL_m_LOAD_DWH_MOD_CONTRATOS_IK.json,ETL_m_LOAD_DWH_MOD_CONTRATOS_IK_comparator-20260330-1509,2026-03-30T13:09:56.713Z,29m 33sec,,
+cluster-wf-dmr-load-e338500b-2208,_ETL_m_DWH_MOD_COND_TARJETA_INSERT_GCP.json,etl-m-dwh-mod-cond-tarjeta-insert-gcp-20260330-0218,2026-03-30T00:18:44.842Z,28m 10sec,,
+comparator-wf-dwh-load-t-01-15,_ETL_m_LOAD_MOD_DOCUMENTOS_I.json,ETL_m_LOAD_MOD_DOCUMENTOS_I_comparator-20260329-1736,2026-03-29T15:36:26.819999Z,27m 24sec,,
+cluster-wf-dmr-load-e338500b-0100,_ETL_m_DWH_F_MOVIMIENTOS_TJ_UPDATE.json,etl-m-dwh-f-movimientos-tj-update-20260330-0212,2026-03-30T00:12:47.177Z,25m 16sec,SUCCESS,
+comparator-a-wf-dwh-load-t-04-00c,_ETL_m_DWH_F_MAESTRA_CONTRATOS_UBR.json,ETL_m_DWH_F_MAESTRA_CONTRATOS_UBR_comparator-20260330-1440,2026-03-30T12:40:27.953Z,24m 15sec,,
+cluster-wf-dmr-load-t-23-50-2350,_ETL_m_DWH_LKP_MOVIMIENTO_DP_INSERT.json,etl-m-dwh-lkp-movimiento-dp-insert-20260330-0122,2026-03-29T23:22:32.048Z,21m 55sec,,
+cluster-wf-dwh-load-t-08-15-0815,_ETL_m_DWH_LKP_RESTRICCION_UPDATE.json,etl-m-dwh-lkp-restriccion-update-20260330-0927,2026-03-30T07:27:59.378Z,21m 36sec,SUCCESS,
+cluster-wf-load-info-10ffe88b-0500,_ETL_m_DWH_E_D_CONTRATO_GENERAL_SG_PPE.json,etl-m-dwh-e-d-contrato-general-sg-ppe-20260329-0605,2026-03-29T04:05:57.842Z,20m 56sec,,
+cluster-wf-dmr-load-e338500b-2208,_ETL_m_DWH_D_TARIF_COND_PART_TRAMO_INSERT.json,etl-m-dwh-d-tarif-cond-part-tramo-insert-20260330-0804,2026-03-30T06:04:46.190Z,20m 47sec,,
+cluster-wf-load-info-7e158412-0345,_ETL_m_DWH_D_RECIBOS_PM_INSERT.json,etl-m-dwh-d-recibos-pm-insert-20260330-0734,2026-03-30T05:35:44.269999Z,20m 22sec,,
+comparator-wf-dwh-load-t-03-30,_ETL_m_DWH_D_NOTIFICACIONES_NHUB_INSERT.json,ETL_m_DWH_D_NOTIFICACIONES_NHUB_INSERT_comparator-20260330-1359,2026-03-30T11:59:18.140Z,20m 3sec,,
+comparator-wf-dwh-load-t-01-15,_ETL_m_LOAD_MOD_COMENTARIOS_I.json,ETL_m_LOAD_MOD_COMENTARIOS_I_comparator-20260329-1734,2026-03-29T15:34:20.894Z,19m 25sec,,
+cluster-wf-dmr-load-t-03-45-0345,_ETL_m_DWH_D_TITULARES_RDM_INSERT.json,etl-m-dwh-d-titulares-rdm-insert-20260330-0605,2026-03-30T04:06:18.910Z,19m 18sec,,
+cluster-wf-dmr-load-t-04-35-0435,_ETL_m_DWH_LKP_DETALLE_INCENTIVOS_INSERT.json,etl-m-dwh-lkp-detalle-incentivos-insert-20260329-0837,2026-03-29T06:37:26.523999Z,18m 34sec,,
+cluster-wf-dwh-load-t-05-50-0550,_ETL_m_DWH_D_GVO_CONTRATO_EB_INSERT.json,etl-m-dwh-d-gvo-contrato-eb-insert-20260330-1112,2026-03-30T09:13:12.229Z,18m 15sec,,
+cluster-wf-dmr-load-e338500b-0100,_ETL_m_DM_MOD_MOVIMIENTOS_TJ.json,etl-m-dm-mod-movimientos-tj-20260330-0310,2026-03-30T01:10:39.634999Z,17m 35sec,SUCCESS,
+cluster-wf-load-info-7e158412-0345,_ETL_m_DWH_D_MOVIMIENTOS_PM_DELETED_GCP.json,etl-m-dwh-d-movimientos-pm-deleted-gcp-20260330-0514,2026-03-30T03:15:21.042999Z,17m 16sec,,
+cluster-wf-dwh-load-t-22-30-2230,_ETL_m_ODS_LKP_RIESGO_CLIENTE_ACT.json,etl-m-ods-lkp-riesgo-cliente-act-20260329-2343,2026-03-29T21:43:52.448999Z,17m 1sec,SUCCESS,
+cluster-wf-dwh-load-t-05-00-0500,_ETL_m_DWH_LKP_EVENTO_FDD_UPDATE.json,etl-m-dwh-lkp-evento-fdd-update-20260330-0632,2026-03-30T04:32:29.329999Z,16m 53sec,,
+cluster-wf-load-info-986acbb7-0100,_ETL_m_ODS_PW19_CLASE_CLIENTE.json,etl-m-ods-pw19-clase-cliente-20260330-0213,2026-03-30T00:13:36.075999Z,16m 48sec,SUCCESS,
+comparator-wf-dwh-load-t-03-30,_ETL_m_DWH_D_NOTIF_PUSH_DET_NHUB_INSERT.json,ETL_m_DWH_D_NOTIF_PUSH_DET_NHUB_INSERT_comparator-20260330-1339,2026-03-30T11:39:28.232Z,16m 39sec,,
+cluster-wf-dmr-load-t-21-30-2130,_ETL_m_DWH_E_D_RECIBO_SG_RIESGO.json,etl-m-dwh-e-d-recibo-sg-riesgo-20260329-2244,2026-03-29T20:44:48.137Z,16m 21sec,,
+cluster-wf-dwh-load-t-05-50-0550,_ETL_m_DWH_F_OPERACION_ONLINE_EB_INSERT.json,etl-m-dwh-f-operacion-online-eb-insert-20260330-1112,2026-03-30T09:13:01.736999Z,16m 5sec,FAILURE,Exception message: writeResultAndErrors failed: Failed to write to BigQuery
+cluster-wf-dmr-load-e338500b-0100,_ETL_m_DM_LKP_AUTORIZACION_MOV_TJ_SIA.json,etl-m-dm-lkp-autorizacion-mov-tj-sia-20260330-0310,2026-03-30T01:10:40.444Z,15m 57sec,SUCCESS,
+cluster-wf-dmr-load-t-06-15-0615,_ETL_m_DM_LKP_CONTRATO_JCO.json,etl-m-dm-lkp-contrato-jco-20260330-0742,2026-03-30T05:42:40.490999Z,15m 57sec,SUCCESS,
+cluster-wf-load-info-7e158412-0345,_ETL_m_DWH_E_D_PROPUESTAS_PO.json,etl-m-dwh-e-d-propuestas-po-20260330-0450,2026-03-30T02:50:33.127Z,15m 31sec,,
+cluster-wf-dwh-load-t-05-00-0500,_ETL_m_DWH_E_MOD_EVENTOS_FDD.json,etl-m-dwh-e-mod-eventos-fdd-20260330-0616,2026-03-30T04:16:43.842Z,15m 23sec,,
+cluster-wf-dmr-load-t-04-35-0435,_ETL_m_DWH_LKP_COSTE_INSTR_FI_INSERT.json,etl-m-dwh-lkp-coste-instr-fi-insert-20260330-0902,2026-03-30T07:02:38.187Z,15m 16sec,SUCCESS,
+cluster-wf-dmr-load-t-21-50-2150,_ETL_m_ODS_F_PD_KW845T.json,etl-m-ods-f-pd-kw845t-20260329-2258,2026-03-29T20:58:48.262Z,14m 42sec,SUCCESS,
+cluster-wf-dmr-load-e338500b-0100,_ETL_m_DWH_D_FACT_REMESA_COMERCIO_UPDATE.json,etl-m-dwh-d-fact-remesa-comercio-update-20260330-0211,2026-03-30T00:12:45.299999Z,14m 21sec,SUCCESS,
+cluster-wf-dmr-load-e338500b-0100,_ETL_m_DM_LKP_CONTRATOS_TARJETA.json,etl-m-dm-lkp-contratos-tarjeta-20260330-0310,2026-03-30T01:10:40.618999Z,13m 33sec,SUCCESS,
+cluster-wf-dmr-load-e338500b-0100,_ETL_m_DM_LKP_IMPAGADO_REC_TJ.json,etl-m-dm-lkp-impagado-rec-tj-20260330-0309,2026-03-30T01:09:59.230Z,12m 52sec,SUCCESS,
+cluster-wf-load-info-7e158412-0345,_ETL_m_DM_LKP_RERATING_CLIENTE.json,etl-m-dm-lkp-rerating-cliente-20260330-0920,2026-03-30T07:20:43.931999Z,12m 51sec,SUCCESS,
+comparator-wf-dwh-load-t-05-00,_ETL_m_RDM_D_CONTRATOS_SMARAG_PAR.json,ETL_m_RDM_D_CONTRATOS_SMARAG_PAR_comparator-20260329-1832,2026-03-29T16:33:04.884999Z,12m 44sec,,
+cluster-wf-dwh-load-t-08-15-0815,_ETL_m_DWH_LKP_RESTRICCION_ACT_INSERT.json,etl-m-dwh-lkp-restriccion-act-insert-20260330-0948,2026-03-30T07:48:14.528Z,12m 21sec,,
+comparator-wf-dwh-load-t-05-00,_ETL_m_DWH_MOD_EVENTOS_FDD.json,ETL_m_DWH_MOD_EVENTOS_FDD_comparator-20260329-1747,2026-03-29T15:47:22.742Z,12m 6sec,,
+comparator-b-wf-dwh-load-t-05-50,_ETL_m_DWH_F_OPERACION_FICHERO_EB_INSERT.json,ETL_m_DWH_F_OPERACION_FICHERO_EB_INSERT_comparator-20260330-1444,2026-03-30T12:45:06.092999Z,11m 55sec,,
+cluster-wf-dmr-load-e338500b-0100,_ETL_m_DWH_D_CONTRATOS_TARJETA_UPDATE.json,etl-m-dwh-d-contratos-tarjeta-update-20260330-0211,2026-03-30T00:12:19.303999Z,11m 36sec,SUCCESS,
+cluster-wf-dmr-load-t-02-45-0245,_ETL_m_ODS_CVCM_TPA05.json,etl-m-ods-cvcm-tpa05-20260330-0355,2026-03-30T01:55:58.875Z,11m 6sec,SUCCESS,
+comparator-wf-dwh-load-t-06-50,_ETL_m_DWH_MOD_MENSAJES_CCA.json,ETL_m_DWH_MOD_MENSAJES_CCA_comparator-20260330-1357,2026-03-30T11:57:51.286999Z,10m 36sec,,
+comparator-a-wf-dwh-load-t-05-50,_ETL_m_DWH_E_F_OPERACION_FICHERO_EB.json,ETL_m_DWH_E_F_OPERACION_FICHERO_EB_comparator-20260329-1537,2026-03-29T13:38:05.338999Z,10m 31sec,,
+comparator-a-wf-dwh-load-t-05-50,_ETL_m_ODS_TEB_04_OPERACIONES.json,ETL_m_ODS_TEB_04_OPERACIONES_comparator-20260329-1443,2026-03-29T12:43:24.657Z,9m 52sec,,
+cluster-wf-dmr-load-e338500b-0100,_ETL_m_DM_LKP_EXTRACTO_CONTRATO_TJ.json,etl-m-dm-lkp-extracto-contrato-tj-20260330-0309,2026-03-30T01:09:29.059Z,9m 42sec,SUCCESS,
+cluster-wf-dwh-load-t-08-15-0815,_ETL_m_DWH_LKP_RESTRICCION_ACT_UPDATE.json,etl-m-dwh-lkp-restriccion-act-update-20260330-0927,2026-03-30T07:28:00.608Z,9m 41sec,SUCCESS,
+cluster-wf-load-info-986acbb7-0100,_ETL_m_ODS_TPW14_CLASIF_MIFID.json,etl-m-ods-tpw14-clasif-mifid-20260330-0213,2026-03-30T00:14:12.852999Z,9m 26sec,SUCCESS,
+cluster-wf-dmr-load-t-02-45-0245,_ETL_m_ODS_TTL15.json,etl-m-ods-ttl15-20260330-0356,2026-03-30T01:56:23.967Z,9m 13sec,SUCCESS,
+cluster-wf-dwh-load-t-05-50-0550,_ETL_m_DWH_D_LOTE_EB_INSERT.json,etl-m-dwh-d-lote-eb-insert-20260330-1112,2026-03-30T09:13:13.374Z,9m 8sec,SUCCESS,
+cluster-wf-load-info-986acbb7-0100,_ETL_m_ODS_TPW_69_RISK_PILLARS_CRRE.json,etl-m-ods-tpw-69-risk-pillars-crre-20260330-0213,2026-03-30T00:13:30.812999Z,8m 59sec,SUCCESS,
+cluster-wf-dmr-load-t-21-50-2150,_ETL_m_ODS_F_PD_RATINGS.json,etl-m-ods-f-pd-ratings-20260329-2258,2026-03-29T20:59:10.346999Z,8m 53sec,SUCCESS,

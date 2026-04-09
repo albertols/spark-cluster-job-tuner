@@ -1,0 +1,10 @@
+cluster_name,recipe_filename,job_id,app_start_iso,avg_job_duration_in_mins_sec,status,message
+cluster-wf-dwh-load-t-06-00-0600,_ETL_m_STG_LKP_CONTRATOS_DBLINE.json,etl-m-stg-lkp-contratos-dbline-20260330-0707,2026-03-30T05:07:08.073999Z,10m 41sec,SUCCESS,
+cluster-wf-dmr-load-t-04-35-0435,_ETL_m_DWH_E_MOD_ORDENES_CLIENTE_FI_OTHERS.json,etl-m-dwh-e-mod-ordenes-cliente-fi-others-20260330-0632,2026-03-30T04:32:54.976Z,11m 11sec,SUCCESS,
+cluster-wf-dmr-load-t-04-35-0435,_ETL_m_DWH_E_MOD_ORDENES_CLIENTE_FI_A.json,etl-m-dwh-e-mod-ordenes-cliente-fi-a-20260330-0556,2026-03-30T03:56:33.740Z,11m 33sec,SUCCESS,
+cluster-wf-dmr-load-e338500b-0100,_ETL_m_ODS_TID_A8_BONIF_TARJETA.json,etl-m-ods-tid-a8-bonif-tarjeta-20260330-0152,2026-03-29T23:52:15.372999Z,12m 4sec,SUCCESS,
+cluster-wf-dwh-load-t-22-30-2230,_ETL_m_LOAD_LKP_LISTA_PEP_UPDATE.json,etl-m-load-lkp-lista-pep-update-20260330-0003,2026-03-29T22:04:02.190Z,10m 36sec,SUCCESS,
+cluster-wf-dmr-load-e338500b-2208,_ETL_m_DWH_LKP_PROD_CONCEPTO_TARIFA_UPDATE.json,etl-m-dwh-lkp-prod-concepto-tarifa-update-20260330-0216,2026-03-30T00:17:06.476999Z,10m 57sec,SUCCESS,
+cluster-wf-load-info-c9c4d332-0530,_ETL_m_DWH_D_CUENTAS_VISTA_CVCM_UPDATE.json,etl-m-dwh-d-cuentas-vista-cvcm-update-20260330-0650,2026-03-30T04:50:36.960999Z,13m 39sec,SUCCESS,
+cluster-wf-dmr-load-t-04-35-0435,_ETL_m_DWH_E_MOD_COSTE_MOV.json,etl-m-dwh-e-mod-coste-mov-20260330-0544,2026-03-30T03:44:31.135999Z,10m 28sec,SUCCESS,
+cluster-wf-load-info-dbf4b473-0635,_ETL_m_DWH_F_TRANSF_EXTRANJ_ISO20022_UPDATE.json,etl-m-dwh-f-transf-extranj-iso20022-update-20260330-0753,2026-03-30T05:53:11.292Z,18m 45sec,SUCCESS,

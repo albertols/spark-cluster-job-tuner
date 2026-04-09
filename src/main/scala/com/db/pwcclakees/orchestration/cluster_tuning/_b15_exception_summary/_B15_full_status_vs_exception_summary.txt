@@ -1,0 +1,18 @@
+B15 input rows: 97
+Exception summary input rows: 474
+Distinct B15 recipes: 96
+Distinct summary recipes: 474
+Matched distinct recipes: 35 (36.46%)
+
+B15_success_status_vs_success_summary: 9 (9.28%)
+B15_success_status_vs_exception_summary: 0 (0.00%)
+B15_failure_status_vs_success_summary: 4 (4.12%)
+B15_null_status_vs_success_summary: 14 (14.43%)
+B15_null_status_vs_exception_summary: 6 (6.19%)
+
+Orphan recipes in summary and not in B15: 439
+Orphan recipes in B15 and not in summary: 62
+
+B15 SUCCESS rows: 33 (34.02%)
+B15 FAILURE rows: 10 (10.31%)
+B15 NULL/empty status rows: 54 (55.67%)
