@@ -27,23 +27,72 @@ The refinement app **overwrites the original tuned JSONs in-place** rather than 
 ## Vitamin Pipeline
 
 Each vitamin is a modular diagnostic that:
-1. **Loads** signals from a CSV (e.g. `b16_oom_job_driver_exceptions.csv`)
-2. **Detects** affected recipes within a cluster
+1. **Loads** signals from a CSV (e.g. `b16_oom_job_driver_exceptions.csv`) — including rows with empty `recipe_filename`
+2. **Resolves** missing recipe names via `RecipeResolver` (see below)
 3. **Computes** boosts (e.g. `spark.executor.memory: 8g -> 12g`)
 4. **Applies** boosts to recipe configs, adding tracking fields
+5. **Reports** unresolved signals to `_not_boosted_recipes.json`
 
 Vitamins are chained sequentially — each vitamin's output feeds the next:
 
 ```mermaid
 flowchart TD
-    A[Parsed Tuned JSON] --> B[Vitamin 1: MemoryHeapBoost]
+    A[Parsed Tuned JSON] --> R[RecipeResolver]
+    R -- resolved --> B[Vitamin 1: MemoryHeapBoost]
+    R -- unresolved --> U["_not_boosted_recipes.json"]
     B --> C[Vitamin 2: MemoryOverheadBoost]
     C --> D[Vitamin N: future]
     D --> E[Refined JSON Output]
 
-    B -- "b16 CSV" --> B
-    C -- "b17 CSV" --> C
+    B -- "b16 CSV" --> R
+    C -- "b17 CSV" --> R
 ```
+
+## Recipe Resolution
+
+Diagnostic CSVs sometimes have empty `recipe_filename` fields (the log analytics query couldn't join the job to its recipe). `RecipeResolver` attempts two strategies before marking an entry as unresolved:
+
+**Strategy 1 — Sibling lookup:** Find another CSV row with the same job prefix (after stripping the `-YYYYMMDD-HHMM` date suffix) that has a known `recipe_filename`.
+
+```
+etl-m-dwh-d-otros-bienes-po-update-20260410-0517  →  (empty recipe)
+etl-m-dwh-d-otros-bienes-po-update-20260409-0514  →  _ETL_m_DWH_D_OTROS_BIENES_PO_UPDATE.json
+                                                      ↑ same prefix — use this recipe
+```
+
+**Strategy 2 — Job-id derivation:** Strip date suffix, replace `-` with `_`, uppercase, and match case-insensitively against recipes in the cluster's `recipeSparkConf`.
+
+```
+etl-m-dq3-ods-f-gr-garantia-20260411-0438
+  → strip suffix  → etl-m-dq3-ods-f-gr-garantia
+  → replace -→_   → etl_m_dq3_ods_f_gr_garantia
+  → uppercase     → ETL_M_DQ3_ODS_F_GR_GARANTIA
+  → matches       → _ETL_m_DQ3_ODS_F_GR_GARANTIA.json
+```
+
+## Unresolved Report
+
+Signals that cannot be matched to any recipe produce `_not_boosted_recipes.json` in the output directory:
+
+```json
+{
+  "b16_memory_heap_boost": {
+    "csv_source": "inputs/2025_12_20/b16_oom_job_driver_exceptions.csv",
+    "unresolved_count": 1,
+    "entries": [
+      {
+        "job_id": "unknown-job-20260411-0438",
+        "cluster_name": "cluster-wf-dmr-load-t-03-25-0325",
+        "raw_recipe_filename": "",
+        "latest_driver_log_ts": "2026-04-11T02:59:10Z",
+        "latest_driver_message": "OOM"
+      }
+    ]
+  }
+}
+```
+
+This file is grouped by vitamin name, with the full CSV source path and all unmatched entries. Future vitamins (b17, b18, etc.) will add their own sections.
 
 ## Available Vitamins
 

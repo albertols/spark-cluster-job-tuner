@@ -54,6 +54,23 @@ class RefinementVitaminsSpec extends AnyFunSuite with Matchers {
     s.jobId shouldBe "job-1"
   }
 
+  test("loadSignals: includes signals with empty recipe_filename") {
+    val tmpDir = Files.createTempDirectory("b16_empty_recipe").toFile
+    tmpDir.deleteOnExit()
+    val csvFile = new File(tmpDir, "b16_oom_job_driver_exceptions.csv")
+    csvFile.deleteOnExit()
+    val pw = new PrintWriter(csvFile)
+    try {
+      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
+      pw.println("etl-m-dq3-ods-f-gr-garantia-20260411-0438,cluster-a,,2026-04-11T02:59:10Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
+    } finally pw.close()
+
+    val signals = vitamin.loadSignals(tmpDir, "cluster-a")
+    signals should have size 1
+    signals.head.recipeFilename shouldBe ""
+    signals.head.jobId shouldBe "etl-m-dq3-ods-f-gr-garantia-20260411-0438"
+  }
+
   test("loadSignals: returns empty for non-existent CSV") {
     val emptyDir = Files.createTempDirectory("b16_empty").toFile
     emptyDir.deleteOnExit()
@@ -206,6 +223,10 @@ class RefinementVitaminsSpec extends AnyFunSuite with Matchers {
     vitamin.name should include("b16")
   }
 
+  test("MemoryHeapBoostVitamin has correct csvFileName") {
+    vitamin.csvFileName shouldBe "b16_oom_job_driver_exceptions.csv"
+  }
+
   // ── Configurable boost factor ─────────────────────────────────────────────
 
   test("MemoryHeapBoostVitamin with factor 2.0 boosts 8g to 16g") {
@@ -217,5 +238,106 @@ class RefinementVitaminsSpec extends AnyFunSuite with Matchers {
     val b = boosts.head.asInstanceOf[MemoryHeapBoost]
     b.boostedMemory shouldBe "16g"
     b.boostFactor shouldBe 2.0
+  }
+
+  // ── RecipeResolver ────────────────────────────────────────────────────────
+
+  private val recipeNames = Set(
+    "_ETL_m_DQ3_ODS_F_GR_GARANTIA.json",
+    "_ETL_m_DWH_D_OTROS_BIENES_PO_UPDATE.json",
+    "_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json"
+  )
+
+  test("RecipeResolver.stripJobIdSuffix removes date-time suffix") {
+    RecipeResolver.stripJobIdSuffix("etl-m-dq3-ods-f-gr-garantia-20260411-0438") shouldBe "etl-m-dq3-ods-f-gr-garantia"
+  }
+
+  test("RecipeResolver.stripJobIdSuffix handles job_id without suffix") {
+    RecipeResolver.stripJobIdSuffix("some-job-no-date") shouldBe "some-job-no-date"
+  }
+
+  test("RecipeResolver.normaliseJobPrefix converts dashes to underscores and uppercases") {
+    RecipeResolver.normaliseJobPrefix("etl-m-dq3-ods-f-gr-garantia") shouldBe "ETL_M_DQ3_ODS_F_GR_GARANTIA"
+  }
+
+  test("RecipeResolver.normaliseRecipeName strips prefix and suffix") {
+    RecipeResolver.normaliseRecipeName("_ETL_m_DQ3_ODS_F_GR_GARANTIA.json") shouldBe "ETL_M_DQ3_ODS_F_GR_GARANTIA"
+  }
+
+  test("RecipeResolver: resolves empty recipe via job-id derivation") {
+    val signals: Seq[VitaminSignal] = Seq(
+      MemoryHeapOomSignal("cluster-a", "", "etl-m-dq3-ods-f-gr-garantia-20260411-0438", "2026-04-11T02:59:10Z", "OOM")
+    )
+    val (resolved, unresolved) = RecipeResolver.resolve(signals, recipeNames)
+    resolved should have size 1
+    resolved.head.recipeFilename shouldBe "_ETL_m_DQ3_ODS_F_GR_GARANTIA.json"
+    unresolved shouldBe empty
+  }
+
+  test("RecipeResolver: resolves empty recipe via sibling lookup") {
+    val signals: Seq[VitaminSignal] = Seq(
+      MemoryHeapOomSignal("cluster-a", "", "etl-m-dwh-d-otros-bienes-po-update-20260410-0517", "2026-04-10T07:18:46Z", "OOM"),
+      MemoryHeapOomSignal("cluster-a", "_ETL_m_DWH_D_OTROS_BIENES_PO_UPDATE.json", "etl-m-dwh-d-otros-bienes-po-update-20260409-0514", "2026-04-09T07:16:05Z", "OOM")
+    )
+    val (resolved, unresolved) = RecipeResolver.resolve(signals, recipeNames)
+    resolved should have size 2
+    resolved.head.recipeFilename shouldBe "_ETL_m_DWH_D_OTROS_BIENES_PO_UPDATE.json"
+    resolved(1).recipeFilename shouldBe "_ETL_m_DWH_D_OTROS_BIENES_PO_UPDATE.json"
+    unresolved shouldBe empty
+  }
+
+  test("RecipeResolver: marks truly unresolvable signals as unresolved") {
+    val signals: Seq[VitaminSignal] = Seq(
+      MemoryHeapOomSignal("cluster-a", "", "totally-unknown-job-20260411-0438", "2026-04-11T02:59:10Z", "OOM")
+    )
+    val (resolved, unresolved) = RecipeResolver.resolve(signals, recipeNames)
+    resolved shouldBe empty
+    unresolved should have size 1
+    unresolved.head.jobId shouldBe "totally-unknown-job-20260411-0438"
+  }
+
+  test("RecipeResolver: signals with recipe already set pass through unchanged") {
+    val signals: Seq[VitaminSignal] = Seq(
+      MemoryHeapOomSignal("cluster-a", "_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json", "job-1", "", "")
+    )
+    val (resolved, unresolved) = RecipeResolver.resolve(signals, recipeNames)
+    resolved should have size 1
+    resolved.head.recipeFilename shouldBe "_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json"
+    unresolved shouldBe empty
+  }
+
+  test("RecipeResolver: empty signals returns empty") {
+    val (resolved, unresolved) = RecipeResolver.resolve(Seq.empty, recipeNames)
+    resolved shouldBe empty
+    unresolved shouldBe empty
+  }
+
+  // ── computeBoosts with resolution ─────────────────────────────────────────
+
+  private val resolverRecipes: Map[String, RecipeConfig] = Map(
+    "_ETL_m_DQ3_ODS_F_GR_GARANTIA.json" -> RecipeConfig(
+      parallelizationFactor = 5,
+      sparkOptsMap = Map(
+        "spark.executor.memory" -> "8g",
+        "spark.executor.cores" -> "8",
+        "spark.dynamicAllocation.enabled" -> "true",
+        "spark.dynamicAllocation.minExecutors" -> "2",
+        "spark.dynamicAllocation.maxExecutors" -> "3"
+      ),
+      totalExecutorMinAllocatedMemoryGb = 16,
+      totalExecutorMaxAllocatedMemoryGb = 24,
+      extraFields = Map.empty
+    )
+  )
+
+  test("computeBoosts: produces boost for pre-resolved signal") {
+    // Resolution happens in RefinementPipeline.refine(), not in computeBoosts.
+    // Here we pass an already-resolved signal to verify boost computation.
+    val signals = Seq(
+      MemoryHeapOomSignal("cluster-a", "_ETL_m_DQ3_ODS_F_GR_GARANTIA.json", "etl-m-dq3-ods-f-gr-garantia-20260411-0438", "2026-04-11T02:59:10Z", "OOM")
+    )
+    val boosts = vitamin.computeBoosts(signals, resolverRecipes)
+    boosts should have size 1
+    boosts.head.recipeFilename shouldBe "_ETL_m_DQ3_ODS_F_GR_GARANTIA.json"
   }
 }

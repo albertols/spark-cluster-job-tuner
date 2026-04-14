@@ -105,6 +105,7 @@ object ClusterMachineAndRecipeTunerRefinement {
 
     var totalBoosts = 0
     var filesWithBoosts = 0
+    val allUnresolved = scala.collection.mutable.ArrayBuffer.empty[UnresolvedEntry]
 
     tunedFiles.foreach { jsonFile =>
       val config = SimpleJsonParser.parseFile(jsonFile)
@@ -118,13 +119,50 @@ object ClusterMachineAndRecipeTunerRefinement {
         result.appliedBoosts.foreach(b => logger.info(s"  - ${b.description}"))
       }
 
+      allUnresolved ++= result.unresolvedEntries
+
       val refinedJson = RefinementPipeline.toRefinedJson(result)
       writeFile(outputDir, jsonFile.getName, refinedJson)
+    }
+
+    // Write unresolved entries report
+    if (allUnresolved.nonEmpty) {
+      val unresolvedJson = buildUnresolvedJson(allUnresolved.toSeq, inputDir.getPath)
+      writeFile(outputDir, "_not_boosted_recipes.json", unresolvedJson)
+      logger.warn(s"  ${allUnresolved.size} signal(s) could not be matched to any recipe — see _not_boosted_recipes.json")
     }
 
     logger.info(s"Refinement complete.")
     logger.info(s"  Total boosts applied: $totalBoosts across $filesWithBoosts file(s)")
     logger.info(s"  Output: ${outputDir.getPath} (in-place)")
+  }
+
+  private[refinement] def buildUnresolvedJson(entries: Seq[UnresolvedEntry], inputPath: String): String = {
+    import com.db.serna.orchestration.cluster_tuning.Json
+    import Json._
+
+    // Group by vitamin/csv source
+    val bySource = entries.groupBy(e => (e.vitaminName, e.csvSource))
+
+    val sourceBlocks: Seq[(String, String)] = bySource.toSeq.sortBy(_._1._1).map {
+      case ((vitaminName, csvSource), sourceEntries) =>
+        val entryJsons = sourceEntries.map { e =>
+          obj(
+            "job_id" -> str(e.jobId),
+            "cluster_name" -> str(e.clusterName),
+            "raw_recipe_filename" -> str(e.rawRecipeFilename),
+            "latest_driver_log_ts" -> str(e.latestDriverLogTs),
+            "latest_driver_message" -> str(e.latestDriverMessage)
+          )
+        }
+        vitaminName -> obj(
+          "csv_source" -> str(s"$inputPath/$csvSource"),
+          "unresolved_count" -> num(sourceEntries.size),
+          "entries" -> arr(entryJsons: _*)
+        )
+    }
+
+    Json.pretty(obj(sourceBlocks: _*))
   }
 
   private[refinement] def buildVitaminPipeline(heapFactor: Double): Seq[RefinementVitamin] = {

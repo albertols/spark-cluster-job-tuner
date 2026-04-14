@@ -170,7 +170,94 @@ class ClusterMachineAndRecipeTunerRefinementSpec extends AnyFunSuite with Matche
     result.appliedBoosts shouldBe empty
     result.boostCounters shouldBe empty
     result.boostLists shouldBe empty
+    result.unresolvedEntries shouldBe empty
     result.refinedRecipes shouldBe config.recipes
+  }
+
+  // ── RefinementPipeline: recipe resolution ─────────────────────────────────
+
+  test("refine: resolves empty recipe_filename via job-id derivation and boosts") {
+    val tmpDir = Files.createTempDirectory("refine_resolve_jobid").toFile
+    tmpDir.deleteOnExit()
+
+    val csvFile = new File(tmpDir, "b16_oom_job_driver_exceptions.csv")
+    csvFile.deleteOnExit()
+    val pw = new PrintWriter(csvFile)
+    try {
+      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
+      pw.println("etl-m-dq3-ods-f-pm-propuestas-20260409-0356,cluster-wf-dmr-load-t-02-15-0215,,2026-04-09T03:56:00Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
+    } finally pw.close()
+
+    val config = SimpleJsonParser.parse(sampleAutoScaleJson)
+    val vitamins = Seq(new MemoryHeapBoostVitamin(1.5))
+    val result = RefinementPipeline.refine(config, vitamins, tmpDir)
+
+    result.appliedBoosts should have size 1
+    result.appliedBoosts.head.recipeFilename shouldBe "_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json"
+    result.refinedRecipes("_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json").sparkOptsMap("spark.executor.memory") shouldBe "12g"
+    result.unresolvedEntries shouldBe empty
+  }
+
+  test("refine: resolves empty recipe_filename via sibling lookup") {
+    val tmpDir = Files.createTempDirectory("refine_resolve_sibling").toFile
+    tmpDir.deleteOnExit()
+
+    val csvFile = new File(tmpDir, "b16_oom_job_driver_exceptions.csv")
+    csvFile.deleteOnExit()
+    val pw = new PrintWriter(csvFile)
+    try {
+      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
+      // Same job prefix, first row has recipe, second doesn't
+      pw.println("etl-m-dq3-ods-f-af-ope-mercado-20260409-0015,cluster-wf-dmr-load-t-02-15-0215,_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json,2026-04-09T00:15:00Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
+      pw.println("etl-m-dq3-ods-f-af-ope-mercado-20260410-0015,cluster-wf-dmr-load-t-02-15-0215,,2026-04-10T00:15:00Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
+    } finally pw.close()
+
+    val config = SimpleJsonParser.parse(sampleAutoScaleJson)
+    val vitamins = Seq(new MemoryHeapBoostVitamin(1.5))
+    val result = RefinementPipeline.refine(config, vitamins, tmpDir)
+
+    result.appliedBoosts should have size 1
+    result.appliedBoosts.head.recipeFilename shouldBe "_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json"
+    result.unresolvedEntries shouldBe empty
+  }
+
+  test("refine: unresolvable signals produce unresolvedEntries") {
+    val tmpDir = Files.createTempDirectory("refine_unresolved").toFile
+    tmpDir.deleteOnExit()
+
+    val csvFile = new File(tmpDir, "b16_oom_job_driver_exceptions.csv")
+    csvFile.deleteOnExit()
+    val pw = new PrintWriter(csvFile)
+    try {
+      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
+      pw.println("totally-unknown-job-20260411-0438,cluster-wf-dmr-load-t-02-15-0215,,2026-04-11T02:59:10Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
+    } finally pw.close()
+
+    val config = SimpleJsonParser.parse(sampleAutoScaleJson)
+    val vitamins = Seq(new MemoryHeapBoostVitamin(1.5))
+    val result = RefinementPipeline.refine(config, vitamins, tmpDir)
+
+    result.appliedBoosts shouldBe empty
+    result.unresolvedEntries should have size 1
+    result.unresolvedEntries.head.jobId shouldBe "totally-unknown-job-20260411-0438"
+    result.unresolvedEntries.head.vitaminName shouldBe "b16_memory_heap_boost"
+    result.unresolvedEntries.head.csvSource shouldBe "b16_oom_job_driver_exceptions.csv"
+  }
+
+  // ── buildUnresolvedJson ───────────────────────────────────────────────────
+
+  test("buildUnresolvedJson: produces valid JSON with vitamin source and entries") {
+    val entries = Seq(
+      UnresolvedEntry("b16_memory_heap_boost", "b16_oom_job_driver_exceptions.csv",
+        "unknown-job-20260411-0438", "cluster-a", "", "2026-04-11T02:59:10Z", "OOM")
+    )
+    val json = ClusterMachineAndRecipeTunerRefinement.buildUnresolvedJson(entries, "inputs/2025_12_20")
+
+    json should include("\"b16_memory_heap_boost\"")
+    json should include("\"csv_source\": \"inputs/2025_12_20/b16_oom_job_driver_exceptions.csv\"")
+    json should include("\"unresolved_count\": 1")
+    json should include("\"job_id\": \"unknown-job-20260411-0438\"")
+    json should include("\"cluster_name\": \"cluster-a\"")
   }
 
   // ── RefinementPipeline: toRefinedJson ─────────────────────────────────────
