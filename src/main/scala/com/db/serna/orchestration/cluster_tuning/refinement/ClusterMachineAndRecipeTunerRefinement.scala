@@ -125,11 +125,23 @@ object ClusterMachineAndRecipeTunerRefinement {
       writeFile(outputDir, jsonFile.getName, refinedJson)
     }
 
-    // Write unresolved entries report
+    // Write unresolved entries report (deduplicate across multiple JSON files for same cluster)
     if (allUnresolved.nonEmpty) {
-      val unresolvedJson = buildUnresolvedJson(allUnresolved.toSeq, inputDir.getPath)
+      val dedupedUnresolved: Seq[UnresolvedEntry] = allUnresolved.toSeq
+        .groupBy(e => (e.vitaminName, e.jobId, e.clusterName))
+        .values.map(_.head).toList
+        .sortBy(e => (e.vitaminName, e.clusterName, e.jobId))
+      val unresolvedJson = buildUnresolvedJson(dedupedUnresolved, inputDir.getPath)
       writeFile(outputDir, "_not_boosted_recipes.json", unresolvedJson)
-      logger.warn(s"  ${allUnresolved.size} signal(s) could not be matched to any recipe — see _not_boosted_recipes.json")
+
+      val byCluster = dedupedUnresolved.groupBy(_.clusterName)
+      byCluster.foreach { case (cluster, entries) =>
+        val jobIds = entries.map(_.jobId).sorted.mkString(", ")
+        val recipeNote = entries.filter(_.rawRecipeFilename.nonEmpty).map(e => s"${e.jobId} -> ${e.rawRecipeFilename}").mkString(", ")
+        logger.warn(s"  [$cluster] ${entries.size} unresolved signal(s): $jobIds")
+        if (recipeNote.nonEmpty) logger.warn(s"    recipe not found in config: $recipeNote")
+      }
+      logger.warn(s"  Total: ${dedupedUnresolved.size} unresolved signal(s) — see _not_boosted_recipes.json")
     }
 
     logger.info(s"Refinement complete.")

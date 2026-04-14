@@ -294,7 +294,29 @@ object RefinementPipeline {
       counters(vitamin.counterKey) = boosts.size
       lists(vitamin.listKey) = boosts.map(_.recipeFilename).distinct
 
+      // Track signals that couldn't be resolved to a recipe name
       unresolved.foreach { s =>
+        allUnresolved += UnresolvedEntry(
+          vitaminName = vitamin.name,
+          csvSource = vitamin.csvFileName,
+          jobId = s.jobId,
+          clusterName = s.clusterName,
+          rawRecipeFilename = s.recipeFilename,
+          latestDriverLogTs = s match {
+            case h: MemoryHeapOomSignal => h.latestDriverLogTs
+            case _ => ""
+          },
+          latestDriverMessage = s match {
+            case h: MemoryHeapOomSignal => h.latestDriverMessage
+            case _ => ""
+          }
+        )
+      }
+
+      // Track resolved signals whose recipe doesn't exist in the cluster config
+      resolved.filter { s =>
+        s.recipeFilename.nonEmpty && !currentRecipes.contains(s.recipeFilename)
+      }.foreach { s =>
         allUnresolved += UnresolvedEntry(
           vitaminName = vitamin.name,
           csvSource = vitamin.csvFileName,
@@ -324,13 +346,17 @@ object RefinementPipeline {
     import com.db.serna.orchestration.cluster_tuning.Json
     import Json._
 
-    // Rebuild clusterConf fields preserving original order, then append boost counters + lists
-    val clusterFields: Seq[(String, String)] = result.originalConfig.clusterConfFields.map {
-      case (k, v) =>
-        if (scala.util.Try(v.toLong).isSuccess) k -> num(v.toLong)
-        else if (scala.util.Try(v.toDouble).isSuccess) k -> num(v.toDouble)
-        else k -> str(v)
-    }
+    // Rebuild clusterConf fields preserving original order, then append boost counters + lists.
+    // Filter out any existing boost keys from prior runs to avoid duplicates.
+    val boostKeys = result.boostCounters.keySet ++ result.boostLists.keySet
+    val clusterFields: Seq[(String, String)] = result.originalConfig.clusterConfFields
+      .filterNot { case (k, _) => boostKeys.contains(k) }
+      .map {
+        case (k, v) =>
+          if (scala.util.Try(v.toLong).isSuccess) k -> num(v.toLong)
+          else if (scala.util.Try(v.toDouble).isSuccess) k -> num(v.toDouble)
+          else k -> str(v)
+      }
 
     val counterFields: Seq[(String, String)] = result.boostCounters.toSeq.map {
       case (k, v) => k -> num(v)

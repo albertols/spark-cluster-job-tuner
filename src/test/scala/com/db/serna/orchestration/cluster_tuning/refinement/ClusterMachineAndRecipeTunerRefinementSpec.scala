@@ -244,6 +244,58 @@ class ClusterMachineAndRecipeTunerRefinementSpec extends AnyFunSuite with Matche
     result.unresolvedEntries.head.csvSource shouldBe "b16_oom_job_driver_exceptions.csv"
   }
 
+  test("refine: reports resolved signals whose recipe is not in the config") {
+    val tmpDir = Files.createTempDirectory("refine_not_in_config").toFile
+    tmpDir.deleteOnExit()
+
+    val csvFile = new File(tmpDir, "b16_oom_job_driver_exceptions.csv")
+    csvFile.deleteOnExit()
+    val pw = new PrintWriter(csvFile)
+    try {
+      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
+      pw.println("etl-kcop,cluster-wf-dmr-load-t-02-15-0215,EL_KCOP.json,2026-03-16T06:46:38Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
+    } finally pw.close()
+
+    val config = SimpleJsonParser.parse(sampleAutoScaleJson)
+    val vitamins = Seq(new MemoryHeapBoostVitamin(1.5))
+    val result = RefinementPipeline.refine(config, vitamins, tmpDir)
+
+    result.appliedBoosts shouldBe empty
+    result.unresolvedEntries should have size 1
+    result.unresolvedEntries.head.jobId shouldBe "etl-kcop"
+    result.unresolvedEntries.head.rawRecipeFilename shouldBe "EL_KCOP.json"
+  }
+
+  // ── Re-run idempotency ───────────────────────────────────────────────────
+
+  test("toRefinedJson: no duplicate boost counters on re-run") {
+    val tmpDir = Files.createTempDirectory("refine_rerun").toFile
+    tmpDir.deleteOnExit()
+
+    // First run with a boost
+    val csvFile = new File(tmpDir, "b16_oom_job_driver_exceptions.csv")
+    csvFile.deleteOnExit()
+    val pw = new PrintWriter(csvFile)
+    try {
+      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
+      pw.println("job-1,cluster-wf-dmr-load-t-02-15-0215,_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json,2026-04-12T13:03:51Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
+    } finally pw.close()
+
+    val config = SimpleJsonParser.parse(sampleAutoScaleJson)
+    val vitamins = Seq(new MemoryHeapBoostVitamin(1.5))
+    val result1 = RefinementPipeline.refine(config, vitamins, tmpDir)
+    val json1 = RefinementPipeline.toRefinedJson(result1)
+
+    // Second run: parse the output of the first run
+    val config2 = SimpleJsonParser.parse(json1)
+    val result2 = RefinementPipeline.refine(config2, vitamins, tmpDir)
+    val json2 = RefinementPipeline.toRefinedJson(result2)
+
+    // Count occurrences of boostedMemoryHeapJobCount — should be exactly 1
+    val pattern = "boostedMemoryHeapJobCount".r
+    pattern.findAllIn(json2).size shouldBe 1
+  }
+
   // ── buildUnresolvedJson ───────────────────────────────────────────────────
 
   test("buildUnresolvedJson: produces valid JSON with vitamin source and entries") {
