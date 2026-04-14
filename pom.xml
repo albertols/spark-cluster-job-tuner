@@ -48,6 +48,13 @@
             <version>${spark.version}</version>
         </dependency>
 
+        <!-- CLI -->
+        <dependency>
+            <groupId>org.rogach</groupId>
+            <artifactId>scallop_${scala.version.major}</artifactId>
+            <version>5.1.0</version>
+        </dependency>
+
         <!-- SPARK TEST -->
         <dependency>
             <groupId>com.holdenkarau</groupId>
