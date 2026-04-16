@@ -1,5 +1,6 @@
 package com.db.serna.orchestration.cluster_tuning.auto
 
+import com.db.serna.orchestration.cluster_tuning.ClusterMachineAndRecipeTuner.AutoscalingPolicyConfig
 import com.db.serna.orchestration.cluster_tuning._
 import com.db.serna.orchestration.cluster_tuning.refinement._
 import org.rogach.scallop._

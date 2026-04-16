@@ -1,7 +1,7 @@
 package com.db.serna.orchestration.cluster_tuning.auto
 
 import com.db.serna.orchestration.cluster_tuning.RecipeMetrics
-import com.db.serna.orchestration.cluster_tuning.refinement.SimpleJsonParser.TunedClusterConfig
+import com.db.serna.orchestration.cluster_tuning.refinement.TunedClusterConfig
 
 /**
  * Decides how to evolve cluster and recipe configurations based on performance trend assessments.
@@ -30,9 +30,10 @@ object PerformanceEvolver {
             s"Performance improved (confidence=${fmt(t.confidenceLevel)}). Keeping reference config.", t)
 
         case Degraded =>
-          val topDelta = t.deltas
+          val topDelta: Option[MetricDelta] = t.deltas
             .filter(d => d.metricName == "p95_job_duration_ms" || d.metricName == "fraction_reaching_cap")
-            .maxByOption(d => math.abs(d.percentageChange))
+            .sortBy(d => math.abs(d.percentageChange))
+            .lastOption
           val reason = topDelta match {
             case Some(d) => s"${d.metricName} changed ${fmt(d.percentageChange)}%"
             case None => "performance degraded"
