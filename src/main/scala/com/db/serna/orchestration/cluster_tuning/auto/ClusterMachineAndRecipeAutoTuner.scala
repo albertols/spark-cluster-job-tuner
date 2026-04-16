@@ -214,15 +214,18 @@ object ClusterMachineAndRecipeAutoTuner {
             val manualPlans = ClusterMachineAndRecipeTuner.planManualRecipes(clusterPlan, recMetrics, policy)
             val daPlans = ClusterMachineAndRecipeTuner.planDARecipes(clusterPlan, recMetrics, policy)
 
-            // b14 driver evolution: if signal persists in both dates, use reference's
-            // already-promoted master as baseline and promote further from there.
-            val persistentB14 = for {
-              refSigs <- refSnapshot.b14Signals.get(clusterName)
-              curSigs <- curSnapshot.b14Signals.get(clusterName)
-              if refSigs.nonEmpty && curSigs.nonEmpty
-            } yield {
-              // Use the reference's master (already promoted) as baseline, not the fresh plan's master.
-              // Pick the more powerful of reference master vs fresh plan master.
+            // b14 driver evolution: if current_date has b14 signals, ALWAYS upgrade
+            // the master to mitigate YARN driver eviction (exit code 247).
+            //
+            // Promotion chain (always a leap ahead):
+            //   standard → highmem     (more memory, same cores)
+            //   highmem  → more cores  (e.g. highmem-32 → highmem-48)
+            //   core cap → cross-family (e.g. e2-highmem-16 → n2-highmem-16)
+            //
+            // Baseline = max(reference config master, fresh plan master) so we
+            // never regress below what the reference already promoted to.
+            val driverOverride: Option[DriverResourceOverride] = curSnapshot.driverOverrides.get(clusterName).map { curOverride =>
+              // Find the best known master: reference config's (already promoted) vs fresh plan's
               val refConfig = referenceConfigs.get(clusterName)
               val refMasterName = refConfig.flatMap(_.clusterConfFields.find(_._1 == "master_machine_type").map(_._2.replaceAll("\"", "")))
               val refMaster = refMasterName.flatMap(MachineCatalog.byName)
@@ -230,22 +233,22 @@ object ClusterMachineAndRecipeAutoTuner {
                 case Some(rm) if rm.memoryGb >= clusterPlan.masterMachineType.memoryGb => rm
                 case _ => clusterPlan.masterMachineType
               }
-              // Promote further from the baseline (e.g. standard→highmem, or next core step)
+
+              // Always promote: standard→highmem, highmem→more cores, core cap→cross-family
               val promoted = ClusterDiagnosticsProcessor.promoteMasterForEviction(baseline)
-              val curOverride = curSnapshot.driverOverrides.get(clusterName)
-              val driverMemGb = curOverride.flatMap(_.driverMemoryGb).orElse(Some(math.max(8, baseline.memoryGb / 4)))
-              val driverCores = curOverride.flatMap(_.driverCores).orElse(Some(4))
-              val driverOverheadGb = curOverride.flatMap(_.driverMemoryOverheadGb).orElse(Some(math.max(2, driverMemGb.getOrElse(8) / 4)))
-              val refEvictions = refSigs.collect { case e: YarnDriverEviction => e.evictionCount }.sum
-              val curEvictions = curSigs.collect { case e: YarnDriverEviction => e.evictionCount }.sum
-              val reason = s"Persistent b14 driver eviction: $refEvictions (ref) -> $curEvictions (cur) evictions"
-              DriverResourceOverride(clusterName, driverMemGb, driverCores, driverOverheadGb,
-                reason, Some(promoted))
+
+              val isPersistent = refSnapshot.b14Signals.get(clusterName).exists(_.nonEmpty)
+              val reason = if (isPersistent) {
+                val refEvictions = refSnapshot.b14Signals(clusterName).collect { case e: YarnDriverEviction => e.evictionCount }.sum
+                val curEvictions = curSnapshot.b14Signals.getOrElse(clusterName, Seq.empty).collect { case e: YarnDriverEviction => e.evictionCount }.sum
+                s"Persistent b14 driver eviction (247): $refEvictions (ref) -> $curEvictions (cur). Promoted ${baseline.name} -> ${promoted.name}"
+              } else {
+                s"Current-date b14 driver eviction (247). Promoted ${baseline.name} -> ${promoted.name}"
+              }
+
+              DriverResourceOverride(clusterName, curOverride.driverMemoryGb, curOverride.driverCores,
+                curOverride.driverMemoryOverheadGb, reason, Some(promoted))
             }
-            val driverOverride = persistentB14.orElse(curSnapshot.driverOverrides.get(clusterName).map { o =>
-              val promoted = ClusterDiagnosticsProcessor.promoteMasterForEviction(clusterPlan.masterMachineType)
-              o.copy(promotedMasterMachineType = Some(promoted))
-            })
 
             // Track b14 boosts
             if (driverOverride.isDefined) {

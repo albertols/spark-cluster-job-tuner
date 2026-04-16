@@ -151,11 +151,14 @@ Reference output JSONs are read via `SimpleJsonParser` and re-emitted verbatim. 
 1. `planCluster()` is called with current-date metrics (naturally produces larger allocations for higher metric values)
 2. `planManualRecipes()` / `planDARecipes()` generate recipe configs
 3. If b16 OOM signals exist for this cluster, `MemoryHeapBoostVitamin` is applied with `--b16-reboosting-factor`
-4. If b14 driver eviction persists in both dates, master machine is promoted using reference's already-promoted master as baseline:
-   - Read `master_machine_type` from reference output JSON
-   - Pick the more powerful of reference master vs freshly planned master (by memoryGb)
-   - Promote further from that baseline (e.g., standard→highmem, or next core step)
-   - This prevents regression where a fresh plan picks a weaker master than what the reference already promoted to
+4. If b14 driver eviction (exit code 247) is present in **current_date**, the master is **always** promoted to a more powerful machine type to mitigate YARN driver eviction:
+   - **Baseline** = max(reference config master, freshly planned master) — prevents regression below what the reference already promoted to
+   - **Promotion chain** (always a leap ahead):
+     - `standard → highmem` (more memory, same cores)
+     - `highmem → more cores` (e.g., `n2-highmem-32 → n2-highmem-48`)
+     - At core cap → cross-family (e.g., `e2-highmem-16 → n2-highmem-16`)
+   - Example multi-run evolution: `e2-standard-32 → n2-standard-32 → n2-highmem-32 → n2-highmem-48`
+   - Reason field notes whether the eviction is persistent (both dates) or current-only
 
 ---
 
