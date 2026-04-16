@@ -173,7 +173,7 @@ object ClusterMachineAndRecipeAutoTuner {
 
     // Tracking for the summary report
     val b14BoostedClusters = ArrayBuffer.empty[(String, String)] // (cluster, reason)
-    val b16BoostedRecipes = ArrayBuffer.empty[(String, String, Int)] // (cluster, suffix, boostCount)
+    val b16BoostedRecipes = ArrayBuffer.empty[(String, Seq[MemoryHeapBoost])] // (cluster, boosts)
     var keptClusters = 0
     var boostedClusters = 0
     var freshClusters = 0
@@ -197,6 +197,19 @@ object ClusterMachineAndRecipeAutoTuner {
           // Re-emit reference configs verbatim
           if (primaryAction == PreserveHistorical) preservedClusters += 1 else keptClusters += 1
           emitReferenceConfigs(clusterName, refOutputDir, curOutputDir)
+
+          // Apply b16 reboosting even for kept/preserved clusters: OOM signals
+          // from reference_date must persist to prevent regression into OOM.
+          if (b16Factor > 1.0) {
+            val b16InputDirs = Seq(
+              new File(s"$BasePath/inputs/$curDate"),
+              new File(s"$BasePath/inputs/$refDate")
+            )
+            val boosts = applyB16Reboosting(clusterName, curOutputDir, b16InputDirs, b16Factor)
+            if (boosts.nonEmpty) {
+              b16BoostedRecipes += ((clusterName, boosts))
+            }
+          }
 
         case BoostResources | GenerateFresh =>
           if (primaryAction == GenerateFresh) freshClusters += 1 else boostedClusters += 1
@@ -261,11 +274,16 @@ object ClusterMachineAndRecipeAutoTuner {
             ClusterMachineAndRecipeTuner.writeFile(curOutputDir, s"$clusterName-manually-tuned.json", manualJsonStr)
             ClusterMachineAndRecipeTuner.writeFile(curOutputDir, s"$clusterName-auto-scale-tuned.json", daJsonStr)
 
-            // Apply b16 reboosting if there are OOM signals for degraded recipes
-            if (b16Factor > 1.0 && primaryAction == BoostResources) {
-              val boostCount = applyB16Reboosting(clusterName, curOutputDir, curSnapshot, b16Factor)
-              if (boostCount > 0) {
-                b16BoostedRecipes += ((clusterName, "-auto-scale-tuned.json", boostCount))
+            // Apply b16 reboosting: check both reference and current input dirs.
+            // OOM signals from either date must persist to prevent regression.
+            if (b16Factor > 1.0) {
+              val b16InputDirs = Seq(
+                new File(s"$BasePath/inputs/$curDate"),
+                new File(s"$BasePath/inputs/$refDate")
+              )
+              val boosts = applyB16Reboosting(clusterName, curOutputDir, b16InputDirs, b16Factor)
+              if (boosts.nonEmpty) {
+                b16BoostedRecipes += ((clusterName, boosts))
               }
             }
 
@@ -407,23 +425,31 @@ object ClusterMachineAndRecipeAutoTuner {
     }
   }
 
-  private def applyB16Reboosting(clusterName: String, outputDir: File, snapshot: DateSnapshot, factor: Double): Int = {
-    val inputDir = new File(s"$BasePath/inputs/${snapshot.date}")
-    if (!inputDir.exists()) return 0
+  /**
+   * Apply b16 memory heap OOM reboosting to a cluster's output JSONs.
+   *
+   * Searches multiple input directories for the b16 CSV (e.g. reference_date
+   * and current_date). OOM signals from either date are valid: if a recipe
+   * had heap OOM in reference_date but the b16 CSV is absent in current_date,
+   * the boost must still persist to prevent regression.
+   */
+  private def applyB16Reboosting(clusterName: String, outputDir: File, inputDirs: Seq[File], factor: Double): Seq[MemoryHeapBoost] = {
+    val effectiveInputDir = inputDirs.find(d => d.exists() && new File(d, "b16_oom_job_driver_exceptions.csv").exists())
+    if (effectiveInputDir.isEmpty) return Seq.empty
 
     val vitamins: Seq[RefinementVitamin] = Seq(new MemoryHeapBoostVitamin(factor))
-    var totalBoosts = 0
+    val allBoosts = ArrayBuffer.empty[MemoryHeapBoost]
 
     Seq("-auto-scale-tuned.json", "-manually-tuned.json").foreach { suffix =>
       val jsonFile = new File(outputDir, s"$clusterName$suffix")
       if (jsonFile.exists()) {
         try {
           val config = SimpleJsonParser.parseFile(jsonFile)
-          val result = RefinementPipeline.refine(config, vitamins, inputDir)
+          val result = RefinementPipeline.refine(config, vitamins, effectiveInputDir.get)
           if (result.appliedBoosts.nonEmpty) {
             val refinedJson = RefinementPipeline.toRefinedJson(result)
             ClusterMachineAndRecipeTuner.writeFile(outputDir, jsonFile.getName, refinedJson)
-            totalBoosts += result.appliedBoosts.size
+            allBoosts ++= result.appliedBoosts.collect { case b: MemoryHeapBoost => b }
             logger.info(s"  b16 reboosting applied to $clusterName$suffix: ${result.appliedBoosts.size} boost(s)")
           }
         } catch {
@@ -432,7 +458,7 @@ object ClusterMachineAndRecipeAutoTuner {
         }
       }
     }
-    totalBoosts
+    allBoosts.toSeq
   }
 
   private def resolveStrategy(name: String): TuningStrategy = name.toLowerCase match {
@@ -458,7 +484,7 @@ object ClusterMachineAndRecipeAutoTuner {
     preserved: Int,
     skipped: Int,
     b14Boosts: Seq[(String, String)],
-    b16Boosts: Seq[(String, String, Int)],
+    b16Boosts: Seq[(String, Seq[MemoryHeapBoost])],
     correlationCount: Int,
     divergenceCount: Int
   ): Unit = {
@@ -514,8 +540,14 @@ object ClusterMachineAndRecipeAutoTuner {
     if (b16Boosts.isEmpty) {
       sb.append("  (none)\n")
     } else {
-      b16Boosts.foreach { case (cluster, suffix, count) =>
-        sb.append(s"  $cluster ($suffix): $count recipe(s) boosted\n")
+      b16Boosts.foreach { case (cluster, boosts) =>
+        // Deduplicate by recipe (both JSON files yield the same boost per recipe)
+        val uniqueBoosts = boosts.groupBy(_.recipeFilename).values.map(_.head).toSeq.sortBy(_.recipeFilename)
+        sb.append(s"  $cluster  (${uniqueBoosts.size} recipe(s))\n")
+        uniqueBoosts.foreach { b =>
+          val recipe = b.recipeFilename.stripPrefix("_").stripSuffix(".json")
+          sb.append("    %-60s  spark.executor.memory: %s -> %s  (x%.1f)\n".format(recipe, b.originalMemory, b.boostedMemory, b.boostFactor))
+        }
       }
     }
     sb.append("\n")
