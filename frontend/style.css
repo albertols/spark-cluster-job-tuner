@@ -1,0 +1,359 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #0d1117;
+  color: #c9d1d9;
+  line-height: 1.5;
+}
+
+header {
+  background: #161b22;
+  padding: 16px 24px;
+  border-bottom: 1px solid #30363d;
+}
+
+header h1 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #f0f6fc;
+}
+
+#metadata-bar {
+  font-size: 12px;
+  color: #8b949e;
+  margin-top: 4px;
+}
+
+/* Tabs */
+nav#tabs {
+  display: flex;
+  gap: 0;
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
+  padding: 0 24px;
+}
+
+.tab {
+  background: none;
+  border: none;
+  color: #8b949e;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+
+.tab:hover { color: #c9d1d9; }
+.tab.active { color: #f0f6fc; border-bottom-color: #58a6ff; }
+
+/* Main */
+main {
+  padding: 20px 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Summary cards */
+#summary-cards {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.summary-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 12px 16px;
+  min-width: 120px;
+  text-align: center;
+}
+
+.summary-card .value {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.summary-card .label {
+  font-size: 11px;
+  color: #8b949e;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.summary-card.degraded .value { color: #f85149; }
+.summary-card.improved .value { color: #3fb950; }
+.summary-card.stable .value { color: #8b949e; }
+.summary-card.new .value { color: #58a6ff; }
+.summary-card.dropped .value { color: #d29922; }
+
+/* Filters */
+#filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+#cluster-search {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  color: #c9d1d9;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  width: 250px;
+}
+
+#trend-filter {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  color: #c9d1d9;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+/* Cluster grid */
+#cluster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 8px;
+}
+
+.cluster-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  position: relative;
+}
+
+.cluster-card:hover {
+  border-color: #58a6ff;
+}
+
+.cluster-card .cluster-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f0f6fc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cluster-card .cluster-meta {
+  font-size: 11px;
+  color: #8b949e;
+  margin-top: 4px;
+}
+
+.cluster-card .recipe-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.pill.degraded { background: rgba(248, 81, 73, 0.2); color: #f85149; }
+.pill.improved { background: rgba(63, 185, 80, 0.2); color: #3fb950; }
+.pill.stable { background: rgba(139, 148, 158, 0.15); color: #8b949e; }
+.pill.new_entry { background: rgba(88, 166, 255, 0.2); color: #58a6ff; }
+.pill.dropped_entry { background: rgba(210, 153, 34, 0.2); color: #d29922; }
+
+.trend-indicator {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.trend-indicator.degraded { background: #f85149; }
+.trend-indicator.improved { background: #3fb950; }
+.trend-indicator.stable { background: #8b949e; }
+.trend-indicator.mixed { background: #d29922; }
+
+/* Tooltip */
+.tooltip {
+  position: fixed;
+  background: #1c2128;
+  border: 1px solid #444c56;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 12px;
+  max-width: 400px;
+  pointer-events: none;
+  z-index: 1000;
+  display: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.tooltip table { width: 100%; border-collapse: collapse; }
+.tooltip td { padding: 2px 8px 2px 0; }
+.tooltip .metric-name { color: #8b949e; }
+.tooltip .pct-pos { color: #f85149; }
+.tooltip .pct-neg { color: #3fb950; }
+
+/* Cluster detail */
+#back-to-overview {
+  background: none;
+  border: 1px solid #30363d;
+  color: #58a6ff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+#detail-cluster-name {
+  font-size: 16px;
+  margin-bottom: 16px;
+  color: #f0f6fc;
+}
+
+#detail-recipes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.detail-recipe-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.detail-recipe-card h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f0f6fc;
+  margin-bottom: 6px;
+  word-break: break-all;
+}
+
+.detail-recipe-card .detail-meta {
+  font-size: 11px;
+  color: #8b949e;
+}
+
+.detail-recipe-card .delta-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.delta-table td { padding: 3px 6px; }
+.delta-table tr:nth-child(odd) { background: rgba(255,255,255,0.02); }
+
+/* Charts */
+#detail-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.chart-container {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.chart-container h4 {
+  font-size: 12px;
+  color: #8b949e;
+  margin-bottom: 8px;
+}
+
+/* Correlation matrix */
+#correlation-matrix {
+  display: inline-grid;
+  gap: 2px;
+}
+
+.corr-cell {
+  width: 100px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 3px;
+  cursor: default;
+  position: relative;
+}
+
+.corr-header {
+  font-size: 9px;
+  color: #8b949e;
+  writing-mode: vertical-lr;
+  text-align: center;
+  padding: 4px;
+}
+
+/* Divergence table */
+#divergence-controls {
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+#divergence-controls input {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  color: #c9d1d9;
+  padding: 4px 8px;
+  border-radius: 4px;
+  width: 60px;
+}
+
+#divergence-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+#divergence-table th {
+  background: #161b22;
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 2px solid #30363d;
+  color: #8b949e;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+}
+
+#divergence-table th:hover { color: #f0f6fc; }
+
+#divergence-table td {
+  padding: 6px 12px;
+  border-bottom: 1px solid #21262d;
+}
+
+#divergence-table tr:hover { background: rgba(88, 166, 255, 0.05); }
+
+.z-high { color: #f85149; font-weight: 600; }
+.z-med { color: #d29922; }

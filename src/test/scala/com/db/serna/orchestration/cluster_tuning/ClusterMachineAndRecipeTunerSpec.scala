@@ -1,9 +1,33 @@
 package com.db.serna.orchestration.cluster_tuning
 
+import java.io.{File, PrintWriter}
+import java.nio.file.Files
+
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
 class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
+
+  // ── Helpers for loadMetrics file-based tests ──────────────────────────────
+
+  private def writeCsv(dir: File, name: String, content: String): Unit = {
+    val pw = new PrintWriter(new File(dir, name))
+    try pw.write(content) finally pw.close()
+  }
+
+  private def mkTmpInputDir(): File = Files.createTempDirectory("tuner-load-").toFile
+
+  private def cfgFor(inputDir: File, useFlattened: Boolean): ClusterMachineAndRecipeTuner.Config = {
+    val outDir = Files.createTempDirectory("tuner-out-").toFile
+    ClusterMachineAndRecipeTuner.Config(
+      useFlattened = useFlattened,
+      date = "2025_12_20",
+      inputDir = inputDir,
+      outputDir = outDir,
+      defaultMaster = MachineCatalog.byName("e2-standard-8").get,
+      defaultWorker = MachineCatalog.byName("e2-standard-8").get
+    )
+  }
 
   private val defaultMachine = MachineCatalog.byName("e2-standard-8").get
   private val defaultPolicy  = DefaultTuningStrategy.toTuningPolicy(defaultMachine)
@@ -584,5 +608,132 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     json should include("n2-standard-32")
     json should include("signal 1")
     json should include("quota_usage_by_family")
+  }
+
+  // ── loadMetrics: flattened NULL-tolerance & parity with individual CSVs ───
+
+  test("loadFlattened keeps rows when p95_run_max_executors is NULL (applies default 1.0)") {
+    val dir = mkTmpInputDir()
+    // p95_run_max_executors and seconds_at_cap etc. left empty for one row
+    val header = "cluster_name,recipe_filename,avg_executors_per_job,p95_run_max_executors," +
+      "avg_job_duration_ms,p95_job_duration_ms,runs,seconds_at_cap,runs_reaching_cap," +
+      "total_runs,fraction_reaching_cap,max_concurrent_jobs"
+    val rowWithNullP95   = "c1,_r1.json,0,,35165.4,40983,5,,,,,1"
+    val rowFullyPopulated = "c2,_r2.json,2.5,4,1000,1500,10,,,,,3"
+    writeCsv(dir, "b13_recommendations_inputs_per_recipe_per_cluster.csv",
+      s"$header\n$rowWithNullP95\n$rowFullyPopulated\n")
+
+    val metrics = ClusterMachineAndRecipeTuner.loadMetrics(cfgFor(dir, useFlattened = true))
+    metrics should have size 2
+    val m1 = metrics(("c1", "_r1.json"))
+    m1.avgExecutorsPerJob shouldBe 0.0
+    m1.p95RunMaxExecutors shouldBe 1.0  // default applied when NULL
+    m1.avgJobDurationMs shouldBe 35165.4
+    m1.p95JobDurationMs shouldBe 40983.0
+    m1.runs shouldBe 5L
+    m1.maxConcurrentJobs shouldBe Some(1)
+
+    val m2 = metrics(("c2", "_r2.json"))
+    m2.p95RunMaxExecutors shouldBe 4.0
+    m2.maxConcurrentJobs shouldBe Some(3)
+  }
+
+  test("loadFlattened applies max_concurrent_jobs default of 1 when missing") {
+    val dir = mkTmpInputDir()
+    val header = "cluster_name,recipe_filename,avg_executors_per_job,p95_run_max_executors," +
+      "avg_job_duration_ms,p95_job_duration_ms,runs,seconds_at_cap,runs_reaching_cap," +
+      "total_runs,fraction_reaching_cap,max_concurrent_jobs"
+    val rowMissingConc = "c1,_r1.json,1,2,100,200,3,,,,,"
+    writeCsv(dir, "b13_recommendations_inputs_per_recipe_per_cluster.csv",
+      s"$header\n$rowMissingConc\n")
+
+    val metrics = ClusterMachineAndRecipeTuner.loadMetrics(cfgFor(dir, useFlattened = true))
+    metrics(("c1", "_r1.json")).maxConcurrentJobs shouldBe Some(1)
+  }
+
+  test("loadFlattened skips rows missing cluster_name or recipe_filename") {
+    val dir = mkTmpInputDir()
+    val header = "cluster_name,recipe_filename,avg_executors_per_job,p95_run_max_executors," +
+      "avg_job_duration_ms,p95_job_duration_ms,runs,seconds_at_cap,runs_reaching_cap," +
+      "total_runs,fraction_reaching_cap,max_concurrent_jobs"
+    val validRow      = "c1,_r1.json,1,2,100,200,3,,,,,1"
+    val missingCluster = ",_r2.json,1,2,100,200,3,,,,,1"
+    val missingRecipe  = "c3,,1,2,100,200,3,,,,,1"
+    writeCsv(dir, "b13_recommendations_inputs_per_recipe_per_cluster.csv",
+      s"$header\n$validRow\n$missingCluster\n$missingRecipe\n")
+
+    val metrics = ClusterMachineAndRecipeTuner.loadMetrics(cfgFor(dir, useFlattened = true))
+    metrics.keys should contain only (("c1", "_r1.json"))
+  }
+
+  test("loadFlattened and loadFromIndividualCSVs produce the same RecipeMetrics for equivalent inputs") {
+    // Flattened input
+    val flatDir = mkTmpInputDir()
+    val flatHeader = "cluster_name,recipe_filename,avg_executors_per_job,p95_run_max_executors," +
+      "avg_job_duration_ms,p95_job_duration_ms,runs,seconds_at_cap,runs_reaching_cap," +
+      "total_runs,fraction_reaching_cap,max_concurrent_jobs"
+    val flatRow1 = "cA,_r1.json,2.5,4,1000,1500,10,,,,,2"
+    val flatRow2 = "cA,_r2.json,1.0,3,500,800,7,,,,,2"
+    val flatRow3 = "cB,_r1.json,0.5,2,200,250,3,,,,,1"
+    writeCsv(flatDir, "b13_recommendations_inputs_per_recipe_per_cluster.csv",
+      Seq(flatHeader, flatRow1, flatRow2, flatRow3).mkString("\n") + "\n")
+    val flat = ClusterMachineAndRecipeTuner.loadMetrics(cfgFor(flatDir, useFlattened = true))
+
+    // Equivalent individual CSVs
+    val indDir = mkTmpInputDir()
+    writeCsv(indDir, "b1_average_number_of_executors_per_job_by_cluster.csv",
+      "cluster_name,recipe_filename,avg_executors_per_job\n" +
+        "cA,_r1.json,2.5\ncA,_r2.json,1.0\ncB,_r1.json,0.5\n")
+    writeCsv(indDir, "b12_p95_max_executors_per_recipe_per_cluster.csv",
+      "cluster_name,recipe_filename,p95_run_max_executors,avg_run_max_executors,runs\n" +
+        "cA,_r1.json,4,3,10\ncA,_r2.json,3,2,7\ncB,_r1.json,2,1,3\n")
+    writeCsv(indDir, "b3_average_recipefilename_per_cluster.csv",
+      "cluster_name,recipe_filename,avg_job_duration_ms\n" +
+        "cA,_r1.json,1000\ncA,_r2.json,500\ncB,_r1.json,200\n")
+    writeCsv(indDir, "b8_P95_job_duration_per_recipe_per_cluster.csv",
+      "cluster_name,recipe_filename,p95_job_duration_ms,runs\n" +
+        "cA,_r1.json,1500,10\ncA,_r2.json,800,7\ncB,_r1.json,250,3\n")
+    writeCsv(indDir, "b5_a_times_job_reaches_max_executor_per_cluster.csv",
+      "cluster_name,recipe_filename,seconds_at_cap,runs_reaching_cap,total_runs,fraction_reaching_cap\n")
+    writeCsv(indDir, "b11_max_concurrent_jobs_per_cluster_in_window.csv",
+      "cluster_name,max_concurrent_jobs\ncA,2\ncB,1\n")
+    val ind = ClusterMachineAndRecipeTuner.loadMetrics(cfgFor(indDir, useFlattened = false))
+
+    flat.keySet shouldBe ind.keySet
+    flat.foreach { case (k, fm) =>
+      val im = ind(k)
+      fm.avgExecutorsPerJob shouldBe im.avgExecutorsPerJob
+      fm.p95RunMaxExecutors shouldBe im.p95RunMaxExecutors
+      fm.avgJobDurationMs   shouldBe im.avgJobDurationMs
+      fm.p95JobDurationMs   shouldBe im.p95JobDurationMs
+      fm.runs               shouldBe im.runs
+      fm.maxConcurrentJobs  shouldBe im.maxConcurrentJobs
+    }
+  }
+
+  test("loadFlattened and loadFromIndividualCSVs apply identical defaults when metrics are NULL") {
+    // Flattened: one row with only cluster/recipe populated
+    val flatDir = mkTmpInputDir()
+    val flatHeader = "cluster_name,recipe_filename,avg_executors_per_job,p95_run_max_executors," +
+      "avg_job_duration_ms,p95_job_duration_ms,runs,seconds_at_cap,runs_reaching_cap," +
+      "total_runs,fraction_reaching_cap,max_concurrent_jobs"
+    writeCsv(flatDir, "b13_recommendations_inputs_per_recipe_per_cluster.csv",
+      s"$flatHeader\ncX,_r.json,,,,,,,,,,\n")
+    val flat = ClusterMachineAndRecipeTuner.loadMetrics(cfgFor(flatDir, useFlattened = true))
+
+    // Individual: (cX,_r) present only in b1 with empty avg_executors_per_job
+    val indDir = mkTmpInputDir()
+    writeCsv(indDir, "b1_average_number_of_executors_per_job_by_cluster.csv",
+      "cluster_name,recipe_filename,avg_executors_per_job\ncX,_r.json,\n")
+    val ind = ClusterMachineAndRecipeTuner.loadMetrics(cfgFor(indDir, useFlattened = false))
+
+    val fm = flat(("cX", "_r.json"))
+    val im = ind(("cX", "_r.json"))
+    fm.avgExecutorsPerJob shouldBe im.avgExecutorsPerJob  // 1.0
+    fm.p95RunMaxExecutors shouldBe im.p95RunMaxExecutors  // 1.0
+    fm.avgJobDurationMs   shouldBe im.avgJobDurationMs    // 0.0
+    fm.p95JobDurationMs   shouldBe im.p95JobDurationMs    // 0.0 (== avgDur)
+    fm.runs               shouldBe im.runs                // 0L
+    fm.maxConcurrentJobs  shouldBe im.maxConcurrentJobs   // Some(1)
   }
 }

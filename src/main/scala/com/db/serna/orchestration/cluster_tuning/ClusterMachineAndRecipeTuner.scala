@@ -312,7 +312,7 @@ object ClusterMachineAndRecipeTuner {
   private val DagClusterCreationTimePath: File = new File("src/main/resources/composer/dwh/config/_dag_cluster_creation_time.csv")
 
   // Convert "YYYY_MM_DD" (CLI arg) into tuner_version "YYYY_DD_MM"
-  private def toTunerVersion(argDate: String): String = {
+  private[cluster_tuning] def toTunerVersion(argDate: String): String = {
     val parts = argDate.split("_")
     if (parts.length == 3) s"${parts(0)}_${parts(2)}_${parts(1)}" else argDate
   }
@@ -364,7 +364,7 @@ object ClusterMachineAndRecipeTuner {
    * Loads DAG_ID per cluster_name mapping from CSV.
    * Returns Map[cluster_name -> dag_id]. If file missing or malformed rows, returns empty map.
    */
-  private def loadDagClusterRelationshipMap(): Map[String, String] = {
+  private[cluster_tuning] def loadDagClusterRelationshipMap(): Map[String, String] = {
     if (!DagClusterMapPath.exists()) {
       logger.warn(s"DAG-to-cluster relationship CSV not found: ${DagClusterMapPath.getPath}. All clusters will use dag_id=UNKNOWN_DAG_ID.")
       Map.empty
@@ -394,7 +394,7 @@ object ClusterMachineAndRecipeTuner {
    * Returns Map[cluster_name -> (timer_name, time)]. If file missing or malformed rows, returns empty map.
    * If multiple rows exist for the same cluster, the first encountered is used with a warning.
    */
-  private def loadDagClusterCreationTimeMap(): Map[String, (String, String)] = {
+  private[cluster_tuning] def loadDagClusterCreationTimeMap(): Map[String, (String, String)] = {
     if (!DagClusterCreationTimePath.exists()) {
       logger.warn(s"TIMER mapping CSV not found: ${DagClusterCreationTimePath.getPath}. Defaulting TIMER_NAME=ZERO_TIMER, TIMER_TIME=00:00.")
       Map.empty
@@ -442,28 +442,32 @@ object ClusterMachineAndRecipeTuner {
 
     val rows: Vector[Map[String, String]] = Csv.parse(f)
     logger.info(s"Parsed ${rows.size} rows from ${f.getName}")
+    // Be permissive with NULL metric fields so flattened ingestion matches the behavior of
+    // loadFromIndividualCSVs (which applies sane defaults when a metric is missing). Only
+    // cluster_name and recipe_filename are required — everything else falls back to the same
+    // defaults used in the individual-CSV path.
     rows.flatMap { r =>
       (for {
-        cluster <- r.get("cluster_name")
-        recipe <- r.get("recipe_filename")
-        avgExec <- r.get("avg_executors_per_job").flatMap(Csv.toDouble)
-        p95Max <- r.get("p95_run_max_executors").flatMap(Csv.toDouble)
-        avgDur <- r.get("avg_job_duration_ms").flatMap(Csv.toDouble)
-        p95Dur <- r.get("p95_job_duration_ms").flatMap(Csv.toDouble)
-        runs <- r.get("runs").flatMap(Csv.toLong)
+        cluster <- r.get("cluster_name").filter(_.nonEmpty)
+        recipe <- r.get("recipe_filename").filter(_.nonEmpty)
       } yield {
+        val avgExec = r.get("avg_executors_per_job").flatMap(Csv.toDouble).getOrElse(1.0)
+        val p95Max = r.get("p95_run_max_executors").flatMap(Csv.toDouble).getOrElse(1.0)
+        val avgDur = r.get("avg_job_duration_ms").flatMap(Csv.toDouble).getOrElse(0.0)
+        val p95Dur = r.get("p95_job_duration_ms").flatMap(Csv.toDouble).getOrElse(avgDur)
+        val runs = r.get("runs").flatMap(Csv.toLong).getOrElse(0L)
         val secCap = r.get("seconds_at_cap").flatMap(Csv.toLong)
         val rAtCap = r.get("runs_reaching_cap").flatMap(Csv.toLong)
         val tRuns = r.get("total_runs").flatMap(Csv.toLong)
         val fracCap = r.get("fraction_reaching_cap").flatMap(Csv.toDouble)
-        val conc = r.get("max_concurrent_jobs").flatMap(Csv.toInt)
+        val conc = r.get("max_concurrent_jobs").flatMap(Csv.toInt).orElse(Some(1))
         (cluster -> recipe) -> RecipeMetrics(
           cluster, recipe,
           avgExec, p95Max, avgDur, p95Dur, runs,
           secCap, rAtCap, tRuns, fracCap, conc
         )
       }) orElse {
-        logger.warn(s"Skipping row due to missing required fields: $r")
+        logger.warn(s"Skipping row due to missing cluster_name or recipe_filename: $r")
         None
       }
     }.toMap
@@ -556,10 +560,10 @@ object ClusterMachineAndRecipeTuner {
     merged
   }
 
-  private def clusterActiveMinutes(metrics: Iterable[RecipeMetrics]): Double =
+  private[cluster_tuning] def clusterActiveMinutes(metrics: Iterable[RecipeMetrics]): Double =
     metrics.map(m => m.avgJobDurationMs / 60000.0).sum
 
-  private def hourlyPrice(machine: MachineType): Double = PriceCatalog.pricePerHourEUR.getOrElse(machine.name, 0.0)
+  private[cluster_tuning] def hourlyPrice(machine: MachineType): Double = PriceCatalog.pricePerHourEUR.getOrElse(machine.name, 0.0)
 
   private def penalizedHourlyClusterCost(worker: MachineType, workers: Int, master: MachineType, policy: TuningPolicy): Double = {
     val base: Double = hourlyPrice(worker) * workers + hourlyPrice(master)
@@ -801,7 +805,7 @@ object ClusterMachineAndRecipeTuner {
    * Emits <cluster>-manually-tuned.json. Optional driverOverride injects driver resource
    * fields into clusterConf when YARN driver eviction has been detected for this cluster.
    */
-  private def manualJson(
+  private[cluster_tuning] def manualJson(
     cluster: ClusterPlan,
     plans: Seq[RecipePlanManual],
     tunerVersion: String,
@@ -863,7 +867,7 @@ object ClusterMachineAndRecipeTuner {
   /**
    * Emits <cluster>-auto-scale-tuned.json. Optional driverOverride injected same as manualJson.
    */
-  private def daJson(
+  private[cluster_tuning] def daJson(
     cluster: ClusterPlan,
     plans: Seq[RecipePlanDA],
     tunerVersion: String,
@@ -924,7 +928,7 @@ object ClusterMachineAndRecipeTuner {
     Json.pretty(obj("clusterConf" -> clusterConf, "recipeSparkConf" -> recipeSparkConf))
   }
 
-  private def writeFile(outDir: File, fileName: String, content: String): Unit = {
+  private[cluster_tuning] def writeFile(outDir: File, fileName: String, content: String): Unit = {
     if (!outDir.exists()) {
       val ok = outDir.mkdirs()
       logger.info(s"Created output directory ${outDir.getPath}: $ok")

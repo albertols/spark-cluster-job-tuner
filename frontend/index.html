@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spark Cluster Auto-Tuner Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Spark Cluster Auto-Tuner Dashboard</h1>
+    <div id="metadata-bar"></div>
+  </header>
+
+  <nav id="tabs">
+    <button class="tab active" data-tab="overview">Fleet Overview</button>
+    <button class="tab" data-tab="correlations">Correlations</button>
+    <button class="tab" data-tab="divergences">Divergences</button>
+  </nav>
+
+  <main>
+    <!-- Fleet Overview -->
+    <section id="overview" class="tab-content active">
+      <div id="summary-cards"></div>
+      <div id="filters">
+        <input type="text" id="cluster-search" placeholder="Filter clusters..." />
+        <select id="trend-filter">
+          <option value="all">All trends</option>
+          <option value="degraded">Degraded</option>
+          <option value="improved">Improved</option>
+          <option value="stable">Stable</option>
+          <option value="new_entry">New</option>
+          <option value="dropped_entry">Dropped</option>
+        </select>
+      </div>
+      <div id="cluster-grid"></div>
+    </section>
+
+    <!-- Cluster Detail (shown when clicking a cluster) -->
+    <section id="cluster-detail" class="tab-content" style="display:none;">
+      <button id="back-to-overview">&larr; Back to Fleet</button>
+      <h2 id="detail-cluster-name"></h2>
+      <div id="detail-recipes"></div>
+      <div id="detail-charts"></div>
+    </section>
+
+    <!-- Correlations -->
+    <section id="correlations" class="tab-content">
+      <h2>Metric Correlation Matrix</h2>
+      <div id="correlation-matrix"></div>
+    </section>
+
+    <!-- Divergences -->
+    <section id="divergences" class="tab-content">
+      <h2>Outlier Divergences</h2>
+      <div id="divergence-controls">
+        <label>Min |z-score|: <input type="number" id="z-min" value="2.0" step="0.5" min="0"></label>
+      </div>
+      <table id="divergence-table">
+        <thead>
+          <tr>
+            <th>Cluster</th>
+            <th>Recipe</th>
+            <th>Metric</th>
+            <th>Reference</th>
+            <th>Current</th>
+            <th>Z-Score</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </main>
+
+  <div id="tooltip" class="tooltip"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

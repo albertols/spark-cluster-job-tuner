@@ -1,4 +1,4 @@
-package com.db.serna.orchestration.cluster_tuning
+package com.db.serna.orchestration.cluster_tuning._b15_exception_summary
 
 import org.apache.commons.io.FileUtils
 import org.apache.spark.sql.expressions.Window
@@ -46,7 +46,7 @@ object ClusterDiagnosticsExecutionStatusVsApplicationEnd {
 
   val DefaultB15CsvPath: String = "src/main/resources/composer/dwh/config/cluster_tuning/inputs/2025_12_20/b15_application_end_with_recipe_null_status.csv"
   val DefaultExceptionSummaryCsvPath: String = "src/main/resources/xmltobq/blueprint_exceptions/exception_summary_times.csv"
-  val DefaultOutputDir: String = "src/main/scala/com/db/pwcclakees/orchestration/cluster_tuning/_b15_exception_summary"
+  val DefaultOutputDir: String = "src/main/scala/com/db/serna/orchestration/cluster_tuning/_b15_exception_summary"
 
   val SuccessStatusVsSuccessSummaryFile: String = "B15_success_status_vs_success_summary.csv"
   val SuccessStatusVsExceptionSummaryFile: String = "B15_success_status_vs_exception_summary.csv"

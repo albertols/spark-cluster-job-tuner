@@ -35,10 +35,14 @@ executor_events AS (
   WHERE event_type = "executor_status"
 ),
 events_in_runs AS (
+  -- LEFT JOIN so application_end runs without matching executor_status events are preserved
+  -- (they contribute to duration metrics and run counts but have NULL executor metrics).
+  -- Using INNER JOIN here previously caused b13 to under-report runs and skew duration metrics
+  -- versus the individual b1/b3/b8/b12 CSVs.
   SELECT r.run_id, r.cluster_name, r.recipe_filename, r.app_start_ts, r.app_end_ts, r.app_duration_millis,
          e.evt_ts, e.executor_event, e.current_no_executors, e.max_executors_seen
   FROM application_runs r
-  JOIN executor_events e
+  LEFT JOIN executor_events e
     ON e.cluster_name = r.cluster_name
    AND e.recipe_filename = r.recipe_filename
    AND e.evt_ts BETWEEN r.app_start_ts AND r.app_end_ts

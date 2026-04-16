@@ -93,6 +93,23 @@ Alternative (fine-grained):
 - Export individual CSVs for b1, b3, b5, b8, b11, b12.
   The [ClusterMachineAndRecipeTuner.scala](ClusterMachineAndRecipeTuner.scala) supports both modes.
 
+### Flattened vs individual CSVs: parity
+
+Both ingestion paths (`loadFlattened` via b13 and `loadFromIndividualCSVs` via b1/b3/b5/b8/b11/b12)
+produce the same `RecipeMetrics` when given equivalent data. Key parity rules:
+
+- `cluster_name` and `recipe_filename` are the only required fields; rows missing either are skipped.
+- All metric fields are optional. When NULL, identical defaults are applied in both paths:
+  - `avg_executors_per_job` → `1.0`
+  - `p95_run_max_executors` → `1.0`
+  - `avg_job_duration_ms`   → `0.0`
+  - `p95_job_duration_ms`   → `avg_job_duration_ms`
+  - `runs`                  → `0L`
+  - `max_concurrent_jobs`   → `1`
+  - `seconds_at_cap`, `runs_reaching_cap`, `total_runs`, `fraction_reaching_cap` remain `None`.
+    Note: in b13 these four fields are always NULL (the `capacity` CTE in the SQL is hardcoded to
+    a single cluster), so they never contribute to flattened output regardless.
+
 Optional (diagnostics):
 
 - Export [b14_clusters_with_nonzero_exit_codes.csv](log_analytics/b14_clusters_with_nonzero_exit_codes.sql) for YARN driver exit code analysis.
