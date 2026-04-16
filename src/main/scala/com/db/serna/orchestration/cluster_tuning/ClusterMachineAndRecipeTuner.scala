@@ -954,7 +954,7 @@ object ClusterMachineAndRecipeTuner {
   def sortByTotalActiveMinutes(summaries: Seq[ClusterSummary]): Seq[ClusterSummary] =
     summaries.sortBy(s => (-s.totalActiveMinutes, s.clusterName))
 
-  private def writeCsv(outDir: File, fileName: String, rows: Seq[ClusterSummary]): Unit = {
+  private[cluster_tuning] def writeCsv(outDir: File, fileName: String, rows: Seq[ClusterSummary]): Unit = {
     if (!outDir.exists()) outDir.mkdirs()
     val f = new File(outDir, fileName)
     val bw = new BufferedWriter(new FileWriter(f))
@@ -969,12 +969,12 @@ object ClusterMachineAndRecipeTuner {
     } finally bw.close()
   }
 
-  private def writeSummaryCsv(outDir: File, summaries: Seq[ClusterSummary]): Unit = {
+  private[cluster_tuning] def writeSummaryCsv(outDir: File, summaries: Seq[ClusterSummary]): Unit = {
     val sorted = summaries.sortBy(s => (-s.numOfWorkers, -s.noOfJobs, s.clusterName))
     writeCsv(outDir, "_clusters-summary.csv", sorted)
   }
 
-  private def writeSummaryCsvOnlyClustersWf(outDir: File, summaries: Seq[ClusterSummary]): Unit = {
+  private[cluster_tuning] def writeSummaryCsvOnlyClustersWf(outDir: File, summaries: Seq[ClusterSummary]): Unit = {
     val sorted = summaries.sortBy(s => (-s.numOfWorkers, -s.noOfJobs, s.clusterName))
     val filtered = sorted.filter(_.clusterName.startsWith("cluster-wf-"))
     writeCsv(outDir, "_clusters-summary-only-clusters-wf.csv", filtered)
@@ -1003,7 +1003,7 @@ object ClusterMachineAndRecipeTuner {
   /**
    * Global cores-and-machines CSV aggregated by worker MACHINE_TYPE.
    */
-  private def writeGlobalCoresAndMachinesCsv(outDir: File, summaries: Seq[ClusterSummary]): Unit = {
+  private[cluster_tuning] def writeGlobalCoresAndMachinesCsv(outDir: File, summaries: Seq[ClusterSummary]): Unit = {
     if (!outDir.exists()) outDir.mkdirs()
     val f = new File(outDir, "_clusters-summary_global_cores_and_machines.csv")
     val bw = new BufferedWriter(new FileWriter(f))

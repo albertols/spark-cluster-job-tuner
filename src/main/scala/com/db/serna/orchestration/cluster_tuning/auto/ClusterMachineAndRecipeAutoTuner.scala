@@ -171,6 +171,15 @@ object ClusterMachineAndRecipeAutoTuner {
     val summaries = ArrayBuffer.empty[ClusterSummary]
     val summaryEntries = ArrayBuffer.empty[GenerationSummaryEntry]
 
+    // Tracking for the summary report
+    val b14BoostedClusters = ArrayBuffer.empty[(String, String)] // (cluster, reason)
+    val b16BoostedRecipes = ArrayBuffer.empty[(String, String, Int)] // (cluster, suffix, boostCount)
+    var keptClusters = 0
+    var boostedClusters = 0
+    var freshClusters = 0
+    var preservedClusters = 0
+    var skippedClusters = 0
+
     // Group decisions by cluster for output
     val decisionsByCluster: Map[String, Seq[EvolutionDecision]] = decisions.groupBy(_.cluster)
     val allClusterNames = decisionsByCluster.keys.toSeq.sorted
@@ -186,14 +195,17 @@ object ClusterMachineAndRecipeAutoTuner {
       primaryAction match {
         case KeepAsIs | PreserveHistorical =>
           // Re-emit reference configs verbatim
+          if (primaryAction == PreserveHistorical) preservedClusters += 1 else keptClusters += 1
           emitReferenceConfigs(clusterName, refOutputDir, curOutputDir)
 
         case BoostResources | GenerateFresh =>
+          if (primaryAction == GenerateFresh) freshClusters += 1 else boostedClusters += 1
           // Plan fresh using the relevant metrics
           val metricsSource = if (primaryAction == GenerateFresh) curSnapshot.metrics else curSnapshot.metrics
           val recMetrics = metricsSource.collect { case ((c, _), m) if c == clusterName => m }
 
           if (recMetrics.isEmpty) {
+            skippedClusters += 1
             logger.warn(s"No current metrics for cluster $clusterName despite $primaryAction action. Skipping.")
           } else {
             val clusterPlan = ClusterMachineAndRecipeTuner.planCluster(
@@ -202,22 +214,43 @@ object ClusterMachineAndRecipeAutoTuner {
             val manualPlans = ClusterMachineAndRecipeTuner.planManualRecipes(clusterPlan, recMetrics, policy)
             val daPlans = ClusterMachineAndRecipeTuner.planDARecipes(clusterPlan, recMetrics, policy)
 
-            // b14 driver evolution: if signal persists in both dates, promote master
+            // b14 driver evolution: if signal persists in both dates, use reference's
+            // already-promoted master as baseline and promote further from there.
             val persistentB14 = for {
               refSigs <- refSnapshot.b14Signals.get(clusterName)
               curSigs <- curSnapshot.b14Signals.get(clusterName)
               if refSigs.nonEmpty && curSigs.nonEmpty
             } yield {
-              val promoted = ClusterDiagnosticsProcessor.promoteMasterForEviction(clusterPlan.masterMachineType)
-              curSnapshot.driverOverrides.getOrElse(clusterName,
-                DriverResourceOverride(clusterName, Some(8), Some(4), Some(2),
-                  "Persistent b14 driver eviction across dates", Some(promoted))
-              ).copy(promotedMasterMachineType = Some(promoted))
+              // Use the reference's master (already promoted) as baseline, not the fresh plan's master.
+              // Pick the more powerful of reference master vs fresh plan master.
+              val refConfig = referenceConfigs.get(clusterName)
+              val refMasterName = refConfig.flatMap(_.clusterConfFields.find(_._1 == "master_machine_type").map(_._2.replaceAll("\"", "")))
+              val refMaster = refMasterName.flatMap(MachineCatalog.byName)
+              val baseline = refMaster match {
+                case Some(rm) if rm.memoryGb >= clusterPlan.masterMachineType.memoryGb => rm
+                case _ => clusterPlan.masterMachineType
+              }
+              // Promote further from the baseline (e.g. standard→highmem, or next core step)
+              val promoted = ClusterDiagnosticsProcessor.promoteMasterForEviction(baseline)
+              val curOverride = curSnapshot.driverOverrides.get(clusterName)
+              val driverMemGb = curOverride.flatMap(_.driverMemoryGb).orElse(Some(math.max(8, baseline.memoryGb / 4)))
+              val driverCores = curOverride.flatMap(_.driverCores).orElse(Some(4))
+              val driverOverheadGb = curOverride.flatMap(_.driverMemoryOverheadGb).orElse(Some(math.max(2, driverMemGb.getOrElse(8) / 4)))
+              val refEvictions = refSigs.collect { case e: YarnDriverEviction => e.evictionCount }.sum
+              val curEvictions = curSigs.collect { case e: YarnDriverEviction => e.evictionCount }.sum
+              val reason = s"Persistent b14 driver eviction: $refEvictions (ref) -> $curEvictions (cur) evictions"
+              DriverResourceOverride(clusterName, driverMemGb, driverCores, driverOverheadGb,
+                reason, Some(promoted))
             }
             val driverOverride = persistentB14.orElse(curSnapshot.driverOverrides.get(clusterName).map { o =>
               val promoted = ClusterDiagnosticsProcessor.promoteMasterForEviction(clusterPlan.masterMachineType)
               o.copy(promotedMasterMachineType = Some(promoted))
             })
+
+            // Track b14 boosts
+            if (driverOverride.isDefined) {
+              b14BoostedClusters += ((clusterName, driverOverride.get.diagnosticReason))
+            }
 
             val manualJsonStr = ClusterMachineAndRecipeTuner.manualJson(clusterPlan, manualPlans, tunerVersion, driverOverride)
             val daJsonStr = ClusterMachineAndRecipeTuner.daJson(clusterPlan, daPlans, tunerVersion, driverOverride)
@@ -227,7 +260,10 @@ object ClusterMachineAndRecipeAutoTuner {
 
             // Apply b16 reboosting if there are OOM signals for degraded recipes
             if (b16Factor > 1.0 && primaryAction == BoostResources) {
-              applyB16Reboosting(clusterName, curOutputDir, curSnapshot, b16Factor)
+              val boostCount = applyB16Reboosting(clusterName, curOutputDir, curSnapshot, b16Factor)
+              if (boostCount > 0) {
+                b16BoostedRecipes += ((clusterName, "-auto-scale-tuned.json", boostCount))
+              }
             }
 
             // Build summary entry
@@ -274,7 +310,19 @@ object ClusterMachineAndRecipeAutoTuner {
     ClusterMachineAndRecipeTuner.writeFile(curOutputDir, "_auto_tuner_analysis.json", analysisJson)
     AutoTunerJsonOutput.writeAnalysisCsvs(curOutputDir, allTrends, correlations, divergences, decisions)
 
-    // 10. Write generation summary if we planned any clusters
+    // 10. Write all cluster-summary CSVs (same as one-off tuner)
+    if (summaries.nonEmpty) {
+      val allSummaries = summaries.toSeq
+      ClusterMachineAndRecipeTuner.writeSummaryCsv(curOutputDir, allSummaries)
+      ClusterMachineAndRecipeTuner.writeSummaryCsvOnlyClustersWf(curOutputDir, allSummaries)
+      ClusterMachineAndRecipeTuner.writeSummaryCsvTopJobs(curOutputDir, allSummaries)
+      ClusterMachineAndRecipeTuner.writeSummaryCsvNumOfWorkers(curOutputDir, allSummaries)
+      ClusterMachineAndRecipeTuner.writeSummaryCsvEstimatedCostEur(curOutputDir, allSummaries)
+      ClusterMachineAndRecipeTuner.writeSummaryCsvTotalActiveMinutes(curOutputDir, allSummaries)
+      ClusterMachineAndRecipeTuner.writeGlobalCoresAndMachinesCsv(curOutputDir, allSummaries)
+    }
+
+    // 11. Write generation summary if we planned any clusters
     if (summaryEntries.nonEmpty) {
       val genSummary = GenerationSummary(
         generatedAt = java.time.Instant.now().toString,
@@ -292,6 +340,14 @@ object ClusterMachineAndRecipeAutoTuner {
       )
       GenerationSummaryWriter.writeSummary(curOutputDir, genSummary)
     }
+
+    // 12. Write auto-tuner summary report
+    writeAutoTunerSummaryReport(
+      curOutputDir, refDate, curDate, strategyName, allTrends,
+      keptClusters, boostedClusters, freshClusters, preservedClusters, skippedClusters,
+      b14BoostedClusters.toSeq, b16BoostedRecipes.toSeq,
+      correlations.size, divergences.size
+    )
 
     logger.info(s"AutoTuner finished. Output: ${curOutputDir.getPath}")
     logger.info(s"  Clusters processed: ${allClusterNames.size}")
@@ -348,11 +404,12 @@ object ClusterMachineAndRecipeAutoTuner {
     }
   }
 
-  private def applyB16Reboosting(clusterName: String, outputDir: File, snapshot: DateSnapshot, factor: Double): Unit = {
+  private def applyB16Reboosting(clusterName: String, outputDir: File, snapshot: DateSnapshot, factor: Double): Int = {
     val inputDir = new File(s"$BasePath/inputs/${snapshot.date}")
-    if (!inputDir.exists()) return
+    if (!inputDir.exists()) return 0
 
     val vitamins: Seq[RefinementVitamin] = Seq(new MemoryHeapBoostVitamin(factor))
+    var totalBoosts = 0
 
     Seq("-auto-scale-tuned.json", "-manually-tuned.json").foreach { suffix =>
       val jsonFile = new File(outputDir, s"$clusterName$suffix")
@@ -363,6 +420,7 @@ object ClusterMachineAndRecipeAutoTuner {
           if (result.appliedBoosts.nonEmpty) {
             val refinedJson = RefinementPipeline.toRefinedJson(result)
             ClusterMachineAndRecipeTuner.writeFile(outputDir, jsonFile.getName, refinedJson)
+            totalBoosts += result.appliedBoosts.size
             logger.info(s"  b16 reboosting applied to $clusterName$suffix: ${result.appliedBoosts.size} boost(s)")
           }
         } catch {
@@ -371,6 +429,7 @@ object ClusterMachineAndRecipeAutoTuner {
         }
       }
     }
+    totalBoosts
   }
 
   private def resolveStrategy(name: String): TuningStrategy = name.toLowerCase match {
@@ -382,6 +441,92 @@ object ClusterMachineAndRecipeAutoTuner {
   private def familyOf(machineName: String): String = {
     val parts = machineName.split("-")
     if (parts.length >= 2) parts(0) else machineName
+  }
+
+  private[auto] def writeAutoTunerSummaryReport(
+    outputDir: File,
+    refDate: String,
+    curDate: String,
+    strategyName: String,
+    allTrends: Seq[TrendAssessment],
+    kept: Int,
+    boosted: Int,
+    fresh: Int,
+    preserved: Int,
+    skipped: Int,
+    b14Boosts: Seq[(String, String)],
+    b16Boosts: Seq[(String, String, Int)],
+    correlationCount: Int,
+    divergenceCount: Int
+  ): Unit = {
+    val trendCounts = allTrends.groupBy(_.trend.label).mapValues(_.size)
+    val totalRecipes = allTrends.size
+    val totalClusters = allTrends.map(_.cluster).distinct.size
+
+    val sb = new StringBuilder
+    sb.append("=" * 72).append("\n")
+    sb.append("  AUTO-TUNER GENERATION SUMMARY\n")
+    sb.append("=" * 72).append("\n\n")
+    sb.append(s"  Reference date:  $refDate\n")
+    sb.append(s"  Current date:    $curDate\n")
+    sb.append(s"  Strategy:        $strategyName\n")
+    sb.append(s"  Generated at:    ${java.time.Instant.now()}\n\n")
+
+    sb.append("-" * 72).append("\n")
+    sb.append("  TREND SUMMARY\n")
+    sb.append("-" * 72).append("\n")
+    sb.append(f"  Total clusters:      $totalClusters%d\n")
+    sb.append(f"  Total recipes:       $totalRecipes%d\n")
+    sb.append(f"    Improved:          ${trendCounts.getOrElse("improved", 0)}%d\n")
+    sb.append(f"    Degraded:          ${trendCounts.getOrElse("degraded", 0)}%d\n")
+    sb.append(f"    Stable:            ${trendCounts.getOrElse("stable", 0)}%d\n")
+    sb.append(f"    New entries:       ${trendCounts.getOrElse("new_entry", 0)}%d\n")
+    sb.append(f"    Dropped entries:   ${trendCounts.getOrElse("dropped_entry", 0)}%d\n\n")
+
+    sb.append("-" * 72).append("\n")
+    sb.append("  EVOLUTION ACTIONS (cluster level)\n")
+    sb.append("-" * 72).append("\n")
+    sb.append(f"  Kept (stable/improved):   $kept%d\n")
+    sb.append(f"  Boosted (degraded):       $boosted%d\n")
+    sb.append(f"  Fresh (new):              $fresh%d\n")
+    sb.append(f"  Preserved (historical):   $preserved%d\n")
+    sb.append(f"  Skipped (no metrics):     $skipped%d\n\n")
+
+    sb.append("-" * 72).append("\n")
+    sb.append("  b14 DRIVER BOOSTS\n")
+    sb.append("-" * 72).append("\n")
+    if (b14Boosts.isEmpty) {
+      sb.append("  (none)\n")
+    } else {
+      b14Boosts.foreach { case (cluster, reason) =>
+        sb.append(s"  $cluster\n")
+        sb.append(s"    Reason: $reason\n")
+      }
+    }
+    sb.append("\n")
+
+    sb.append("-" * 72).append("\n")
+    sb.append("  b16 OOM REBOOSTING\n")
+    sb.append("-" * 72).append("\n")
+    if (b16Boosts.isEmpty) {
+      sb.append("  (none)\n")
+    } else {
+      b16Boosts.foreach { case (cluster, suffix, count) =>
+        sb.append(s"  $cluster ($suffix): $count recipe(s) boosted\n")
+      }
+    }
+    sb.append("\n")
+
+    sb.append("-" * 72).append("\n")
+    sb.append("  STATISTICAL ANALYSIS\n")
+    sb.append("-" * 72).append("\n")
+    sb.append(f"  Correlation pairs computed: $correlationCount%d\n")
+    sb.append(f"  Divergences detected:      $divergenceCount%d\n\n")
+
+    sb.append("=" * 72).append("\n")
+
+    ClusterMachineAndRecipeTuner.writeFile(outputDir, "_generation_summary_auto_tuner.txt", sb.toString())
+    logger.info(s"Auto-tuner summary report written to ${outputDir.getPath}/_generation_summary_auto_tuner.txt")
   }
 
   private def logTrendSummary(trends: Seq[TrendAssessment]): Unit = {

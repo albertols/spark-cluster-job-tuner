@@ -202,3 +202,11 @@ accumulated_max_total_memory_per_jobs_gb:
 manual: sum over recipes spark.executor.instances × spark.executor.memoryGb
 DA: sum over recipes maxExecutors × spark.executor.memoryGb
 These are indicative capacity envelopes for planning and dashboards.
+
+---
+
+## Auto-Tuner (Multi-Date Evolution)
+
+The **Auto-Tuner** (`auto/ClusterMachineAndRecipeAutoTuner`) extends this one-off tuner with temporal awareness. It compares metrics across two dates (reference vs current), detects performance trends (improved/degraded/stable), and evolves configurations accordingly. It includes b14 persistent driver promotion, b16 OOM reboosting for degraded recipes, statistical analysis (Pearson correlations, z-score divergence detection), and a frontend visualization dashboard.
+
+See [`auto/_AUTO_TUNING.md`](auto/_AUTO_TUNING.md) for full documentation.

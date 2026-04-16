@@ -151,7 +151,11 @@ Reference output JSONs are read via `SimpleJsonParser` and re-emitted verbatim. 
 1. `planCluster()` is called with current-date metrics (naturally produces larger allocations for higher metric values)
 2. `planManualRecipes()` / `planDARecipes()` generate recipe configs
 3. If b16 OOM signals exist for this cluster, `MemoryHeapBoostVitamin` is applied with `--b16-reboosting-factor`
-4. If b14 driver eviction persists in both dates, master machine is promoted to a more powerful type
+4. If b14 driver eviction persists in both dates, master machine is promoted using reference's already-promoted master as baseline:
+   - Read `master_machine_type` from reference output JSON
+   - Pick the more powerful of reference master vs freshly planned master (by memoryGb)
+   - Promote further from that baseline (e.g., standard→highmem, or next core step)
+   - This prevents regression where a fresh plan picks a weaker master than what the reference already promoted to
 
 ---
 
@@ -228,6 +232,14 @@ All outputs are written to `outputs/<current_date>_auto_tuned/`:
 | `_divergences.csv` | Outlier recipes with z-scores |
 | `_generation_summary.json` | Quota tracking and strategy metadata |
 | `_generation_summary.csv` | Same as above in CSV format |
+| `_generation_summary_auto_tuner.txt` | Human-readable summary report (b14/b16 boosts, evolution stats) |
+| `_clusters-summary.csv` | All clusters sorted by workers desc, jobs desc |
+| `_clusters-summary-only-clusters-wf.csv` | Filtered to `clusters-wf-` prefix |
+| `_clusters-summary_top_jobs.csv` | Sorted by job count |
+| `_clusters-summary_num_of_workers.csv` | Sorted by worker count |
+| `_clusters-summary_estimated_cost_eur.csv` | Sorted by estimated cost |
+| `_clusters-summary_total_active_minutes.csv` | Sorted by active minutes |
+| `_clusters-summary_global_cores_and_machines.csv` | Aggregated cores/machines by worker type |
 
 ### Analysis JSON Schema
 
@@ -307,6 +319,17 @@ auto/
   AutoTunerJsonOutput.scala                 # Analysis JSON/CSV output generation
   ClusterMachineAndRecipeAutoTuner.scala    # Main entry point (Scallop CLI + run())
   _AUTO_TUNING.md                           # This documentation
+
+Tests:
+  auto/StatisticalAnalysisSpec.scala        # 16 tests: math functions, correlations, divergences
+  auto/TrendDetectorSpec.scala              # 12 tests: trend classification, confidence, edge cases
+  auto/ClusterMachineAndRecipeAutoTunerSpec.scala  # 18 tests: evolution, JSON/CSV, report, b14/b16
+
+Frontend:
+  frontend/index.html                       # SPA with tabs (Fleet Overview, Correlations, Divergences)
+  frontend/app.js                           # Fetch + render analysis JSON
+  frontend/style.css                        # Dark theme, responsive grid
+  frontend/serve.sh                         # Python HTTP server launcher
 ```
 
 ---

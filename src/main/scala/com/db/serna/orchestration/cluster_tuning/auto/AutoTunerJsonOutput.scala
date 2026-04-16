@@ -167,7 +167,7 @@ object AutoTunerJsonOutput {
     else f"$d%.4f"
   }
 
-  private def determineOverallClusterTrend(trends: Seq[TrendAssessment]): String = {
+  private[auto] def determineOverallClusterTrend(trends: Seq[TrendAssessment]): String = {
     if (trends.exists(_.trend == Degraded)) "degraded"
     else if (trends.forall(_.trend == Improved)) "improved"
     else if (trends.exists(_.trend == Improved)) "mixed"
