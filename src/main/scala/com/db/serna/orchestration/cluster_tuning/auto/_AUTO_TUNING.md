@@ -1,4 +1,4 @@
-# Auto-Tuning: Multi-Date Performance Evolution
+/# Auto-Tuning: Multi-Date Performance Evolution
 
 ## Overview
 
@@ -26,63 +26,110 @@ The **Auto-Tuner** (`ClusterMachineAndRecipeAutoTuner`) extends the one-off tune
 ## Data Flow
 
 ```mermaid
-graph TD
-    subgraph "Input (per date)"
-        B13[b13 CSV<br/>metrics per recipe/cluster]
-        B14[b14 CSV<br/>exit codes]
-        B16[b16 CSV<br/>OOM exceptions]
+flowchart TD
+    %% ── Styles ────────────────────────────────────────────────────────────────
+    classDef csvFile    fill:#1e3a5f,stroke:#4a90d9,color:#cce5ff,rx:4
+    classDef scalaObj   fill:#2d1b4e,stroke:#9b59b6,color:#e8d5ff,rx:6
+    classDef snapshot   fill:#1a3a2a,stroke:#27ae60,color:#c8f0d8,rx:6
+    classDef decision   fill:#4a2800,stroke:#e67e22,color:#ffe5b4,rx:6
+    classDef actionGood fill:#1a3a1a,stroke:#2ecc71,color:#c8f0c8,rx:4
+    classDef actionBad  fill:#3a1a1a,stroke:#e74c3c,color:#ffc8c8,rx:4
+    classDef actionNeutral fill:#2a2a3a,stroke:#7f8c8d,color:#d5d8dc,rx:4
+    classDef outJson    fill:#1a2a3a,stroke:#3498db,color:#aed6f1,rx:4
+    classDef outCsv     fill:#1a2a2a,stroke:#1abc9c,color:#a2d9ce,rx:4
+    classDef outTxt     fill:#2a2a1a,stroke:#f39c12,color:#fdebd0,rx:4
+    classDef dirBox     fill:#111,stroke:#444,color:#aaa
+
+    %% ── INPUT LAYER ──────────────────────────────────────────────────────────
+    subgraph INPUTS ["📁  inputs/YYYY_MM_DD/"]
+        direction LR
+        B13["📄 b13_recommendations_inputs\n_per_recipe_per_cluster.csv\n──────────────────────\navg_executors · p95_duration\nruns · fraction_reaching_cap"]
+        B14["📄 b14_clusters_with\n_nonzero_exit_codes.csv\n──────────────────────\ndriver exit code 247\n(YARN eviction)"]
+        B16["📄 b16_oom_job\n_driver_exceptions.csv\n──────────────────────\nJava heap OOM\nper recipe / cluster"]
     end
+    class B13,B14,B16 csvFile
 
-    subgraph "Snapshot Loading"
-        REF[Reference DateSnapshot]
-        CUR[Current DateSnapshot]
+    %% ── SNAPSHOT LOADING ─────────────────────────────────────────────────────
+    subgraph SNAPSHOTS ["⚙️  ClusterMachineAndRecipeAutoTuner.scala · loadSnapshot()"]
+        REF["🗓️  Reference DateSnapshot\ndate · metrics · b14Signals\ndriverOverrides"]
+        CUR["🗓️  Current DateSnapshot\ndate · metrics · b14Signals\ndriverOverrides"]
     end
+    class REF,CUR snapshot
 
-    B13 --> REF
-    B13 --> CUR
-    B14 --> REF
-    B14 --> CUR
+    B13 -->|"metrics"| REF
+    B13 -->|"metrics"| CUR
+    B14 -->|"b14 signals"| REF
+    B14 -->|"b14 signals"| CUR
 
-    subgraph "Trend Analysis"
-        PAIR[Pair Metrics<br/>reference vs current]
-        TREND[TrendDetector<br/>classify trends]
-        STATS[StatisticalAnalysis<br/>correlations + divergences]
+    %% ── TREND ANALYSIS ───────────────────────────────────────────────────────
+    subgraph ANALYSIS ["⚙️  TrendDetector.scala  ·  StatisticalAnalysis.scala"]
+        PAIR["🔗 MetricsPair\nref metrics ↔ cur metrics\nper (cluster, recipe)"]
+        TREND["📊 TrendDetector\n─────────────────\nImproved / Degraded\nStable / New / Dropped\n+ confidence score"]
+        STATS["📐 StatisticalAnalysis\n─────────────────\nPearson correlations\nz-score divergences"]
     end
+    class PAIR,TREND,STATS scalaObj
 
-    REF --> PAIR
-    CUR --> PAIR
+    REF -->|"ref metrics"| PAIR
+    CUR -->|"cur metrics"| PAIR
     PAIR --> TREND
     PAIR --> STATS
 
-    subgraph "Evolution"
-        EVOLVER[PerformanceEvolver<br/>decide actions]
-        PLAN[planCluster / planRecipes<br/>for degraded/new]
-        KEEP[Re-emit reference config<br/>for stable/improved]
-        HIST[Preserve historical<br/>for dropped entries]
+    %% ── EVOLUTION DECISIONS ──────────────────────────────────────────────────
+    subgraph EVOLUTION ["⚙️  PerformanceEvolver.scala"]
+        EVOLVER["🧠 PerformanceEvolver\ndecideEvolutions()\n─────────────────\ntrend → action"]
     end
+    class EVOLVER scalaObj
 
-    TREND --> EVOLVER
-    EVOLVER -->|BoostResources / GenerateFresh| PLAN
-    EVOLVER -->|KeepAsIs| KEEP
-    EVOLVER -->|PreserveHistorical| HIST
+    TREND -->|"TrendAssessment[]"| EVOLVER
 
-    B16 -->|b16 reboosting| PLAN
-
-    subgraph "Output"
-        JSON[Per-cluster JSONs]
-        ANALYSIS[_auto_tuner_analysis.json]
-        CSV[_trend_summary.csv<br/>_correlations.csv<br/>_divergences.csv]
-        GEN[_generation_summary.json/csv]
+    %% ── ACTIONS ──────────────────────────────────────────────────────────────
+    subgraph ACTIONS ["⚙️  ClusterMachineAndRecipeAutoTuner.scala · run()"]
+        PLAN["🔨 Plan Fresh\nplanCluster()\nplanManualRecipes()\nplanDARecipes()\n─────────────\nBoostResources\nGenerateFresh"]
+        KEEP["✅ Keep As-Is\nre-emit reference JSON verbatim\n─────────────\nKeepAsIs\n(Improved · Stable)"]
+        HIST["📦 Preserve Historical\nre-emit reference JSON verbatim\n─────────────\nPreserveHistorical\n(DroppedEntry)"]
     end
+    class PLAN actionBad
+    class KEEP actionGood
+    class HIST actionNeutral
 
-    PLAN --> JSON
-    KEEP --> JSON
-    HIST --> JSON
-    STATS --> ANALYSIS
-    TREND --> ANALYSIS
-    STATS --> CSV
-    TREND --> CSV
-    PLAN --> GEN
+    EVOLVER -->|"BoostResources\nGenerateFresh"| PLAN
+    EVOLVER -->|"KeepAsIs"| KEEP
+    EVOLVER -->|"PreserveHistorical"| HIST
+
+    %% ── b14 / b16 VITAMINS ───────────────────────────────────────────────────
+    B14 -->|"b14 in cur_date:\npromote master\n(eviction 247)"| PLAN
+    B16 -->|"b16 OOM signals\n(ref or cur date):\nMemoryHeapBoostVitamin"| PLAN
+    B16 -.->|"b16 OOM signals\npersist to keep/preserved"| KEEP
+    B16 -.->|"b16 OOM signals\npersist to historical"| HIST
+
+    %% ── OUTPUTS ──────────────────────────────────────────────────────────────
+    subgraph OUTPUTS ["📁  outputs/YYYY_MM_DD_auto_tuned/"]
+        direction LR
+        subgraph CLUSTER_JSON ["Per-cluster configs"]
+            JMAN["📄 cluster-name\n-manually-tuned.json"]
+            JDA["📄 cluster-name\n-auto-scale-tuned.json"]
+        end
+        subgraph ANALYSIS_OUT ["Fleet analysis"]
+            AJSON["📄 _auto_tuner_analysis.json\ntrends · correlations\ndivergences (frontend-ready)"]
+            ACSV["📄 _trend_summary.csv\n📄 _correlations.csv\n📄 _divergences.csv"]
+        end
+        subgraph SUMMARY_OUT ["Generation summary"]
+            GSUM["📄 _generation_summary.json\n📄 _generation_summary.csv"]
+            GTXT["📄 _generation_summary\n_auto_tuner.txt\n(b14/b16 boosts · stats)"]
+            SCSV["📄 _clusters-summary*.csv\n(7 sorted views)"]
+        end
+    end
+    class JMAN,JDA outJson
+    class AJSON,ACSV,GSUM,GTXT,SCSV outCsv
+
+    PLAN  --> JMAN & JDA
+    KEEP  --> JMAN & JDA
+    HIST  --> JMAN & JDA
+    STATS --> AJSON
+    TREND --> AJSON
+    STATS --> ACSV
+    TREND --> ACSV
+    PLAN  --> GSUM & GTXT & SCSV
 ```
 
 ---
@@ -135,22 +182,26 @@ confidence = min(1.0, min(ref.runs, cur.runs) / 10.0)
 
 | Trend | Action | What happens |
 |---|---|---|
-| Improved | KeepAsIs | Reference config emitted unchanged |
-| Degraded | BoostResources | Re-plan with current metrics; apply b16 reboosting if OOM signals exist |
-| Stable | KeepAsIs | Reference config emitted unchanged |
-| NewEntry | GenerateFresh | Plan from scratch with current metrics |
-| DroppedEntry (keep=true) | PreserveHistorical | Reference config emitted unchanged |
+| Improved | KeepAsIs | Reference config emitted unchanged; b16 reboosting persisted if OOM signals exist |
+| Degraded | BoostResources | Re-plan with current metrics; b16 reboosting applied if OOM signals exist |
+| Stable | KeepAsIs | Reference config emitted unchanged; b16 reboosting persisted if OOM signals exist |
+| NewEntry | GenerateFresh | Plan from scratch with current metrics; b16 reboosting applied if OOM signals exist |
+| DroppedEntry (keep=true) | PreserveHistorical | Reference config emitted unchanged; b16 reboosting persisted if OOM signals exist |
 | DroppedEntry (keep=false) | Skip | No output |
+
+### b16 OOM Reboosting Persistence
+
+b16 reboosting is applied to **all evolution paths** (KeepAsIs, BoostResources, GenerateFresh, PreserveHistorical), not just degraded recipes. The auto-tuner searches for b16 CSVs in both `current_date` and `reference_date` input directories. If OOM signals existed in reference_date but the b16 CSV is absent in current_date, the boost still persists — removing it would risk regression into OOM failures. The same persistence logic will apply to future vitamins (e.g., b17 memoryOverhead).
 
 ### KeepAsIs / PreserveHistorical
 
-Reference output JSONs are read via `SimpleJsonParser` and re-emitted verbatim. This ensures exact config preservation with no floating-point drift from re-computation.
+Reference output JSONs are read via `SimpleJsonParser` and re-emitted verbatim. This ensures exact config preservation with no floating-point drift from re-computation. After re-emission, b16 reboosting is applied if OOM signals are present in either date.
 
 ### BoostResources
 
 1. `planCluster()` is called with current-date metrics (naturally produces larger allocations for higher metric values)
 2. `planManualRecipes()` / `planDARecipes()` generate recipe configs
-3. If b16 OOM signals exist for this cluster, `MemoryHeapBoostVitamin` is applied with `--b16-reboosting-factor`
+3. b16 reboosting is applied if OOM signals exist in either reference or current date's b16 CSV
 4. If b14 driver eviction (exit code 247) is present in **current_date**, the master is **always** promoted to a more powerful machine type to mitigate YARN driver eviction:
    - **Baseline** = max(reference config master, freshly planned master) — prevents regression below what the reference already promoted to
    - **Promotion chain** (always a leap ahead):
