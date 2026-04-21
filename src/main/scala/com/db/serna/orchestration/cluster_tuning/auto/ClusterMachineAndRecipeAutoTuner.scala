@@ -330,6 +330,7 @@ object ClusterMachineAndRecipeAutoTuner {
     )
     ClusterMachineAndRecipeTuner.writeFile(curOutputDir, "_auto_tuner_analysis.json", analysisJson)
     AutoTunerJsonOutput.writeAnalysisCsvs(curOutputDir, allTrends, correlations, divergences, decisions)
+    AutoTunerJsonOutput.writeAnalysesIndex(curOutputDir.getParentFile)
 
     // 10. Write all cluster-summary CSVs (same as one-off tuner)
     if (summaries.nonEmpty) {

@@ -1,8 +1,11 @@
 // Spark Cluster Auto-Tuner Dashboard
 // Reads _auto_tuner_analysis.json and renders interactive visualizations.
 
+let config = null;       // parsed config.json
+let outputsRoot = null;  // URL-absolute path to <outputsPath> (trailing slash, no trailing '/')
 let data = null;
 let analysisDir = '.';   // dir (relative or absolute URL) holding _auto_tuner_analysis.json
+let currentEntry = null; // { dir, reference_date, current_date, ... } when in dashboard mode
 const tooltip = document.getElementById('tooltip');
 const docPopover = document.getElementById('doc-popover');
 
@@ -60,65 +63,155 @@ const METRIC_DOCS = {
   }
 };
 
+// ── Config + Discovery ──────────────────────────────────────────────────────
+
+async function loadConfig() {
+  try {
+    const resp = await fetch('config.json', { cache: 'no-store' });
+    if (!resp.ok) throw new Error(`config.json fetch failed: ${resp.status}`);
+    config = await resp.json();
+  } catch (e) {
+    showFatalError(
+      'Missing or invalid <code>config.json</code>',
+      'Create a <code>config.json</code> next to <code>index.html</code> with <code>gcpProjectId</code>, <code>inputsPath</code> and <code>outputsPath</code>.<br>' +
+      `Error: ${escapeHtml(e.message || String(e))}`
+    );
+    return;
+  }
+  if (!config.outputsPath) {
+    showFatalError('config.json is missing <code>outputsPath</code>.', '');
+    config = null;
+    return;
+  }
+  // Resolve outputsPath against the page URL. URL collapses any "../" cleanly.
+  outputsRoot = stripTrailingSlash(new URL(config.outputsPath + '/', window.location.href).href);
+}
+
+async function discoverAnalyses() {
+  if (!outputsRoot) return [];
+
+  // 1) Preferred: an explicit index file written by the auto-tuner.
+  try {
+    const r = await fetch(`${outputsRoot}/_analyses_index.json`, { cache: 'no-store' });
+    if (r.ok) {
+      const j = await r.json();
+      if (Array.isArray(j.entries)) return j.entries;
+    }
+  } catch (e) { /* fall through */ }
+
+  // 2) Fallback: parse python http.server's HTML directory listing.
+  try {
+    const r = await fetch(`${outputsRoot}/`);
+    if (!r.ok) return [];
+    const html = await r.text();
+    const dirs = parseDirListing(html);
+    const entries = await Promise.all(dirs.map(buildEntryFromDir));
+    return entries.filter(Boolean);
+  } catch (e) {
+    return [];
+  }
+}
+
+// Extract directory links from python http.server's HTML listing.
+function parseDirListing(html) {
+  const out = [];
+  const re = /<a href="([^"]+)"/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    let href = m[1];
+    if (!href.endsWith('/')) continue;              // directories only
+    if (href.startsWith('?') || href.startsWith('#') || href === '../' || href === './') continue;
+    // Strip any trailing slash and URL-decode.
+    href = decodeURIComponent(href.replace(/\/$/, ''));
+    // Ignore absolute URLs just in case.
+    if (href.startsWith('http://') || href.startsWith('https://')) continue;
+    // Skip the index itself and any hidden entries.
+    if (href.startsWith('_') || href.startsWith('.')) continue;
+    out.push(href);
+  }
+  return out;
+}
+
+async function buildEntryFromDir(dir) {
+  try {
+    const r = await fetch(`${outputsRoot}/${encodeURIComponent(dir)}/_auto_tuner_analysis.json`, { cache: 'no-store' });
+    if (!r.ok) return null;
+    const j = await r.json();
+    const m = j.metadata || {};
+    const t = j.trends_summary || {};
+    return {
+      dir,
+      reference_date: m.reference_date,
+      current_date: m.current_date,
+      strategy: m.strategy || 'unknown',
+      total_clusters: m.total_clusters || 0,
+      total_recipes: m.total_recipes || 0,
+      generated_at: m.generated_at || '',
+      trends: {
+        improved: t.improved || 0,
+        degraded: t.degraded || 0,
+        stable: t.stable || 0,
+        new_entries: t.new_entries || 0,
+        dropped_entries: t.dropped_entries || 0
+      }
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
 // ── Data Loading ────────────────────────────────────────────────────────────
 
-async function loadData() {
-  const paths = [
-    '_auto_tuner_analysis.json',
-    '../_auto_tuner_analysis.json',
-  ];
-
-  const urlParams = new URLSearchParams(window.location.search);
-  const customPath = urlParams.get('data');
-  if (customPath) paths.unshift(customPath);
-
-  for (const path of paths) {
-    try {
-      const resp = await fetch(path);
-      if (resp.ok) {
-        data = await resp.json();
-        analysisDir = dirOf(path);
-        console.log('Loaded analysis data from:', path, '— analysisDir:', analysisDir);
-        return;
-      }
-    } catch (e) { /* try next */ }
+async function loadAnalysisFromUrl(url) {
+  try {
+    const resp = await fetch(url, { cache: 'no-store' });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    data = await resp.json();
+    analysisDir = dirOf(url);
+    return true;
+  } catch (e) {
+    showFatalError(`Failed to load analysis from <code>${escapeHtml(url)}</code>`, escapeHtml(e.message || String(e)));
+    return false;
   }
-
-  document.querySelector('main').innerHTML =
-    '<div style="text-align:center;padding:60px;color:#8b949e;">' +
-    '<h2>No analysis data found</h2>' +
-    '<p>Place <code>_auto_tuner_analysis.json</code> in the served directory,<br>' +
-    'or pass <code>?data=path/to/file.json</code> as a URL parameter.</p>' +
-    '</div>';
 }
 
 async function loadClusterJson(date, clusterName) {
   const key = `${date}/${clusterName}`;
   if (clusterJsonCache[key] !== undefined) return clusterJsonCache[key];
 
-  const isCur = date === data.metadata.current_date;
-  // The auto-tuner writes the current date to "<curDate>_auto_tuned/" and the
-  // reference date to "<refDate>/" (no suffix). The analysis JSON lives in the
-  // current dir, so reference JSONs are at "<analysisDir>/../<refDate>/...".
-  // We try a couple of common name variants so customised dir layouts also work.
+  // Build candidate dirs to probe for this date. When browsing from a landing
+  // entry we know the exact dir name for the current date; reference date is
+  // "<refDate>" or "<refDate>_auto_tuned" depending on whether that date was
+  // itself produced by the auto-tuner.
+  const isCur = data.metadata && date === data.metadata.current_date;
+  const curDirName = currentEntry ? currentEntry.dir : null;
+  const dirs = [];
+  if (isCur && curDirName) dirs.push(curDirName);
+  dirs.push(date, `${date}_auto_tuned`);
+
   const candidates = [];
+  dirs.forEach(d => {
+    const base = outputsRoot ? `${outputsRoot}/${encodeURIComponent(d)}` : `${analysisDir}/../${d}`;
+    candidates.push(
+      `${base}/${encodeURIComponent(clusterName)}-auto-scale-tuned.json`,
+      `${base}/${encodeURIComponent(clusterName)}-manually-tuned.json`
+    );
+  });
+  // Also try analysisDir directly as a last resort (back-compat with ?data=).
   if (isCur) {
     candidates.push(
-      `${analysisDir}/${clusterName}-auto-scale-tuned.json`,
-      `${analysisDir}/${clusterName}-manually-tuned.json`
-    );
-  } else {
-    candidates.push(
-      `${analysisDir}/../${date}/${clusterName}-auto-scale-tuned.json`,
-      `${analysisDir}/../${date}/${clusterName}-manually-tuned.json`,
-      `${analysisDir}/../${date}_auto_tuned/${clusterName}-auto-scale-tuned.json`,
-      `${analysisDir}/../${date}_auto_tuned/${clusterName}-manually-tuned.json`
+      `${analysisDir}/${encodeURIComponent(clusterName)}-auto-scale-tuned.json`,
+      `${analysisDir}/${encodeURIComponent(clusterName)}-manually-tuned.json`
     );
   }
 
-  clusterJsonTriedPaths[key] = candidates.slice();
+  // Deduplicate while keeping order.
+  const seen = new Set();
+  const unique = candidates.filter(p => (seen.has(p) ? false : (seen.add(p), true)));
 
-  for (const p of candidates) {
+  clusterJsonTriedPaths[key] = unique.slice();
+
+  for (const p of unique) {
     try {
       const r = await fetch(p);
       if (r.ok) {
@@ -142,18 +235,28 @@ async function loadClusterJsonsForDates(clusterName) {
   return { ref, cur, refDate, curDate };
 }
 
-// ── Initialization ──────────────────────────────────────────────────────────
+// ── Bootstrap ───────────────────────────────────────────────────────────────
 
-async function init() {
-  await loadData();
-  if (!data) return;
+async function bootstrap() {
+  wireGlobalHandlers();
 
-  renderMetadataBar();
-  renderSummaryCards();
-  renderClusterGrid();
-  renderCorrelationMatrix();
-  renderDivergenceTable();
+  await loadConfig();
+  if (!config) return;
 
+  renderProjectChip();
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const dataParam = urlParams.get('data');
+  if (dataParam) {
+    // Deep-link: skip landing entirely.
+    await openAnalysisFromUrl(dataParam);
+    return;
+  }
+
+  await showLanding();
+}
+
+function wireGlobalHandlers() {
   document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
@@ -166,6 +269,9 @@ async function init() {
     document.getElementById('cluster-detail').style.display = 'none';
     document.getElementById('overview').classList.add('active');
   });
+
+  document.getElementById('back-to-landing').addEventListener('click', showLanding);
+  document.getElementById('landing-refresh').addEventListener('click', () => showLanding({ force: true }));
 
   // Modal close
   document.getElementById('modal-close').addEventListener('click', closeModal);
@@ -196,6 +302,144 @@ function switchTab(tabName) {
   document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
   document.getElementById(tabName).classList.add('active');
   document.getElementById('cluster-detail').style.display = 'none';
+}
+
+// ── Mode switching ──────────────────────────────────────────────────────────
+
+function setMode(mode) {
+  const isLanding = mode === 'landing';
+  document.getElementById('landing').style.display = isLanding ? 'block' : 'none';
+  document.getElementById('tabs').style.display = isLanding ? 'none' : 'flex';
+  document.getElementById('metadata-bar').style.display = isLanding ? 'none' : 'flex';
+  document.getElementById('back-to-landing').style.display = isLanding ? 'none' : 'inline-block';
+
+  const dashboardSections = ['overview', 'cluster-detail', 'correlations', 'divergences'];
+  if (isLanding) {
+    dashboardSections.forEach(id => {
+      const el = document.getElementById(id);
+      el.classList.remove('active');
+      el.style.display = 'none';
+    });
+  } else {
+    // Clear the inline 'display:none' that was applied while on landing, so
+    // the CSS rules (.tab-content.active → block) take over again.
+    dashboardSections.forEach(id => {
+      document.getElementById(id).style.display = '';
+    });
+  }
+}
+
+async function showLanding(opts) {
+  setMode('landing');
+  // Reset per-analysis state so the next dashboard open is clean.
+  data = null;
+  currentEntry = null;
+  Object.keys(clusterJsonCache).forEach(k => delete clusterJsonCache[k]);
+  Object.keys(clusterJsonTriedPaths).forEach(k => delete clusterJsonTriedPaths[k]);
+
+  document.getElementById('landing-grid').innerHTML =
+    `<div class="empty-msg" style="padding:30px;text-align:center;">Scanning <code>${escapeHtml(outputsRoot || config.outputsPath)}</code>…</div>`;
+  document.getElementById('landing-empty').style.display = 'none';
+
+  const entries = await discoverAnalyses();
+  renderLandingPage(entries);
+}
+
+function renderLandingPage(entries) {
+  const grid = document.getElementById('landing-grid');
+  const empty = document.getElementById('landing-empty');
+
+  if (!entries || entries.length === 0) {
+    grid.innerHTML = '';
+    empty.innerHTML =
+      `<h3>No analysis runs found</h3>` +
+      `<p>Scanned <code>${escapeHtml(outputsRoot || '')}</code>.</p>` +
+      `<p>Run the auto-tuner to generate <code>_auto_tuner_analysis.json</code> under <code>outputs/&lt;date&gt;/</code>.</p>`;
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  grid.innerHTML = entries.map((e, idx) => {
+    const t = e.trends || {};
+    const chips = [
+      t.degraded        ? `<span class="trend-chip degraded">${t.degraded} deg</span>` : '',
+      t.improved        ? `<span class="trend-chip improved">${t.improved} imp</span>` : '',
+      t.stable          ? `<span class="trend-chip stable">${t.stable} stab</span>`    : '',
+      t.new_entries     ? `<span class="trend-chip new">${t.new_entries} new</span>`   : '',
+      t.dropped_entries ? `<span class="trend-chip dropped">${t.dropped_entries} dropped</span>` : '',
+    ].filter(Boolean).join('');
+
+    const generated = e.generated_at
+      ? `<div class="landing-card-footer">Generated ${new Date(e.generated_at).toLocaleString()}</div>`
+      : '';
+
+    return `<div class="landing-card" data-idx="${idx}">
+      <div class="landing-card-title">
+        <span class="date-pill cur" title="Current date">${escapeHtml(formatDate(e.current_date))}</span>
+        <span class="landing-card-strategy">${escapeHtml(e.strategy || '')}</span>
+      </div>
+      <div class="landing-card-dates">
+        <span class="date-pill ref" title="Reference date">${escapeHtml(formatDate(e.reference_date))}</span>
+        <span class="date-arrow">→</span>
+        <span class="date-pill cur">${escapeHtml(formatDate(e.current_date))}</span>
+      </div>
+      <div class="landing-card-meta">${e.total_clusters} clusters · ${e.total_recipes} recipes</div>
+      <div class="landing-card-chips">${chips || '<span class="empty-msg">no trend data</span>'}</div>
+      ${generated}
+      <div class="landing-card-dir"><code>${escapeHtml(e.dir)}/</code></div>
+      <button class="landing-card-open">Open →</button>
+    </div>`;
+  }).join('');
+
+  grid.querySelectorAll('.landing-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const idx = parseInt(card.dataset.idx, 10);
+      openAnalysisEntry(entries[idx]);
+    });
+  });
+}
+
+async function openAnalysisEntry(entry) {
+  currentEntry = entry;
+  const url = `${outputsRoot}/${encodeURIComponent(entry.dir)}/_auto_tuner_analysis.json`;
+  const ok = await loadAnalysisFromUrl(url);
+  if (!ok) return;
+  renderDashboard();
+}
+
+async function openAnalysisFromUrl(url) {
+  // Deep-link path — no entry object; cluster JSON resolution will rely on
+  // outputsRoot + metadata dates.
+  currentEntry = null;
+  const ok = await loadAnalysisFromUrl(url);
+  if (!ok) return;
+  renderDashboard();
+}
+
+function renderDashboard() {
+  setMode('dashboard');
+  switchTab('overview');
+  renderMetadataBar();
+  renderSummaryCards();
+  renderClusterGrid();
+  renderCorrelationMatrix();
+  renderDivergenceTable();
+}
+
+function renderProjectChip() {
+  const chip = document.getElementById('project-chip');
+  if (!chip || !config || !config.gcpProjectId) return;
+  chip.textContent = config.gcpProjectId;
+  chip.style.display = 'inline-flex';
+}
+
+function showFatalError(title, body) {
+  document.querySelector('main').innerHTML =
+    '<div style="text-align:center;padding:60px;color:#8b949e;">' +
+    `<h2>${title}</h2>` +
+    `<p style="margin-top:12px">${body}</p>` +
+    '</div>';
 }
 
 // ── Metadata Bar ────────────────────────────────────────────────────────────
@@ -958,5 +1202,9 @@ function triedPathsHtml(clusterName) {
     <ul style="font-size:11px;color:#8b949e;margin:6px 0 0 18px">${list(ref)}${list(cur)}</ul></details>`;
 }
 
+function stripTrailingSlash(s) {
+  return String(s).replace(/\/+$/, '');
+}
+
 // ── Boot ────────────────────────────────────────────────────────────────────
-init();
+bootstrap();

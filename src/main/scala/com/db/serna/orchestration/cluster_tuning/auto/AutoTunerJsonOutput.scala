@@ -3,6 +3,7 @@ package com.db.serna.orchestration.cluster_tuning.auto
 import com.db.serna.orchestration.cluster_tuning.Json
 
 import java.io.{BufferedWriter, File, FileWriter}
+import scala.io.Source
 
 /**
  * Produces analysis JSON and CSV outputs for the auto-tuner.
@@ -12,6 +13,9 @@ import java.io.{BufferedWriter, File, FileWriter}
  *   _correlations.csv          — metric correlation results
  *   _divergences.csv           — outlier divergence detection
  *   _trend_summary.csv         — per-(cluster, recipe) trend summary
+ *
+ * And at the outputs root (one level above each run):
+ *   _analyses_index.json       — frontend landing-page index of every run
  */
 object AutoTunerJsonOutput {
 
@@ -172,5 +176,105 @@ object AutoTunerJsonOutput {
     else if (trends.forall(_.trend == Improved)) "improved"
     else if (trends.exists(_.trend == Improved)) "mixed"
     else "stable"
+  }
+
+  /**
+   * Rebuild `<outputsRoot>/_analyses_index.json` by scanning every sibling
+   * directory that contains an `_auto_tuner_analysis.json` and extracting
+   * its metadata. The index powers the frontend landing page.
+   *
+   * Format is stable and produced by this same object, so a light regex
+   * extraction is enough — we avoid pulling in a JSON parser dependency.
+   */
+  def writeAnalysesIndex(outputsRoot: File): Unit = {
+    if (!outputsRoot.isDirectory) return
+
+    val children = Option(outputsRoot.listFiles()).getOrElse(Array.empty[File])
+      .filter(_.isDirectory)
+      .sortBy(_.getName)
+
+    val entries = children.flatMap { dir =>
+      val analysisFile = new File(dir, "_auto_tuner_analysis.json")
+      if (analysisFile.isFile) readIndexEntry(dir.getName, analysisFile) else None
+    }
+
+    // Sort by current_date desc, then dir name desc as a tiebreaker.
+    val sorted = entries.toSeq.sortBy(e => (e.currentDate, e.dir))(
+      Ordering.Tuple2[String, String].reverse
+    )
+
+    val entriesJson = sorted.map { e =>
+      obj(
+        "dir" -> str(e.dir),
+        "reference_date" -> str(e.referenceDate),
+        "current_date" -> str(e.currentDate),
+        "strategy" -> str(e.strategy),
+        "total_clusters" -> num(e.totalClusters),
+        "total_recipes" -> num(e.totalRecipes),
+        "trends" -> obj(
+          "improved" -> num(e.improved),
+          "degraded" -> num(e.degraded),
+          "stable" -> num(e.stable),
+          "new_entries" -> num(e.newEntries),
+          "dropped_entries" -> num(e.droppedEntries)
+        ),
+        "generated_at" -> str(e.generatedAt)
+      )
+    }
+
+    val doc = Json.pretty(obj(
+      "generated_at" -> str(java.time.Instant.now().toString),
+      "entries" -> arr(entriesJson: _*)
+    ))
+    writeFile(outputsRoot, "_analyses_index.json", doc)
+  }
+
+  private case class AnalysisIndexEntry(
+    dir: String,
+    referenceDate: String,
+    currentDate: String,
+    strategy: String,
+    totalClusters: Int,
+    totalRecipes: Int,
+    improved: Int,
+    degraded: Int,
+    stable: Int,
+    newEntries: Int,
+    droppedEntries: Int,
+    generatedAt: String
+  )
+
+  private def readIndexEntry(dirName: String, analysisFile: File): Option[AnalysisIndexEntry] = {
+    val src = Source.fromFile(analysisFile, "UTF-8")
+    val body = try src.mkString finally src.close()
+
+    // These fields are guaranteed to exist — we wrote the file ourselves.
+    for {
+      refDate <- extractStr(body, "reference_date")
+      curDate <- extractStr(body, "current_date")
+    } yield AnalysisIndexEntry(
+      dir = dirName,
+      referenceDate = refDate,
+      currentDate = curDate,
+      strategy = extractStr(body, "strategy").getOrElse("unknown"),
+      totalClusters = extractInt(body, "total_clusters").getOrElse(0),
+      totalRecipes = extractInt(body, "total_recipes").getOrElse(0),
+      improved = extractInt(body, "improved").getOrElse(0),
+      degraded = extractInt(body, "degraded").getOrElse(0),
+      stable = extractInt(body, "stable").getOrElse(0),
+      newEntries = extractInt(body, "new_entries").getOrElse(0),
+      droppedEntries = extractInt(body, "dropped_entries").getOrElse(0),
+      generatedAt = extractStr(body, "generated_at").getOrElse("")
+    )
+  }
+
+  private def extractStr(body: String, key: String): Option[String] = {
+    val pat = ("\"" + java.util.regex.Pattern.quote(key) + "\"\\s*:\\s*\"([^\"]*)\"").r
+    pat.findFirstMatchIn(body).map(_.group(1))
+  }
+
+  private def extractInt(body: String, key: String): Option[Int] = {
+    val pat = ("\"" + java.util.regex.Pattern.quote(key) + "\"\\s*:\\s*(-?\\d+)").r
+    pat.findFirstMatchIn(body).map(_.group(1).toInt)
   }
 }

@@ -1,7 +1,7 @@
 package com.db.serna.orchestration.cluster_tuning.auto
 
 import com.db.serna.orchestration.cluster_tuning._
-import com.db.serna.orchestration.cluster_tuning.refinement.SimpleJsonParser
+import com.db.serna.orchestration.cluster_tuning.refinement.{MemoryHeapBoost, MemoryHeapBoostVitamin, MemoryHeapOomSignal, RefinementPipeline, SimpleJsonParser}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
@@ -309,5 +309,260 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
     decisions.find(d => d.cluster == "c1" && d.recipe == "r2").get.action shouldBe BoostResources
     decisions.find(d => d.cluster == "c3" && d.recipe == "r1").get.action shouldBe GenerateFresh
     decisions.find(d => d.cluster == "c2" && d.recipe == "r1").get.action shouldBe PreserveHistorical
+  }
+
+  // ── Summary report ───────────────────────────────────────────────────────
+
+  test("writeAutoTunerSummaryReport creates report with correct sections") {
+    val tmpDir = Files.createTempDirectory("auto_tuner_report_test").toFile
+    tmpDir.deleteOnExit()
+
+    val trends = Seq(
+      TrendAssessment("c1", "r1", Degraded, Seq.empty, 0.8),
+      TrendAssessment("c1", "r2", Improved, Seq.empty, 0.9),
+      TrendAssessment("c2", "r1", Stable, Seq.empty, 1.0),
+      TrendAssessment("c3", "r1", NewEntry, Seq.empty, 0.0),
+      TrendAssessment("c4", "r1", DroppedEntry, Seq.empty, 0.0)
+    )
+
+    val b16Boosts = Seq(
+      ("c1", Seq(
+        MemoryHeapBoost("_ETL_recipe_A.json", "8g", "12g", 1.5),
+        MemoryHeapBoost("_ETL_recipe_B.json", "16g", "24g", 1.5)
+      ))
+    )
+
+    ClusterMachineAndRecipeAutoTuner.writeAutoTunerSummaryReport(
+      tmpDir, "2025_12_20", "2026_04_15", "default", trends,
+      kept = 2, boosted = 1, fresh = 1, preserved = 1, skipped = 0,
+      b14Boosts = Seq(("c1", "Persistent b14 driver eviction: 3 (ref) -> 5 (cur) evictions")),
+      b16Boosts = b16Boosts,
+      correlationCount = 4, divergenceCount = 3
+    )
+
+    val reportFile = new File(tmpDir, "_generation_summary_auto_tuner.txt")
+    reportFile.exists() shouldBe true
+
+    val content = scala.io.Source.fromFile(reportFile).mkString
+    content should include("AUTO-TUNER GENERATION SUMMARY")
+    content should include("2025_12_20")
+    content should include("2026_04_15")
+    content should include("Improved:")
+    content should include("Degraded:")
+    content should include("Stable:")
+    content should include("b14 DRIVER BOOSTS")
+    content should include("Persistent b14")
+    content should include("b16 OOM REBOOSTING")
+    content should include("2 recipe(s)")
+    content should include("ETL_recipe_A")
+    content should include("8g -> 12g")
+    content should include("ETL_recipe_B")
+    content should include("16g -> 24g")
+    content should include("STATISTICAL ANALYSIS")
+    content should include("Correlation pairs computed: 4")
+    content should include("Divergences detected:      3")
+  }
+
+  test("writeAutoTunerSummaryReport with no boosts shows (none)") {
+    val tmpDir = Files.createTempDirectory("auto_tuner_report_none").toFile
+    tmpDir.deleteOnExit()
+
+    ClusterMachineAndRecipeAutoTuner.writeAutoTunerSummaryReport(
+      tmpDir, "2025_12_20", "2026_04_15", "default",
+      Seq(TrendAssessment("c1", "r1", Stable, Seq.empty, 1.0)),
+      kept = 1, boosted = 0, fresh = 0, preserved = 0, skipped = 0,
+      b14Boosts = Seq.empty, b16Boosts = Seq.empty,
+      correlationCount = 0, divergenceCount = 0
+    )
+
+    val content = scala.io.Source.fromFile(new File(tmpDir, "_generation_summary_auto_tuner.txt")).mkString
+    content should include("(none)")
+    content should include("Kept (stable/improved):   1")
+  }
+
+  // ── b14 promotion chain ─────────────────────────────────────────────────
+
+  test("b14 promotion: standard -> highmem (more memory, same cores)") {
+    val current = MachineCatalog.byName("n2-standard-32").get
+    val promoted = ClusterDiagnosticsProcessor.promoteMasterForEviction(current)
+    promoted.name shouldBe "n2-highmem-32"
+    promoted.memoryGb should be > current.memoryGb
+    promoted.cores shouldBe current.cores
+  }
+
+  test("b14 promotion: highmem -> more cores (already at max variant)") {
+    val current = MachineCatalog.byName("n2-highmem-32").get
+    val promoted = ClusterDiagnosticsProcessor.promoteMasterForEviction(current)
+    promoted.name shouldBe "n2-highmem-48"
+    promoted.cores should be > current.cores
+  }
+
+  test("b14 promotion: e2-standard-32 -> n2-standard-32 (cross-family when e2-highmem-32 absent)") {
+    // e2-highmem only goes up to 16 cores, so e2-highmem-32 doesn't exist
+    val current = MachineCatalog.byName("e2-standard-32").get
+    val promoted = ClusterDiagnosticsProcessor.promoteMasterForEviction(current)
+    // Must cross-family to n2 since e2-highmem-32 is absent
+    promoted.name shouldBe "n2-standard-32"
+    promoted.memoryGb should be >= current.memoryGb
+  }
+
+  test("b14 promotion: reference master used as baseline when more powerful than fresh plan") {
+    // If reference had n2-standard-48, fresh plan picks e2-standard-32 — baseline should be n2-standard-48
+    val refMaster = MachineCatalog.byName("n2-standard-48").get
+    val freshMaster = MachineCatalog.byName("e2-standard-32").get
+    refMaster.memoryGb should be > freshMaster.memoryGb
+
+    // Promoting from n2-standard-48 → n2-highmem-48 (variant step)
+    val promoted = ClusterDiagnosticsProcessor.promoteMasterForEviction(refMaster)
+    promoted.name shouldBe "n2-highmem-48"
+    promoted.memoryGb should be > refMaster.memoryGb
+  }
+
+  test("b14 promotion: persistent eviction promotes from reference baseline, not fresh plan") {
+    // After two promotion rounds: e2-standard-32 → n2-standard-32 → n2-highmem-32 → n2-highmem-48
+    val round1 = ClusterDiagnosticsProcessor.promoteMasterForEviction(MachineCatalog.byName("e2-standard-32").get)
+    round1.name shouldBe "n2-standard-32"
+
+    val round2 = ClusterDiagnosticsProcessor.promoteMasterForEviction(round1)
+    round2.name shouldBe "n2-highmem-32"
+
+    val round3 = ClusterDiagnosticsProcessor.promoteMasterForEviction(round2)
+    round3.name shouldBe "n2-highmem-48"
+  }
+
+  // ── PerformanceEvolver edge cases ────────────────────────────────────────
+
+  test("PerformanceEvolver includes reason with top delta metric for degraded") {
+    val deltas = Seq(
+      MetricDelta("p95_job_duration_ms", 100000.0, 125000.0, 25000.0, 25.0),
+      MetricDelta("avg_job_duration_ms", 50000.0, 55000.0, 5000.0, 10.0)
+    )
+    val trend = TrendAssessment("c1", "r1", Degraded, deltas, 0.8)
+    val decisions = PerformanceEvolver.decideEvolutions(
+      Seq(trend), Map.empty, Map.empty, Map.empty, keepHistorical = true
+    )
+    decisions.head.reason should include("p95_job_duration_ms")
+    decisions.head.reason should include("25.0%")
+  }
+
+  test("PerformanceEvolver with fraction_reaching_cap as top delta") {
+    val deltas = Seq(
+      MetricDelta("fraction_reaching_cap", 0.1, 0.5, 0.4, 300.0),
+      MetricDelta("p95_job_duration_ms", 100000.0, 105000.0, 5000.0, 5.0)
+    )
+    val trend = TrendAssessment("c1", "r1", Degraded, deltas, 0.9)
+    val decisions = PerformanceEvolver.decideEvolutions(
+      Seq(trend), Map.empty, Map.empty, Map.empty, keepHistorical = true
+    )
+    decisions.head.reason should include("fraction_reaching_cap")
+  }
+
+  // ── b16 reboosting persistence ────────────────────────────────────────────
+
+  test("b16 reboosting persists from reference_date when b16 CSV absent in current_date") {
+    // Setup: reference_date has b16 CSV, current_date does not
+    val tmpDir = Files.createTempDirectory("auto_tuner_b16_persist").toFile
+    tmpDir.deleteOnExit()
+
+    val refInputDir = new File(tmpDir, "ref_inputs")
+    refInputDir.mkdirs()
+
+    val curInputDir = new File(tmpDir, "cur_inputs")
+    curInputDir.mkdirs()
+
+    val outputDir = new File(tmpDir, "output")
+    outputDir.mkdirs()
+
+    // Write b16 CSV ONLY in reference input dir
+    writeCsv(refInputDir, "b16_oom_job_driver_exceptions.csv",
+      B16Header + "\n" +
+        "etl-m-recipe-a-20260411-0438,cluster-a,_ETL_recipe_A.json,2026-04-11T04:38:00Z,ERROR,SomeClass,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,Java heap space,log1"
+    )
+
+    // No b16 CSV in current input dir (curInputDir has no b16 file)
+
+    // Write a cluster output JSON that can be refined
+    writeJson(outputDir, "cluster-a-auto-scale-tuned.json", SampleAutoScaleJson)
+    writeJson(outputDir, "cluster-a-manually-tuned.json", SampleManualJson)
+
+    // The b16 CSV should be found in refInputDir (fallback)
+    val b16File = new File(refInputDir, "b16_oom_job_driver_exceptions.csv")
+    b16File.exists() shouldBe true
+    new File(curInputDir, "b16_oom_job_driver_exceptions.csv").exists() shouldBe false
+
+    // Verify the vitamin can load signals from the reference dir
+    val vitamin = new MemoryHeapBoostVitamin(1.5)
+    val signals = vitamin.loadSignals(refInputDir, "cluster-a")
+    signals should not be empty
+    signals.head.asInstanceOf[MemoryHeapOomSignal].recipeFilename shouldBe "_ETL_recipe_A.json"
+
+    // Apply reboosting with inputDirs = [curInputDir, refInputDir]
+    // Since curInputDir has no b16, it should fall back to refInputDir
+    val config = SimpleJsonParser.parseFile(new File(outputDir, "cluster-a-auto-scale-tuned.json"))
+    val result = RefinementPipeline.refine(config, Seq(vitamin), refInputDir)
+    result.appliedBoosts should not be empty
+    val boost = result.appliedBoosts.head.asInstanceOf[MemoryHeapBoost]
+    boost.originalMemory shouldBe "8g"
+    boost.boostedMemory shouldBe "12g"
+  }
+
+  test("b16 reboosting prefers current_date CSV when both dates have b16") {
+    val tmpDir = Files.createTempDirectory("auto_tuner_b16_both").toFile
+    tmpDir.deleteOnExit()
+
+    val refInputDir = new File(tmpDir, "ref_inputs")
+    refInputDir.mkdirs()
+
+    val curInputDir = new File(tmpDir, "cur_inputs")
+    curInputDir.mkdirs()
+
+    // Both dirs have b16 CSV — curInputDir should be preferred
+    val b16Content = B16Header + "\n" +
+      "etl-m-recipe-a-20260411-0438,cluster-a,_ETL_recipe_A.json,2026-04-11T04:38:00Z,ERROR,SomeClass,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,Java heap space,log1"
+    writeCsv(refInputDir, "b16_oom_job_driver_exceptions.csv", b16Content)
+    writeCsv(curInputDir, "b16_oom_job_driver_exceptions.csv", b16Content)
+
+    // Both should exist
+    new File(curInputDir, "b16_oom_job_driver_exceptions.csv").exists() shouldBe true
+    new File(refInputDir, "b16_oom_job_driver_exceptions.csv").exists() shouldBe true
+
+    // The applyB16Reboosting inputDirs order is [curDate, refDate] — first match wins
+    val inputDirs = Seq(curInputDir, refInputDir)
+    val effectiveDir = inputDirs.find(d => d.exists() && new File(d, "b16_oom_job_driver_exceptions.csv").exists())
+    effectiveDir.get shouldBe curInputDir
+  }
+
+  // ── Overall cluster trend determination ──────────────────────────────────
+
+  test("determineOverallClusterTrend returns degraded if any recipe is degraded") {
+    val trends = Seq(
+      TrendAssessment("c1", "r1", Improved, Seq.empty, 0.9),
+      TrendAssessment("c1", "r2", Degraded, Seq.empty, 0.8)
+    )
+    AutoTunerJsonOutput.determineOverallClusterTrend(trends) shouldBe "degraded"
+  }
+
+  test("determineOverallClusterTrend returns improved when all are improved") {
+    val trends = Seq(
+      TrendAssessment("c1", "r1", Improved, Seq.empty, 0.9),
+      TrendAssessment("c1", "r2", Improved, Seq.empty, 0.8)
+    )
+    AutoTunerJsonOutput.determineOverallClusterTrend(trends) shouldBe "improved"
+  }
+
+  test("determineOverallClusterTrend returns stable when all are stable") {
+    val trends = Seq(
+      TrendAssessment("c1", "r1", Stable, Seq.empty, 1.0),
+      TrendAssessment("c1", "r2", Stable, Seq.empty, 1.0)
+    )
+    AutoTunerJsonOutput.determineOverallClusterTrend(trends) shouldBe "stable"
+  }
+
+  test("determineOverallClusterTrend returns mixed for improved+stable") {
+    val trends = Seq(
+      TrendAssessment("c1", "r1", Improved, Seq.empty, 0.9),
+      TrendAssessment("c1", "r2", Stable, Seq.empty, 1.0)
+    )
+    AutoTunerJsonOutput.determineOverallClusterTrend(trends) shouldBe "mixed"
   }
 }

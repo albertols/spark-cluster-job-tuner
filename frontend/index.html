@@ -9,19 +9,36 @@
 </head>
 <body>
   <header>
-    <h1>Spark Cluster Auto-Tuner Dashboard</h1>
+    <div class="header-row">
+      <h1>Spark Cluster Auto-Tuner Dashboard</h1>
+      <button id="back-to-landing" class="back-to-landing" style="display:none;">&larr; Back to runs</button>
+      <span id="project-chip" class="project-chip" style="display:none;"></span>
+    </div>
     <div id="metadata-bar"></div>
   </header>
 
-  <nav id="tabs">
+  <nav id="tabs" style="display:none;">
     <button class="tab active" data-tab="overview">Fleet Overview</button>
     <button class="tab" data-tab="correlations">Correlations <span class="info-icon" data-doc-key="correlation">ⓘ</span></button>
     <button class="tab" data-tab="divergences">Divergences <span class="info-icon" data-doc-key="divergence">ⓘ</span></button>
   </nav>
 
   <main>
+    <!-- Landing page: list of available auto-tuner analyses -->
+    <section id="landing" class="landing" style="display:none;">
+      <div class="landing-header">
+        <div>
+          <h2>Pick an analysis run</h2>
+          <p class="landing-help">Choose which <code>_auto_tuner_analysis.json</code> to explore. You can return here anytime to pick another run.</p>
+        </div>
+        <button id="landing-refresh" class="landing-refresh" title="Re-scan outputs directory">&#x21bb; Refresh</button>
+      </div>
+      <div id="landing-grid" class="landing-grid"></div>
+      <div id="landing-empty" class="empty-msg" style="display:none;padding:40px;text-align:center;"></div>
+    </section>
+
     <!-- Fleet Overview -->
-    <section id="overview" class="tab-content active">
+    <section id="overview" class="tab-content">
       <div id="summary-cards"></div>
       <div id="filters">
         <input type="text" id="cluster-search" placeholder="Filter clusters..." />

@@ -118,15 +118,16 @@ class StatisticalAnalysisSpec extends AnyFunSuite with Matchers {
   // ── Divergence detection ──────────────────────────────────────────────────
 
   test("detectDivergences flags outlier recipe") {
-    // 3 recipes with small deltas, 1 with a huge delta
-    val normal1 = mkPair("c1", "r1", 2.0, 100.0, 2.1, 105.0)
-    val normal2 = mkPair("c2", "r2", 3.0, 200.0, 3.1, 205.0)
-    val normal3 = mkPair("c3", "r3", 4.0, 300.0, 4.1, 305.0)
-    val outlier = mkPair("c4", "r4", 2.0, 100.0, 20.0, 1000.0)
+    // Need ≥10 normal entries so that the outlier's z-score exceeds 2.0.
+    // With n=4, max z-score is sqrt(3)≈1.73 which is below 2.0 threshold.
+    val normals = (1 to 10).map { i =>
+      mkPair(s"c$i", s"r$i", 2.0 + i * 0.1, 100.0 + i * 5, 2.1 + i * 0.1, 105.0 + i * 5)
+    }
+    val outlier = mkPair("cx", "rx", 2.0, 100.0, 20.0, 1000.0)
 
-    val divergences = detectDivergences(Seq(normal1, normal2, normal3, outlier), zThreshold = 2.0)
+    val divergences = detectDivergences(normals :+ outlier, zThreshold = 2.0)
     divergences should not be empty
-    divergences.exists(d => d.cluster == "c4" && d.recipe == "r4" && d.isOutlier) shouldBe true
+    divergences.exists(d => d.cluster == "cx" && d.recipe == "rx" && d.isOutlier) shouldBe true
   }
 
   test("detectDivergences with fewer than 2 pairs returns empty") {
