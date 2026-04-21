@@ -2,11 +2,14 @@
 // Reads _auto_tuner_analysis.json and renders interactive visualizations.
 
 let data = null;
+let analysisDir = '.';   // dir (relative or absolute URL) holding _auto_tuner_analysis.json
 const tooltip = document.getElementById('tooltip');
 const docPopover = document.getElementById('doc-popover');
 
 // Per-cluster JSON cache: key = "<date>/<cluster>" → parsed json (or null if not found)
 const clusterJsonCache = {};
+// Last URLs we tried to fetch for a cluster (for diagnostics in the UI)
+const clusterJsonTriedPaths = {};
 
 // ── Metric Documentation ────────────────────────────────────────────────────
 
@@ -74,7 +77,8 @@ async function loadData() {
       const resp = await fetch(path);
       if (resp.ok) {
         data = await resp.json();
-        console.log('Loaded analysis data from:', path);
+        analysisDir = dirOf(path);
+        console.log('Loaded analysis data from:', path, '— analysisDir:', analysisDir);
         return;
       }
     } catch (e) { /* try next */ }
@@ -93,12 +97,26 @@ async function loadClusterJson(date, clusterName) {
   if (clusterJsonCache[key] !== undefined) return clusterJsonCache[key];
 
   const isCur = date === data.metadata.current_date;
-  // Current date dir is where index.html is served from; reference is sibling.
-  const baseDir = isCur ? '.' : `../${date}`;
-  const candidates = [
-    `${baseDir}/${clusterName}-auto-scale-tuned.json`,
-    `${baseDir}/${clusterName}-manually-tuned.json`,
-  ];
+  // The auto-tuner writes the current date to "<curDate>_auto_tuned/" and the
+  // reference date to "<refDate>/" (no suffix). The analysis JSON lives in the
+  // current dir, so reference JSONs are at "<analysisDir>/../<refDate>/...".
+  // We try a couple of common name variants so customised dir layouts also work.
+  const candidates = [];
+  if (isCur) {
+    candidates.push(
+      `${analysisDir}/${clusterName}-auto-scale-tuned.json`,
+      `${analysisDir}/${clusterName}-manually-tuned.json`
+    );
+  } else {
+    candidates.push(
+      `${analysisDir}/../${date}/${clusterName}-auto-scale-tuned.json`,
+      `${analysisDir}/../${date}/${clusterName}-manually-tuned.json`,
+      `${analysisDir}/../${date}_auto_tuned/${clusterName}-auto-scale-tuned.json`,
+      `${analysisDir}/../${date}_auto_tuned/${clusterName}-manually-tuned.json`
+    );
+  }
+
+  clusterJsonTriedPaths[key] = candidates.slice();
 
   for (const p of candidates) {
     try {
@@ -422,7 +440,8 @@ function renderClusterConfComparison(clusterName, refJson, curJson, refDate, cur
   if (!refConf && !curConf) {
     target.innerHTML =
       `<h3>Cluster Configuration</h3>` +
-      `<div class="empty-msg">No cluster configuration JSON found for this cluster (looked under <code>${escapeHtml(refDate)}</code> and <code>${escapeHtml(curDate)}</code>).</div>`;
+      `<div class="empty-msg">No cluster configuration JSON found for this cluster (looked under <code>${escapeHtml(refDate)}</code> and <code>${escapeHtml(curDate)}</code>).</div>` +
+      triedPathsHtml(clusterName);
     return;
   }
 
@@ -634,7 +653,8 @@ async function showRecipeConfModal(clusterName, recipeName) {
 
   if (!refRecipe && !curRecipe) {
     document.getElementById('modal-body').innerHTML =
-      `<div class="empty-msg">No recipe spark conf found in either ${escapeHtml(formatDate(refDate))} or ${escapeHtml(formatDate(curDate))} cluster JSON.</div>`;
+      `<div class="empty-msg">No recipe spark conf found in either ${escapeHtml(formatDate(refDate))} or ${escapeHtml(formatDate(curDate))} cluster JSON.</div>` +
+      triedPathsHtml(clusterName);
     return;
   }
 
@@ -920,6 +940,22 @@ function escapeAttr(s) { return escapeHtml(s); }
 function cssEscape(s) {
   if (window.CSS && CSS.escape) return CSS.escape(s);
   return String(s).replace(/[^a-zA-Z0-9_-]/g, c => '\\' + c);
+}
+
+function dirOf(path) {
+  const i = path.lastIndexOf('/');
+  return i < 0 ? '.' : path.slice(0, i) || '.';
+}
+
+function triedPathsHtml(clusterName) {
+  const refKey = `${data.metadata.reference_date}/${clusterName}`;
+  const curKey = `${data.metadata.current_date}/${clusterName}`;
+  const ref = clusterJsonTriedPaths[refKey] || [];
+  const cur = clusterJsonTriedPaths[curKey] || [];
+  if (!ref.length && !cur.length) return '';
+  const list = (arr) => arr.map(p => `<li><code>${escapeHtml(p)}</code></li>`).join('');
+  return `<details style="margin-top:6px"><summary style="cursor:pointer;color:#8b949e">Paths tried</summary>
+    <ul style="font-size:11px;color:#8b949e;margin:6px 0 0 18px">${list(ref)}${list(cur)}</ul></details>`;
 }
 
 // ── Boot ────────────────────────────────────────────────────────────────────
