@@ -5,18 +5,12 @@
 # Usage:
 #   ./serve.sh
 #       Reads ./config.json next to this script, resolves outputsPath, and
-#       serves from either this frontend dir (when outputs is inside it) or
-#       the common ancestor of the two paths (typical — so /<frontend-name>/
-#       and /<outputs-rel>/ are both HTTP-reachable). Opens the landing
-#       page in the browser.
+#       serves from the smallest directory that contains both this frontend
+#       dir and the outputs dir. Opens the landing page.
 #
 #   ./serve.sh /path/to/outputs/<curDate>_auto_tuned
 #       Back-compat: serves from the PARENT of that dir and opens
 #       ?data=_auto_tuner_analysis.json, skipping the landing.
-#
-# The dashboard reads config.json for outputsPath, then discovers every
-# _auto_tuner_analysis.json under it (via _analyses_index.json, or a
-# python http.server HTML-listing fallback).
 
 set -euo pipefail
 
@@ -56,69 +50,73 @@ fi
 # ─── Default: config-driven landing ─────────────────────────────────────────
 CONFIG_FILE="$SCRIPT_DIR/config.json"
 if [ ! -f "$CONFIG_FILE" ]; then
-  echo "Error: config.json not found next to serve.sh: $CONFIG_FILE"
+  cat <<EOF
+Error: config.json not found next to serve.sh
+
+  Expected at: $CONFIG_FILE
+
+Create one with the following keys (paths relative to config.json):
+{
+  "gcpProjectId": "your-gcp-project-id",
+  "inputsPath":  "../src/main/resources/composer/dwh/config/cluster_tuning/inputs",
+  "outputsPath": "../src/main/resources/composer/dwh/config/cluster_tuning/outputs"
+}
+EOF
   exit 1
 fi
 
-# Use python to parse config.json and resolve paths relative to the config.
-read -r OUTPUTS_DIR < <(
-  python3 - "$CONFIG_FILE" <<'PY'
+# Let python handle path math — bash's common-ancestor logic is fragile.
+RESOLVED="$(
+  python3 - "$CONFIG_FILE" "$SCRIPT_DIR" <<'PY'
 import json, os, sys
-cfg_path = sys.argv[1]
+
+cfg_path, script_dir = sys.argv[1], sys.argv[2]
+
 with open(cfg_path) as f:
     cfg = json.load(f)
+
 outputs_rel = cfg.get("outputsPath")
 if not outputs_rel:
-    print("Error: outputsPath missing from config.json", file=sys.stderr)
+    print("ERROR: outputsPath missing from config.json", file=sys.stderr)
     sys.exit(2)
-cfg_dir = os.path.dirname(os.path.abspath(cfg_path))
-outputs_abs = os.path.abspath(os.path.join(cfg_dir, outputs_rel))
-print(outputs_abs)
-PY
-)
 
-if [ -z "${OUTPUTS_DIR:-}" ]; then
-  echo "Error: failed to resolve outputsPath from $CONFIG_FILE"
-  exit 1
+cfg_dir = os.path.dirname(os.path.abspath(cfg_path))
+outputs_abs = os.path.realpath(os.path.join(cfg_dir, outputs_rel))
+script_abs  = os.path.realpath(script_dir)
+
+if not os.path.isdir(outputs_abs):
+    print(f"ERROR: outputsPath does not exist: {outputs_abs}", file=sys.stderr)
+    sys.exit(3)
+
+# Serve from the smallest dir that contains both.
+try:
+    common = os.path.commonpath([outputs_abs, script_abs])
+except ValueError:
+    print("ERROR: frontend dir and outputsPath have no common ancestor", file=sys.stderr)
+    sys.exit(4)
+
+rel_frontend = os.path.relpath(script_abs, common)
+rel_outputs  = os.path.relpath(outputs_abs, common)
+
+# Output: tab-separated so bash can `read` it cleanly.
+print(f"{common}\t{rel_frontend}\t{rel_outputs}\t{outputs_abs}")
+PY
+)" || { echo "Error resolving config paths (see above)"; exit 1; }
+
+IFS=$'\t' read -r SERVE_DIR REL_FRONTEND REL_OUTPUTS OUTPUTS_DIR <<<"$RESOLVED"
+
+# On the off-chance REL_FRONTEND == ".", we're already at the web root.
+if [ "$REL_FRONTEND" = "." ]; then
+  OPEN_URL="http://localhost:$PORT/"
+else
+  OPEN_URL="http://localhost:$PORT/$REL_FRONTEND/"
 fi
 
-# Pick the served directory:
-#   - if OUTPUTS_DIR is inside SCRIPT_DIR → serve from SCRIPT_DIR
-#   - else                                 → serve from the common ancestor
-case "$OUTPUTS_DIR/" in
-  "$SCRIPT_DIR"/*)
-    SERVE_DIR="$SCRIPT_DIR"
-    OPEN_URL="http://localhost:$PORT/"
-    ;;
-  *)
-    # Longest shared prefix ending at a path separator.
-    a="$SCRIPT_DIR"
-    b="$OUTPUTS_DIR"
-    common=""
-    IFS='/' read -r -a A <<<"$a"
-    IFS='/' read -r -a B <<<"$b"
-    n=${#A[@]}
-    [ "${#B[@]}" -lt "$n" ] && n=${#B[@]}
-    for ((i=0;i<n;i++)); do
-      if [ "${A[$i]}" = "${B[$i]}" ]; then
-        common="$common/${A[$i]}"
-      else
-        break
-      fi
-    done
-    # Strip leading empty token from the '/' split.
-    SERVE_DIR="${common#/}"
-    SERVE_DIR="/$SERVE_DIR"
-    # Trim trailing slash duplication if any.
-    SERVE_DIR="$(cd "$SERVE_DIR" && pwd)"
-    REL_FRONTEND="${SCRIPT_DIR#$SERVE_DIR/}"
-    OPEN_URL="http://localhost:$PORT/$REL_FRONTEND/"
-    ;;
-esac
-
-echo "Serving auto-tuner landing page at $OPEN_URL"
-echo "Directory:    $SERVE_DIR"
-echo "Outputs root: $OUTPUTS_DIR"
+echo "Serving auto-tuner landing page"
+echo "  Serving root: $SERVE_DIR"
+echo "  Frontend URL: $OPEN_URL"
+echo "  Outputs URL:  http://localhost:$PORT/$REL_OUTPUTS/"
+echo "  Outputs dir:  $OUTPUTS_DIR"
 echo "Press Ctrl+C to stop."
 
 if command -v open &>/dev/null;      then open "$OPEN_URL" &
