@@ -371,7 +371,7 @@ function renderLandingPage(entries) {
     ].filter(Boolean).join('');
 
     const generated = e.generated_at
-      ? `<div class="landing-card-footer">Generated ${new Date(e.generated_at).toLocaleString()}</div>`
+      ? `<div class="landing-card-footer">Generated ${formatDateTime(e.generated_at)}</div>`
       : '';
 
     return `<div class="landing-card" data-idx="${idx}">
@@ -452,7 +452,7 @@ function renderMetadataBar() {
     `<span class="date-pill cur" title="Current date">${formatDate(m.current_date)}</span>` +
     `<span>Strategy: <strong>${escapeHtml(m.strategy)}</strong></span>` +
     `<span>${m.total_clusters} clusters · ${m.total_recipes} recipes</span>` +
-    `<span>Generated: ${new Date(m.generated_at).toLocaleString()}</span>`;
+    `<span>Generated: ${formatDateTime(m.generated_at)}</span>`;
 }
 
 // ── Summary Cards ───────────────────────────────────────────────────────────
@@ -740,9 +740,13 @@ function renderDetailCharts(cluster, clusterName) {
 
   // Use horizontal bars when there are many recipes — labels stay readable.
   const horizontal = recipes.length > 8;
-  const barThickness = 16;
+  const barThickness = 12;
+  const datasetsPerCategory = 2;
+  const intraGroupGap = 2;
+  const interGroupGap = 10;
+  const categoryHeight = barThickness * datasetsPerCategory + intraGroupGap + interGroupGap;
   const minHeight = 220;
-  const computedHeight = horizontal ? Math.max(minHeight, recipes.length * (barThickness + 8) + 80) : minHeight;
+  const computedHeight = horizontal ? Math.max(minHeight, recipes.length * categoryHeight + 80) : minHeight;
 
   // Duration chart
   const durContainer = document.createElement('div');
@@ -1120,6 +1124,14 @@ function formatDate(s) {
   const m = String(s).match(/^(\d{4})[-_/](\d{2})[-_/](\d{2})$/);
   if (!m) return s;
   return `${m[3]}-${m[2]}-${m[1]}`;
+}
+
+function formatDateTime(s) {
+  if (!s) return s;
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return s;
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 function copyText(text, btn) {
