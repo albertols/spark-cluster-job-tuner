@@ -1,7 +1,7 @@
 package com.db.serna.orchestration.cluster_tuning.auto
 
 import com.db.serna.orchestration.cluster_tuning._
-import com.db.serna.orchestration.cluster_tuning.refinement.{MemoryHeapBoost, MemoryHeapBoostVitamin, MemoryHeapOomSignal, RefinementPipeline, SimpleJsonParser}
+import com.db.serna.orchestration.cluster_tuning.single.refinement.{MemoryHeapBoost, MemoryHeapBoostVitamin, MemoryHeapOomSignal, RefinementPipeline, SimpleJsonParser}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 

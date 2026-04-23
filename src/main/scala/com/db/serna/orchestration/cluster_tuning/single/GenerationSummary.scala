@@ -1,4 +1,4 @@
-package com.db.serna.orchestration.cluster_tuning
+package com.db.serna.orchestration.cluster_tuning.single
 
 import org.slf4j.LoggerFactory
 

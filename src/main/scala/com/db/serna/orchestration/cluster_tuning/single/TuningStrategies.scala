@@ -1,4 +1,4 @@
-package com.db.serna.orchestration.cluster_tuning
+package com.db.serna.orchestration.cluster_tuning.single
 
 // ── Executor topology preset ──────────────────────────────────────────────────
 // memoryPerCoreGb = GB per executor core.  totalMemoryGb = cores * memoryPerCoreGb.

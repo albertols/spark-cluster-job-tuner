@@ -60,32 +60,32 @@ Outputs are written to:
 `src/main/resources/composer/dwh/config/cluster_tuning/outputs/<YYYY_MM_DD>/`
 
 ## Key metrics
-All SQL queries are under: [log_analytics](log_analytics)
+All SQL queries are under: [log_analytics](../log_analytics)
 
-- Average executors per job (time-weighted): [b1_average_number_of_executors_per_job_by_cluster.sql](log_analytics/b1_average_number_of_executors_per_job_by_cluster.sql)
+- Average executors per job (time-weighted): [b1_average_number_of_executors_per_job_by_cluster.sql](../log_analytics/b1_average_number_of_executors_per_job_by_cluster.sql)
 - P95 of run-level max executors:
-    - Per recipe/cluster: [b12_p95_max_executors_per_recipe_per_cluster.sql](log_analytics/b12_p95_max_executors_per_recipe_per_cluster.sql)
-    - Consolidated inputs: [b13_recommendations_inputs_per_recipe_per_cluster.sql](log_analytics/b13_recommendations_inputs_per_recipe_per_cluster.sql)
-- Average job duration per recipe/cluster: [b3_average_recipefilename_per_cluster.sql](log_analytics/b3_average_recipefilename_per_cluster.sql)
-- P95 job duration per recipe/cluster: [b8_P95_job_duration_per_recipe_per_cluster.sql](log_analytics/b8_P95_job_duration_per_recipe_per_cluster.sql)
-- Peak executors per cluster: [b2_peak_executors_seen.sql](log_analytics/b2_peak_executors_seen.sql)
-- Peak job duration per cluster: [b4_peak_job_duration_per_cluster.sql](log_analytics/b4_peak_job_duration_per_cluster.sql)
-- Fraction of runs reaching executor cap: [b5_a_times_job_reaches_max_executor_per_cluster.sql](log_analytics/b5_a_times_job_reaches_max_executor_per_cluster.sql)
-- Seconds spent at cap per recipe/cluster: [b9_time_at_cap_per_run_and_per_cluster.sql](log_analytics/b9_time_at_cap_per_run_and_per_cluster.sql)
-- Total jobs per cluster: [b6_total_jobs_per_cluster.sql](log_analytics/b6_total_jobs_per_cluster.sql)
-- Total runtime of all jobs per cluster: [b7_total_runtime_all_jobs_per_cluster.sql](log_analytics/b7_total_runtime_all_jobs_per_cluster.sql)
-- Max concurrent jobs per cluster in window: [b11_max_concurrent_jobs_per_cluster_in_window.sql](log_analytics/b11_max_concurrent_jobs_per_cluster_in_window.sql)
-- Executor churn (adds/removes per job): [b10_executor_churn_per_job_adds_removes.sql](log_analytics/b10_executor_churn_per_job_adds_removes.sql)
-- Driver exit codes (for diagnostic overrides): [b14_clusters_with_nonzero_exit_codes.sql](log_analytics/b14_clusters_with_nonzero_exit_codes.sql)
+    - Per recipe/cluster: [b12_p95_max_executors_per_recipe_per_cluster.sql](../log_analytics/b12_p95_max_executors_per_recipe_per_cluster.sql)
+    - Consolidated inputs: [b13_recommendations_inputs_per_recipe_per_cluster.sql](../log_analytics/b13_recommendations_inputs_per_recipe_per_cluster.sql)
+- Average job duration per recipe/cluster: [b3_average_recipefilename_per_cluster.sql](../log_analytics/b3_average_recipefilename_per_cluster.sql)
+- P95 job duration per recipe/cluster: [b8_P95_job_duration_per_recipe_per_cluster.sql](../log_analytics/b8_P95_job_duration_per_recipe_per_cluster.sql)
+- Peak executors per cluster: [b2_peak_executors_seen.sql](../log_analytics/b2_peak_executors_seen.sql)
+- Peak job duration per cluster: [b4_peak_job_duration_per_cluster.sql](../log_analytics/b4_peak_job_duration_per_cluster.sql)
+- Fraction of runs reaching executor cap: [b5_a_times_job_reaches_max_executor_per_cluster.sql](../log_analytics/b5_a_times_job_reaches_max_executor_per_cluster.sql)
+- Seconds spent at cap per recipe/cluster: [b9_time_at_cap_per_run_and_per_cluster.sql](../log_analytics/b9_time_at_cap_per_run_and_per_cluster.sql)
+- Total jobs per cluster: [b6_total_jobs_per_cluster.sql](../log_analytics/b6_total_jobs_per_cluster.sql)
+- Total runtime of all jobs per cluster: [b7_total_runtime_all_jobs_per_cluster.sql](../log_analytics/b7_total_runtime_all_jobs_per_cluster.sql)
+- Max concurrent jobs per cluster in window: [b11_max_concurrent_jobs_per_cluster_in_window.sql](../log_analytics/b11_max_concurrent_jobs_per_cluster_in_window.sql)
+- Executor churn (adds/removes per job): [b10_executor_churn_per_job_adds_removes.sql](../log_analytics/b10_executor_churn_per_job_adds_removes.sql)
+- Driver exit codes (for diagnostic overrides): [b14_clusters_with_nonzero_exit_codes.sql](../log_analytics/b14_clusters_with_nonzero_exit_codes.sql)
 
-We recommend using the flattened query: [b13_recommendations_inputs_per_recipe_per_cluster.sql](log_analytics/b13_recommendations_inputs_per_recipe_per_cluster.sql)
+We recommend using the flattened query: [b13_recommendations_inputs_per_recipe_per_cluster.sql](../log_analytics/b13_recommendations_inputs_per_recipe_per_cluster.sql)
 which consolidates these per `(cluster_name, recipe_filename)` so the tuner can read a single CSV.
 
 ## Queries
-- All queries are under: [log_analytics](log_analytics)
+- All queries are under: [log_analytics](../log_analytics)
 - Select the desired time range via the Log Analytics UI. Export query results to CSVs in the same directory.
 
-Recommended: Export [b13_recommendations_inputs_per_recipe_per_cluster.csv](../../../../../../resources/composer/dwh/config/cluster_tuning/inputs/2025_12_20/b13_recommendations_inputs_per_recipe_per_cluster.csv)
+Recommended: Export [b13_recommendations_inputs_per_recipe_per_cluster.csv](../../../../../../../resources/composer/dwh/config/cluster_tuning/inputs/2025_12_20/b13_recommendations_inputs_per_recipe_per_cluster.csv)
 for the chosen time window.
 
 Alternative (fine-grained):
@@ -112,7 +112,7 @@ produce the same `RecipeMetrics` when given equivalent data. Key parity rules:
 
 Optional (diagnostics):
 
-- Export [b14_clusters_with_nonzero_exit_codes.csv](log_analytics/b14_clusters_with_nonzero_exit_codes.sql) for YARN driver exit code analysis.
+- Export [b14_clusters_with_nonzero_exit_codes.csv](../log_analytics/b14_clusters_with_nonzero_exit_codes.sql) for YARN driver exit code analysis.
   When present, clusters with exit code 247 (YARN driver eviction) receive automatic driver resource overrides in the output JSONs.
   If absent, the tuner runs silently without diagnostics.
 
@@ -137,9 +137,9 @@ Optional (diagnostics):
 ## How to run
 1. Generate CSV(s) from Log Analytics:
     - Preferred:
-      run [b13_recommendations_inputs_per_recipe_per_cluster.sql](log_analytics/b13_recommendations_inputs_per_recipe_per_cluster.sql)
+      run [b13_recommendations_inputs_per_recipe_per_cluster.sql](../log_analytics/b13_recommendations_inputs_per_recipe_per_cluster.sql)
       and export
-      to:[b13_recommendations_inputs_per_recipe_per_cluster.csv](../../../../../../resources/composer/dwh/config/cluster_tuning/inputs/2025_12_20/b13_recommendations_inputs_per_recipe_per_cluster.csv)
+      to:[b13_recommendations_inputs_per_recipe_per_cluster.csv](../../../../../../../resources/composer/dwh/config/cluster_tuning/inputs/2025_12_20/b13_recommendations_inputs_per_recipe_per_cluster.csv)
 
     - Alternative: export the individual CSVs (b1, b3, b5, b8, b11, b12).
 
@@ -162,7 +162,7 @@ Optional (diagnostics):
 Adjust the `PriceCatalog` if you need more accurate rates or committed use discounts.
 
 ## Tips
-- Prefer [b13_recommendations_inputs_per_recipe_per_cluster.sql](log_analytics/b13_recommendations_inputs_per_recipe_per_cluster.sql)
+- Prefer [b13_recommendations_inputs_per_recipe_per_cluster.sql](../log_analytics/b13_recommendations_inputs_per_recipe_per_cluster.sql)
   CSV for simplicity.
 - If possible, add `application_id` to both executor and application_end logs to avoid interval overlaps.
 - Emitting effective Spark conf at app start (cores/memory, DA caps) makes “at cap” precise without a static capacity table.

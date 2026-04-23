@@ -1,7 +1,7 @@
 package com.db.serna.orchestration.cluster_tuning.auto
 
 import com.db.serna.orchestration.cluster_tuning.RecipeMetrics
-import com.db.serna.orchestration.cluster_tuning.refinement.TunedClusterConfig
+import com.db.serna.orchestration.cluster_tuning.single.refinement.TunedClusterConfig
 
 /**
  * Decides how to evolve cluster and recipe configurations based on performance trend assessments.

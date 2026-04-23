@@ -3,6 +3,7 @@ package com.db.serna.orchestration.cluster_tuning.auto
 import com.db.serna.orchestration.cluster_tuning.ClusterMachineAndRecipeTuner.AutoscalingPolicyConfig
 import com.db.serna.orchestration.cluster_tuning._
 import com.db.serna.orchestration.cluster_tuning.refinement._
+import com.db.serna.orchestration.cluster_tuning.single.refinement.{MemoryHeapBoost, MemoryHeapBoostVitamin, RefinementPipeline, RefinementVitamin, SimpleJsonParser, TunedClusterConfig}
 import org.rogach.scallop._
 import org.slf4j.LoggerFactory
 
