@@ -1,6 +1,7 @@
 package com.db.serna.orchestration.cluster_tuning.auto
 
-import com.db.serna.orchestration.cluster_tuning.RecipeMetrics
+import com.db.serna.orchestration.cluster_tuning.single.RecipeMetrics
+
 
 /**
  * Classifies performance trends for (cluster, recipe) pairs by comparing

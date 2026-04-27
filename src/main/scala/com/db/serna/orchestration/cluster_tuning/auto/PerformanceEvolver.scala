@@ -1,6 +1,6 @@
 package com.db.serna.orchestration.cluster_tuning.auto
 
-import com.db.serna.orchestration.cluster_tuning.RecipeMetrics
+import com.db.serna.orchestration.cluster_tuning.single.RecipeMetrics
 import com.db.serna.orchestration.cluster_tuning.single.refinement.TunedClusterConfig
 
 /**

@@ -1,6 +1,6 @@
 package com.db.serna.orchestration.cluster_tuning.auto
 
-import com.db.serna.orchestration.cluster_tuning.{DiagnosticSignal, DriverResourceOverride, RecipeMetrics}
+import com.db.serna.orchestration.cluster_tuning.single.{DiagnosticSignal, DriverResourceOverride, RecipeMetrics}
 
 /**
  * Domain models for multi-date auto-tuning analysis.

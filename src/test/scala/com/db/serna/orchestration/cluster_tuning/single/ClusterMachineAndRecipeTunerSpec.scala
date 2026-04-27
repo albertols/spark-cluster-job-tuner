@@ -1,10 +1,10 @@
-package com.db.serna.orchestration.cluster_tuning
-
-import java.io.{File, PrintWriter}
-import java.nio.file.Files
+package com.db.serna.orchestration.cluster_tuning.single
 
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
+
+import java.io.{File, PrintWriter}
+import java.nio.file.Files
 
 class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
 

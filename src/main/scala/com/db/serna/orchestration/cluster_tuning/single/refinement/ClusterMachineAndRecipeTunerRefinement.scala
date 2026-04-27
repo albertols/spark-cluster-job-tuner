@@ -150,7 +150,7 @@ object ClusterMachineAndRecipeTunerRefinement {
   }
 
   private[refinement] def buildUnresolvedJson(entries: Seq[UnresolvedEntry], inputPath: String): String = {
-    import com.db.serna.orchestration.cluster_tuning.Json
+    import com.db.serna.orchestration.cluster_tuning.single.Json
     import Json._
 
     // Group by vitamin/csv source

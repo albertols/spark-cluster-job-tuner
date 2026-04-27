@@ -1,6 +1,6 @@
 package com.db.serna.orchestration.cluster_tuning.single.refinement
 
-import com.db.serna.orchestration.cluster_tuning.Csv
+import com.db.serna.orchestration.cluster_tuning.single.Csv
 
 import java.io.File
 import scala.collection.mutable
@@ -343,7 +343,7 @@ object RefinementPipeline {
 
   /** Rebuild the refined JSON string from a RefinementResult. */
   def toRefinedJson(result: RefinementResult): String = {
-    import com.db.serna.orchestration.cluster_tuning.Json
+    import com.db.serna.orchestration.cluster_tuning.single.Json
     import Json._
 
     // Rebuild clusterConf fields preserving original order, then append boost counters + lists.

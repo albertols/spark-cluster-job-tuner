@@ -1,6 +1,6 @@
 package com.db.serna.orchestration.cluster_tuning.auto
 
-import com.db.serna.orchestration.cluster_tuning.Json
+import com.db.serna.orchestration.cluster_tuning.single.Json
 
 import java.io.{BufferedWriter, File, FileWriter}
 import scala.io.Source
