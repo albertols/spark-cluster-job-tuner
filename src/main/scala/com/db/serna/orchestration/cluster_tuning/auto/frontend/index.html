@@ -19,8 +19,8 @@
 
 <nav id="tabs" style="display:none;">
   <button class="tab active" data-tab="overview">Fleet Overview</button>
-  <button class="tab" data-tab="correlations">Correlations <span class="info-icon" data-doc-key="correlation">ⓘ</span></button>
-  <button class="tab" data-tab="divergences">Divergences <span class="info-icon" data-doc-key="divergence">ⓘ</span></button>
+  <button class="tab" data-tab="correlations">Correlations <span class="info-icon" data-doc-key="pearson_full">ⓘ</span></button>
+  <button class="tab" data-tab="divergences">Divergences <span class="info-icon" data-doc-key="divergence_full">ⓘ</span></button>
 </nav>
 
 <main>
@@ -48,6 +48,13 @@
     <div id="summary-cards"></div>
     <div id="boost-overview"></div>
     <div id="clusters-summary-section"></div>
+    <details id="cluster-summary-graphs-section" class="cs-graphs">
+      <summary>
+        <h3 style="display:inline">Cluster Summary Graphs</h3>
+        <span class="cs-graphs-help">Historical trends across all runs · current-date highlighted</span>
+      </summary>
+      <div id="cs-graphs-body"><div class="empty-msg">Expand to load…</div></div>
+    </details>
     <h3 class="section-heading">Cluster Overview</h3>
     <div id="filters">
       <input type="text" id="cluster-search" placeholder="Filter clusters..." />
@@ -69,24 +76,51 @@
     <h2 id="detail-cluster-name"></h2>
     <div id="detail-cluster-conf"></div>
     <div id="detail-recipes"></div>
+    <details id="detail-correlations" class="detail-foldout" open>
+      <summary>Correlations for this cluster <span class="info-icon" data-doc-key="pearson_full">ⓘ</span></summary>
+      <div id="detail-correlations-body"></div>
+    </details>
+    <details id="detail-outliers" class="detail-foldout" open>
+      <summary>Outliers in this cluster <span class="info-icon" data-doc-key="z_score_full">ⓘ</span></summary>
+      <div id="detail-outliers-body"></div>
+    </details>
     <div id="detail-charts"></div>
   </section>
 
   <!-- Correlations -->
   <section id="correlations" class="tab-content">
-    <h2>Metric Correlation Matrix <span class="info-icon" data-doc-key="pearson">ⓘ</span></h2>
-    <p class="tab-help">How strongly two metric changes move together across the fleet. Positive (red): rise together. Negative (green): inverse.</p>
-    <div id="correlation-matrix"></div>
+    <h2>Metric Correlations <span class="info-icon" data-doc-key="pearson_full">ⓘ</span></h2>
+    <p class="tab-help">How strongly two metric changes move together. <strong>Deltas</strong>: change vs reference (paired entries only). <strong>Current snapshot</strong>: raw current values — includes new jobs.</p>
+    <div class="view-controls">
+      <div class="seg-toggle" id="corr-view-toggle">
+        <button class="seg active" data-view="delta">Deltas</button>
+        <button class="seg" data-view="current_snapshot">Current snapshot (incl. new)</button>
+      </div>
+      <label class="cluster-filter">Cluster:
+        <select id="corr-cluster-filter"><option value="">All clusters (fleet)</option></select>
+      </label>
+    </div>
+    <div id="correlation-cards"></div>
   </section>
 
   <!-- Divergences -->
   <section id="divergences" class="tab-content">
-    <h2>Outlier Divergences <span class="info-icon" data-doc-key="z_score">ⓘ</span></h2>
-    <p class="tab-help">Recipes whose change is unusually far from the fleet average for a given metric.</p>
+    <h2>Outlier Divergences <span class="info-icon" data-doc-key="z_score_full">ⓘ</span></h2>
+    <p class="tab-help">Recipes whose values stand far from the fleet average. <strong>Deltas</strong>: outliers in the size of change. <strong>Current snapshot</strong>: outliers in raw current values — flags new jobs whose level is unusual.</p>
+    <div class="view-controls">
+      <div class="seg-toggle" id="div-view-toggle">
+        <button class="seg active" data-view="delta">Deltas</button>
+        <button class="seg" data-view="current_snapshot">Current snapshot (incl. new)</button>
+      </div>
+      <label class="cluster-filter">Cluster:
+        <select id="div-cluster-filter"><option value="">All clusters (fleet)</option></select>
+      </label>
+    </div>
     <div id="divergence-controls">
       <label>Min |z-score|: <input type="number" id="z-min" value="2.0" step="0.5" min="0"></label>
-      <span class="info-icon" data-doc-key="z_score">ⓘ</span>
+      <span class="info-icon" data-doc-key="z_score_full">ⓘ</span>
     </div>
+    <div id="z-strip-plot"></div>
     <table id="divergence-table">
       <thead>
       <tr>

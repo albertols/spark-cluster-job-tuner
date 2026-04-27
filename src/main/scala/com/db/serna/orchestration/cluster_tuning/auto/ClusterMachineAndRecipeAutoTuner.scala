@@ -140,10 +140,33 @@ object ClusterMachineAndRecipeAutoTuner {
     val allTrends = pairedTrends ++ newTrends ++ droppedTrends
     logTrendSummary(allTrends)
 
-    // 4. Statistical analysis
+    // 4. Statistical analysis — fleet-wide, per-cluster, and current-snapshot views.
+    //    Correlations on deltas exclude new entries by design (no reference); the
+    //    current-snapshot view computes the same pairs on raw current values so
+    //    new jobs are visible too.
     val correlations = StatisticalAnalysis.computeCorrelations(pairs)
     val divergences = StatisticalAnalysis.detectDivergences(pairs, zThreshold)
-    logger.info(s"Correlations computed: ${correlations.size}. Divergences detected: ${divergences.size}")
+    val correlationsPerCluster = StatisticalAnalysis.computePerClusterCorrelations(pairs)
+    val divergencesPerCluster = StatisticalAnalysis.detectPerClusterDivergences(pairs, zThreshold)
+    val correlationsCurrentSnapshot = StatisticalAnalysis.computeCurrentSnapshotCorrelations(curSnapshot, refKeys)
+    val divergencesCurrentSnapshot = StatisticalAnalysis.detectCurrentSnapshotZScores(curSnapshot, refKeys, zThreshold)
+
+    // Scatter points keyed by "metricA__metricB" for each view — frontend draws mini scatter plots from these.
+    val scatterDataDelta: Map[String, Seq[ScatterPoint]] =
+      StatisticalAnalysis.correlationPairsDelta.map { case (a, b) =>
+        StatisticalAnalysis.scatterKey(a, b) -> StatisticalAnalysis.scatterPointsDelta(pairs, a, b)
+      }.toMap
+    val scatterDataCurrent: Map[String, Seq[ScatterPoint]] =
+      StatisticalAnalysis.correlationPairsCurrentSnapshot.map { case (a, b) =>
+        StatisticalAnalysis.scatterKey(a, b) -> StatisticalAnalysis.scatterPointsCurrentSnapshot(curSnapshot, refKeys, a, b)
+      }.toMap
+
+    logger.info(
+      s"Correlations computed: ${correlations.size} delta + ${correlationsCurrentSnapshot.size} current-snapshot " +
+        s"+ ${correlationsPerCluster.size} per-cluster groups. " +
+        s"Divergences: ${divergences.size} delta + ${divergencesCurrentSnapshot.size} current-snapshot " +
+        s"+ ${divergencesPerCluster.size} per-cluster groups."
+    )
 
     // 5. Load reference output configs for KeepAsIs/PreserveHistorical paths
     val refOutputDir = new File(s"$BasePath/outputs/$refDate")
@@ -325,8 +348,24 @@ object ClusterMachineAndRecipeAutoTuner {
     }
 
     // 9. Write analysis outputs
+    val newEntryCurrentMetrics: Map[(String, String), RecipeMetrics] =
+      newKeys.toSeq.flatMap(k => curSnapshot.metrics.get(k).map(k -> _)).toMap
+
     val analysisJson = AutoTunerJsonOutput.analysisOutputJson(
-      refDate, curDate, strategyName, allTrends, correlations, divergences, decisions
+      referenceDate = refDate,
+      currentDate = curDate,
+      strategyName = strategyName,
+      trends = allTrends,
+      correlations = correlations,
+      correlationsCurrentSnapshot = correlationsCurrentSnapshot,
+      correlationsPerCluster = correlationsPerCluster,
+      divergences = divergences,
+      divergencesCurrentSnapshot = divergencesCurrentSnapshot,
+      divergencesPerCluster = divergencesPerCluster,
+      scatterDataDelta = scatterDataDelta,
+      scatterDataCurrentSnapshot = scatterDataCurrent,
+      newEntryCurrentMetrics = newEntryCurrentMetrics,
+      decisions = decisions
     )
     ClusterMachineAndRecipeTuner.writeFile(curOutputDir, "_auto_tuner_analysis.json", analysisJson)
     AutoTunerJsonOutput.writeAnalysisCsvs(curOutputDir, allTrends, correlations, divergences, decisions)

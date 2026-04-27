@@ -90,16 +90,28 @@ final case class EvolutionDecision(
   trend: TrendAssessment
 )
 
-/** Correlation between two metric deltas across the fleet. */
+/** Correlation between two metrics across the fleet (deltas) or current snapshot.
+ *
+ *  view = "delta": Pearson on (current - reference) values for paired entries only.
+ *  view = "current_snapshot": Pearson on raw current values, includes new entries.
+ *  cluster = Some(name) when computed within a single cluster's recipes.
+ */
 final case class CorrelationResult(
   metricA: String,
   metricB: String,
   covariance: Double,
   pearsonCorrelation: Double,
-  sampleSize: Int
+  sampleSize: Int,
+  view: String = "delta",
+  cluster: Option[String] = None
 )
 
-/** Divergence detection result for a single (cluster, recipe, metric). */
+/** Divergence detection result for a single (cluster, recipe, metric).
+ *
+ *  view = "delta": z-score on (current - reference) deltas.
+ *  view = "current_snapshot": z-score on raw current values; new entries flagged isNewEntry.
+ *  clusterScope = Some(name) when stats were computed inside that cluster only.
+ */
 final case class DivergenceResult(
   cluster: String,
   recipe: String,
@@ -107,5 +119,17 @@ final case class DivergenceResult(
   referenceValue: Double,
   currentValue: Double,
   zScore: Double,
-  isOutlier: Boolean
+  isOutlier: Boolean,
+  view: String = "delta",
+  isNewEntry: Boolean = false,
+  clusterScope: Option[String] = None
+)
+
+/** A single (x,y) point used by frontend scatter plots — kept here so the JSON writer can emit it. */
+final case class ScatterPoint(
+  cluster: String,
+  recipe: String,
+  x: Double,
+  y: Double,
+  isNew: Boolean
 )

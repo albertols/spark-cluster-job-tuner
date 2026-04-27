@@ -1,6 +1,6 @@
 package com.db.serna.orchestration.cluster_tuning.auto
 
-import com.db.serna.orchestration.cluster_tuning.single.Json
+import com.db.serna.orchestration.cluster_tuning.single.{Json, RecipeMetrics}
 
 import java.io.{BufferedWriter, File, FileWriter}
 import scala.io.Source
@@ -27,7 +27,14 @@ object AutoTunerJsonOutput {
     strategyName: String,
     trends: Seq[TrendAssessment],
     correlations: Seq[CorrelationResult],
+    correlationsCurrentSnapshot: Seq[CorrelationResult],
+    correlationsPerCluster: Map[String, Seq[CorrelationResult]],
     divergences: Seq[DivergenceResult],
+    divergencesCurrentSnapshot: Seq[DivergenceResult],
+    divergencesPerCluster: Map[String, Seq[DivergenceResult]],
+    scatterDataDelta: Map[String, Seq[ScatterPoint]],
+    scatterDataCurrentSnapshot: Map[String, Seq[ScatterPoint]],
+    newEntryCurrentMetrics: Map[(String, String), RecipeMetrics],
     decisions: Seq[EvolutionDecision]
   ): String = {
 
@@ -65,7 +72,9 @@ object AutoTunerJsonOutput {
             "pct_change" -> num(formatValue(d.percentageChange))
           )
         }
-        obj(
+        // For NewEntry recipes, include the raw current metrics so the frontend
+        // can draw a current-only bar (no reference exists yet).
+        val baseFields: Seq[(String, String)] = Seq(
           "recipe" -> str(t.recipe),
           "trend" -> str(t.trend.label),
           "confidence" -> num(formatValue(t.confidenceLevel)),
@@ -73,6 +82,13 @@ object AutoTunerJsonOutput {
           "reason" -> str(decision.map(_.reason).getOrElse("")),
           "deltas" -> arr(deltasJson: _*)
         )
+        val withCurrent = if (t.trend == NewEntry) {
+          newEntryCurrentMetrics.get((clusterName, t.recipe)) match {
+            case Some(m) => baseFields :+ ("current_metrics" -> currentMetricsJson(m))
+            case None => baseFields
+          }
+        } else baseFields
+        obj(withCurrent: _*)
       }
       obj(
         "cluster" -> str(clusterName),
@@ -81,36 +97,82 @@ object AutoTunerJsonOutput {
       )
     }
 
-    val correlationsJson = correlations.map { c =>
-      obj(
-        "metric_a" -> str(c.metricA),
-        "metric_b" -> str(c.metricB),
-        "pearson" -> num(formatValue(c.pearsonCorrelation)),
-        "covariance" -> num(formatValue(c.covariance)),
-        "n" -> num(c.sampleSize)
-      )
-    }
+    val correlationsJson = correlations.map(correlationJson)
+    val correlationsCurrentJson = correlationsCurrentSnapshot.map(correlationJson)
+    val correlationsPerClusterJson = obj(
+      correlationsPerCluster.toSeq.sortBy(_._1).map { case (cluster, results) =>
+        cluster -> arr(results.map(correlationJson): _*)
+      }: _*
+    )
 
-    val divergencesJson = divergences.map { d =>
-      obj(
-        "cluster" -> str(d.cluster),
-        "recipe" -> str(d.recipe),
-        "metric" -> str(d.metricName),
-        "reference" -> num(formatValue(d.referenceValue)),
-        "current" -> num(formatValue(d.currentValue)),
-        "z_score" -> num(formatValue(d.zScore)),
-        "is_outlier" -> bool(d.isOutlier)
-      )
-    }
+    val divergencesJson = divergences.map(divergenceJson)
+    val divergencesCurrentJson = divergencesCurrentSnapshot.sortBy(d => -math.abs(d.zScore)).map(divergenceJson)
+    val divergencesPerClusterJson = obj(
+      divergencesPerCluster.toSeq.sortBy(_._1).map { case (cluster, results) =>
+        cluster -> arr(results.sortBy(d => -math.abs(d.zScore)).map(divergenceJson): _*)
+      }: _*
+    )
+
+    val scatterDataJson = obj(
+      "delta" -> obj(scatterDataDelta.toSeq.sortBy(_._1).map { case (k, pts) =>
+        k -> arr(pts.map(scatterPointJson): _*)
+      }: _*),
+      "current_snapshot" -> obj(scatterDataCurrentSnapshot.toSeq.sortBy(_._1).map { case (k, pts) =>
+        k -> arr(pts.map(scatterPointJson): _*)
+      }: _*)
+    )
 
     Json.pretty(obj(
       "metadata" -> metadata,
       "trends_summary" -> trendsSummary,
       "cluster_trends" -> arr(clusterTrendsJson: _*),
       "correlations" -> arr(correlationsJson: _*),
-      "divergences" -> arr(divergencesJson: _*)
+      "correlations_current_snapshot" -> arr(correlationsCurrentJson: _*),
+      "correlations_per_cluster" -> correlationsPerClusterJson,
+      "divergences" -> arr(divergencesJson: _*),
+      "divergences_current_snapshot" -> arr(divergencesCurrentJson: _*),
+      "divergences_per_cluster" -> divergencesPerClusterJson,
+      "scatter_data" -> scatterDataJson
     ))
   }
+
+  private def correlationJson(c: CorrelationResult): String = obj(
+    "metric_a" -> str(c.metricA),
+    "metric_b" -> str(c.metricB),
+    "pearson" -> num(formatValue(c.pearsonCorrelation)),
+    "covariance" -> num(formatValue(c.covariance)),
+    "n" -> num(c.sampleSize),
+    "view" -> str(c.view)
+  )
+
+  private def divergenceJson(d: DivergenceResult): String = obj(
+    "cluster" -> str(d.cluster),
+    "recipe" -> str(d.recipe),
+    "metric" -> str(d.metricName),
+    "reference" -> num(formatValue(d.referenceValue)),
+    "current" -> num(formatValue(d.currentValue)),
+    "z_score" -> num(formatValue(d.zScore)),
+    "is_outlier" -> bool(d.isOutlier),
+    "view" -> str(d.view),
+    "is_new_entry" -> bool(d.isNewEntry)
+  )
+
+  private def scatterPointJson(p: ScatterPoint): String = obj(
+    "cluster" -> str(p.cluster),
+    "recipe" -> str(p.recipe),
+    "x" -> num(formatValue(p.x)),
+    "y" -> num(formatValue(p.y)),
+    "is_new" -> bool(p.isNew)
+  )
+
+  private def currentMetricsJson(m: RecipeMetrics): String = obj(
+    "avg_executors_per_job" -> num(formatValue(m.avgExecutorsPerJob)),
+    "p95_run_max_executors" -> num(formatValue(m.p95RunMaxExecutors)),
+    "avg_job_duration_ms" -> num(formatValue(m.avgJobDurationMs)),
+    "p95_job_duration_ms" -> num(formatValue(m.p95JobDurationMs)),
+    "fraction_reaching_cap" -> num(formatValue(m.fractionReachingCap.getOrElse(0.0))),
+    "runs" -> num(m.runs)
+  )
 
   def writeAnalysisCsvs(
     outDir: File,

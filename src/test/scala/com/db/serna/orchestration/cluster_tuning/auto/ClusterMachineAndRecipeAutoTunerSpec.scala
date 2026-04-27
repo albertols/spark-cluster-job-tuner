@@ -200,8 +200,20 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
     val correlation = CorrelationResult("delta_p95_run_max_executors", "delta_p95_job_duration_ms", 1234.5, 0.72, 10)
 
     val json = AutoTunerJsonOutput.analysisOutputJson(
-      "2025_12_20", "2026_04_15", "default",
-      Seq(trend), Seq(correlation), Seq.empty, Seq(decision)
+      referenceDate = "2025_12_20",
+      currentDate = "2026_04_15",
+      strategyName = "default",
+      trends = Seq(trend),
+      correlations = Seq(correlation),
+      correlationsCurrentSnapshot = Seq.empty,
+      correlationsPerCluster = Map.empty,
+      divergences = Seq.empty,
+      divergencesCurrentSnapshot = Seq.empty,
+      divergencesPerCluster = Map.empty,
+      scatterDataDelta = Map.empty,
+      scatterDataCurrentSnapshot = Map.empty,
+      newEntryCurrentMetrics = Map.empty,
+      decisions = Seq(decision)
     )
 
     json should include("\"metadata\"")
@@ -224,7 +236,20 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
     )
 
     val json = AutoTunerJsonOutput.analysisOutputJson(
-      "2025_12_20", "2026_04_15", "default", trends, Seq.empty, Seq.empty, Seq.empty
+      referenceDate = "2025_12_20",
+      currentDate = "2026_04_15",
+      strategyName = "default",
+      trends = trends,
+      correlations = Seq.empty,
+      correlationsCurrentSnapshot = Seq.empty,
+      correlationsPerCluster = Map.empty,
+      divergences = Seq.empty,
+      divergencesCurrentSnapshot = Seq.empty,
+      divergencesPerCluster = Map.empty,
+      scatterDataDelta = Map.empty,
+      scatterDataCurrentSnapshot = Map.empty,
+      newEntryCurrentMetrics = Map.empty,
+      decisions = Seq.empty
     )
 
     json should include("\"degraded\": 1")

@@ -27,6 +27,97 @@ const clusterSummaryCache = {};
 // Routing: are we currently applying a route (suppress pushState reentry)?
 let routingInFlight = false;
 
+// ── Inline-SVG mini-tutorials ───────────────────────────────────────────────
+//
+// Hand-authored, ~2 KB each. Use `currentColor` so they pick up the popover's
+// foreground tone and adapt to the dark theme without extra rules.
+// Defined ABOVE METRIC_DOCS because METRIC_DOCS references them at init time.
+
+const PEARSON_SVG_TUTORIAL = `
+<svg viewBox="0 0 360 130" width="100%" class="doc-svg" role="img" aria-label="Pearson correlation examples">
+  <style>
+    .ax { stroke: rgba(139,148,158,0.6); stroke-width: 0.8; fill: none; }
+    .pt { fill: rgba(88,166,255,0.85); }
+    .lbl { fill: #c9d1d9; font: 11px/1.2 -apple-system, Segoe UI, sans-serif; text-anchor: middle; }
+    .sub { fill: #8b949e; font: 10px/1.2 monospace; text-anchor: middle; }
+  </style>
+  <g transform="translate(10,10)">
+    <rect x="0" y="0" width="100" height="90" class="ax"/>
+    ${[[10,80],[18,72],[26,68],[34,60],[42,55],[50,50],[58,42],[66,36],[74,28],[82,20],[90,15]].map(([x,y]) => `<circle cx="${x}" cy="${y}" r="2" class="pt"/>`).join('')}
+    <text x="50" y="105" class="lbl">Strong positive</text>
+    <text x="50" y="120" class="sub">r ≈ +0.95</text>
+  </g>
+  <g transform="translate(130,10)">
+    <rect x="0" y="0" width="100" height="90" class="ax"/>
+    ${[[15,30],[25,70],[35,40],[45,55],[55,20],[65,75],[75,45],[85,30],[20,60],[60,15],[80,55]].map(([x,y]) => `<circle cx="${x}" cy="${y}" r="2" class="pt"/>`).join('')}
+    <text x="50" y="105" class="lbl">No relationship</text>
+    <text x="50" y="120" class="sub">r ≈ 0</text>
+  </g>
+  <g transform="translate(250,10)">
+    <rect x="0" y="0" width="100" height="90" class="ax"/>
+    ${[[10,15],[18,22],[26,28],[34,35],[42,42],[50,48],[58,55],[66,62],[74,68],[82,75],[90,82]].map(([x,y]) => `<circle cx="${x}" cy="${y}" r="2" class="pt"/>`).join('')}
+    <text x="50" y="105" class="lbl">Strong negative</text>
+    <text x="50" y="120" class="sub">r ≈ −0.95</text>
+  </g>
+</svg>`;
+
+const BELL_SVG_TUTORIAL = (() => {
+  const xs = [];
+  for (let i = -40; i <= 40; i++) xs.push(i / 10);
+  const pdf = (x) => Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
+  const W = 360, H = 130, PAD_L = 20, PAD_R = 10, PAD_T = 10, PAD_B = 28;
+  const innerW = W - PAD_L - PAD_R;
+  const innerH = H - PAD_T - PAD_B;
+  const yMax = pdf(0);
+  const px = (x) => PAD_L + ((x - (-4)) / 8) * innerW;
+  const py = (y) => PAD_T + innerH - (y / yMax) * innerH;
+  const path = xs.map((x, i) => `${i === 0 ? 'M' : 'L'} ${px(x).toFixed(1)} ${py(pdf(x)).toFixed(1)}`).join(' ');
+  const x1 = px(-2), x2 = px(2), x3 = px(-3), x4 = px(3);
+  return `
+<svg viewBox="0 0 ${W} ${H}" width="100%" class="doc-svg" role="img" aria-label="Normal distribution with z bands">
+  <style>
+    .axis { stroke: rgba(139,148,158,0.6); stroke-width: 0.8; }
+    .curve { fill: rgba(88,166,255,0.18); stroke: rgba(88,166,255,0.85); stroke-width: 1.4; }
+    .band-2 { fill: rgba(248,201,73,0.18); }
+    .band-3 { fill: rgba(248,81,73,0.22); }
+    .lbl { fill: #c9d1d9; font: 10px/1.2 monospace; text-anchor: middle; }
+    .lbl-mu { fill: #58a6ff; font: 10px/1.2 monospace; text-anchor: middle; }
+  </style>
+  <rect x="${PAD_L}" y="${PAD_T}" width="${x1 - PAD_L}" height="${innerH}" class="band-2"/>
+  <rect x="${x2}" y="${PAD_T}" width="${(W - PAD_R) - x2}" height="${innerH}" class="band-2"/>
+  <rect x="${PAD_L}" y="${PAD_T}" width="${x3 - PAD_L}" height="${innerH}" class="band-3"/>
+  <rect x="${x4}" y="${PAD_T}" width="${(W - PAD_R) - x4}" height="${innerH}" class="band-3"/>
+  <path d="${path} L ${px(4).toFixed(1)} ${(PAD_T + innerH).toFixed(1)} L ${px(-4).toFixed(1)} ${(PAD_T + innerH).toFixed(1)} Z" class="curve"/>
+  <line x1="${PAD_L}" y1="${PAD_T + innerH}" x2="${W - PAD_R}" y2="${PAD_T + innerH}" class="axis"/>
+  <line x1="${px(0).toFixed(1)}" y1="${PAD_T}" x2="${px(0).toFixed(1)}" y2="${PAD_T + innerH}" class="axis"/>
+  <text x="${px(0).toFixed(1)}" y="${(H - 8).toFixed(1)}" class="lbl-mu">μ</text>
+  <text x="${px(-2).toFixed(1)}" y="${(H - 8).toFixed(1)}" class="lbl">−2σ</text>
+  <text x="${px(2).toFixed(1)}" y="${(H - 8).toFixed(1)}" class="lbl">+2σ</text>
+  <text x="${px(-3).toFixed(1)}" y="${(H - 8).toFixed(1)}" class="lbl">−3σ</text>
+  <text x="${px(3).toFixed(1)}" y="${(H - 8).toFixed(1)}" class="lbl">+3σ</text>
+</svg>`;
+})();
+
+const DIVERGENCE_SVG_TUTORIAL = `
+<svg viewBox="0 0 360 90" width="100%" class="doc-svg" role="img" aria-label="Outlier on a strip plot">
+  <style>
+    .axis { stroke: rgba(139,148,158,0.6); stroke-width: 0.8; }
+    .band { fill: rgba(248,81,73,0.16); }
+    .normal { fill: rgba(88,166,255,0.85); }
+    .outlier { fill: rgba(248,81,73,1); stroke: #fff; stroke-width: 0.8; }
+    .lbl { fill: #c9d1d9; font: 10px/1.2 monospace; text-anchor: middle; }
+  </style>
+  <rect x="20" y="30" width="60" height="20" class="band"/>
+  <rect x="280" y="30" width="60" height="20" class="band"/>
+  <line x1="20" y1="40" x2="340" y2="40" class="axis"/>
+  ${[60,90,110,130,150,170,180,200,220,240,260].map(x => `<circle cx="${x}" cy="40" r="3" class="normal"/>`).join('')}
+  <circle cx="320" cy="40" r="5" class="outlier"/>
+  <text x="20" y="68" class="lbl">μ − 2σ</text>
+  <text x="180" y="68" class="lbl">μ</text>
+  <text x="340" y="68" class="lbl">μ + 2σ</text>
+  <text x="320" y="20" class="lbl">outlier</text>
+</svg>`;
+
 // ── Metric Documentation ────────────────────────────────────────────────────
 
 const METRIC_DOCS = {
@@ -73,8 +164,47 @@ const METRIC_DOCS = {
   trend: {
     title: "Trend",
     body: "Improved / Degraded / Stable / NewEntry / DroppedEntry. Decided per (cluster, recipe) by comparing the reference and current metrics with built-in noise thresholds."
+  },
+  // Richer popovers: title + body + formula + svg + (optional) live example.
+  pearson_full: {
+    title: "Pearson correlation (r)",
+    body: "Measures how strongly two metrics' changes move together across the fleet. r is bounded in [-1, +1]. Values near +1 mean both metrics move up together; near -1 means one rises as the other falls; near 0 means no linear relationship. Rule of thumb: |r| < 0.3 weak, 0.3-0.7 moderate, ≥ 0.7 strong.",
+    formula: "r = Σ((x − x̄)(y − ȳ)) / √( Σ(x − x̄)² · Σ(y − ȳ)² )",
+    svg: PEARSON_SVG_TUTORIAL,
+    example: (data) => {
+      const c = (data.correlations || [])[0];
+      if (!c) return '';
+      const a = labelMetric(c.metric_a);
+      const b = labelMetric(c.metric_b);
+      return `In your fleet right now: <em>${escapeHtml(a)}</em> ↔ <em>${escapeHtml(b)}</em> has r=${c.pearson.toFixed(3)} on n=${c.n} paired recipes.`;
+    }
+  },
+  z_score_full: {
+    title: "Z-score",
+    body: "Counts how many standard deviations a value sits from the mean. Roughly: |z| ≥ 2 ≈ top 5% (uncommon), |z| ≥ 3 ≈ top 0.3% (strong outlier). We compute z over the fleet (or within a single cluster) and flag entries above the threshold.",
+    formula: "z = (x − μ) / σ",
+    svg: BELL_SVG_TUTORIAL,
+    example: (data) => {
+      const ds = data.divergences || [];
+      if (ds.length === 0) return 'No outliers above the current threshold yet — increase the |z-score| filter or pick a wider window.';
+      const top = ds.slice().sort((a, b) => Math.abs(b.z_score) - Math.abs(a.z_score))[0];
+      return `Top outlier in your fleet: <em>${escapeHtml(top.cluster)}/${escapeHtml(top.recipe)}</em> on ${escapeHtml(labelMetric(top.metric))}, z=${top.z_score.toFixed(2)}.`;
+    }
+  },
+  divergence_full: {
+    title: "Divergence",
+    body: "A (cluster, recipe) whose metric value (or change vs reference) is unusually far from the fleet. We compute the fleet-wide mean and standard deviation per metric, then flag entries with |z-score| ≥ the threshold (default 2.0).",
+    formula: "z = (x − μ_fleet) / σ_fleet",
+    svg: DIVERGENCE_SVG_TUTORIAL,
+    example: (data) => {
+      const n = (data.divergences || []).length;
+      const m = (data.divergences_current_snapshot || []).length;
+      return `This run: ${n} delta-view outliers, ${m} current-snapshot outliers (includes new jobs).`;
+    }
   }
 };
+
+// (SVG mini-tutorial constants are defined above METRIC_DOCS to avoid TDZ issues.)
 
 // ── Config + Discovery ──────────────────────────────────────────────────────
 
@@ -376,7 +506,40 @@ function wireGlobalHandlers() {
 
   document.getElementById('cluster-search').addEventListener('input', renderClusterGrid);
   document.getElementById('trend-filter').addEventListener('change', renderClusterGrid);
-  document.getElementById('z-min').addEventListener('input', renderDivergenceTable);
+  document.getElementById('z-min').addEventListener('input', () => renderDivergenceTable());
+
+  // Correlations: view toggle + cluster filter
+  document.querySelectorAll('#corr-view-toggle .seg').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#corr-view-toggle .seg').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderCorrelationCards();
+    });
+  });
+  const corrFilter = document.getElementById('corr-cluster-filter');
+  if (corrFilter) corrFilter.addEventListener('change', () => renderCorrelationCards());
+
+  // Divergences: view toggle + cluster filter
+  document.querySelectorAll('#div-view-toggle .seg').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#div-view-toggle .seg').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderDivergenceTable();
+    });
+  });
+  const divFilter = document.getElementById('div-cluster-filter');
+  if (divFilter) divFilter.addEventListener('change', () => renderDivergenceTable());
+
+  // Cluster-summary historical graphs: lazy-load on first expand.
+  const csGraphs = document.getElementById('cluster-summary-graphs-section');
+  if (csGraphs) {
+    csGraphs.addEventListener('toggle', () => {
+      if (csGraphs.open && !csGraphs.dataset.loaded) {
+        csGraphs.dataset.loaded = '1';
+        renderClusterSummaryGraphs();
+      }
+    });
+  }
 
   document.getElementById('back-to-overview').addEventListener('click', () => {
     navigate({ cluster: null, recipe: null });
@@ -583,9 +746,28 @@ function renderDashboard() {
   renderSummaryCards();
   renderBoostOverview();
   renderClustersSummarySection();
+  populateCorrelationFilters();
   renderClusterGrid();
-  renderCorrelationMatrix();
+  renderCorrelationCards();
   renderDivergenceTable();
+  // Reset the cluster-summary-graphs lazy-load marker so a new run is fetched fresh.
+  const csGraphs = document.getElementById('cluster-summary-graphs-section');
+  if (csGraphs) {
+    csGraphs.removeAttribute('open');
+    delete csGraphs.dataset.loaded;
+  }
+}
+
+// Build the dropdown options for both the correlations and divergences cluster filters.
+// Uses cluster_trends as the canonical source of cluster names for this run.
+function populateCorrelationFilters() {
+  const clusters = (data.cluster_trends || []).map(c => c.cluster).sort();
+  ['corr-cluster-filter', 'div-cluster-filter'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">All clusters (fleet)</option>' +
+      clusters.map(c => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join('');
+  });
 }
 
 function renderProjectChip() {
@@ -861,6 +1043,68 @@ async function showClusterDetailRaw(clusterName) {
   });
 
   renderDetailCharts(cluster, clusterName);
+  renderClusterDetailCorrelations(clusterName);
+  renderClusterDetailOutliers(clusterName);
+}
+
+// Per-cluster correlation cards (delta view) shown in the cluster-detail page.
+// Reuses the same scatter / interpretation rendering as the global tab so the
+// look-and-feel stays consistent.
+function renderClusterDetailCorrelations(clusterName) {
+  const host = document.getElementById('detail-correlations-body');
+  if (!host) return;
+  const perCluster = (data.correlations_per_cluster || {})[clusterName];
+  if (!perCluster || perCluster.length === 0) {
+    host.innerHTML = `<div class="fallback-banner">This cluster has fewer than 5 paired recipes — see the global Correlations tab for fleet-wide values.</div>`;
+    return;
+  }
+  const cards = perCluster.map(c => {
+    const r = c.pearson;
+    const shortA = labelMetric(c.metric_a);
+    const shortB = labelMetric(c.metric_b);
+    const color = corrColor(r);
+    const points = scatterPointsFor('delta', c.metric_a, c.metric_b, clusterName);
+    return `<div class="corr-card">
+      <div class="corr-card-pair">
+        <span class="corr-card-metric">${shortA}</span>
+        <span class="corr-card-arrow">↔</span>
+        <span class="corr-card-metric">${shortB}</span>
+        <span class="info-icon" data-doc-key="pearson_full">ⓘ</span>
+      </div>
+      <div class="corr-card-body">
+        <div class="corr-card-value" style="background:${color}">${r.toFixed(3)}</div>
+        <div class="corr-card-meta"><div>n=${c.n}</div><div class="corr-card-view">cluster-scope</div></div>
+        ${renderMiniScatter(points)}
+      </div>
+      <div class="corr-card-interp">${interpretCorrelation(r, shortA, shortB)}</div>
+    </div>`;
+  }).join('');
+  host.innerHTML = `<div class="corr-card-grid">${cards}</div>`;
+}
+
+// Per-cluster z-score outliers shown in the cluster-detail page.
+function renderClusterDetailOutliers(clusterName) {
+  const host = document.getElementById('detail-outliers-body');
+  if (!host) return;
+  const perCluster = (data.divergences_per_cluster || {})[clusterName];
+  let rowsArr;
+  let bannerHtml = '';
+  if (perCluster && perCluster.length >= 0 && (data.divergences_per_cluster || {})[clusterName] !== undefined) {
+    rowsArr = perCluster;
+  } else {
+    bannerHtml = `<div class="fallback-banner">This cluster has fewer than 5 paired recipes — falling back to fleet z-scores filtered to this cluster.</div>`;
+    rowsArr = (data.divergences || []).filter(d => d.cluster === clusterName);
+  }
+  rowsArr = rowsArr.slice().sort((a, b) => Math.abs(b.z_score) - Math.abs(a.z_score));
+  if (rowsArr.length === 0) {
+    host.innerHTML = bannerHtml + `<div class="empty-msg">No outliers detected for this cluster.</div>`;
+    return;
+  }
+  const rows = rowsArr.map(divergenceRowHtml).join('');
+  host.innerHTML = bannerHtml + `<table class="cluster-outlier-table">
+    <thead><tr><th>Cluster</th><th>Recipe</th><th>Metric</th><th>Reference</th><th>Current</th><th>Z-Score</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 }
 
 function renderClusterConfComparison(clusterName, refJson, curJson, refDate, curDate) {
@@ -923,12 +1167,14 @@ function renderDetailCharts(cluster, clusterName) {
   const chartsDiv = document.getElementById('detail-charts');
   chartsDiv.innerHTML = '';
 
-  const recipes = cluster.recipes.filter(r => r.deltas.length > 0);
+  // Include all recipes — new entries (no deltas) are rendered as a single
+  // "New (current only)" bar so users can see them alongside existing recipes.
+  const recipes = cluster.recipes.filter(r => r.deltas.length > 0 || r.current_metrics);
 
   // Use horizontal bars when there are many recipes — labels stay readable.
   const horizontal = recipes.length > 8;
   const barThickness = 12;
-  const datasetsPerCategory = 2;
+  const datasetsPerCategory = 3; // reference + current + new
   const intraGroupGap = 2;
   const interGroupGap = 10;
   const categoryHeight = barThickness * datasetsPerCategory + intraGroupGap + interGroupGap;
@@ -953,13 +1199,25 @@ function renderDetailCharts(cluster, clusterName) {
   const execCanvas = execContainer.querySelector('#exec-chart');
   execCanvas.parentElement.style.height = computedHeight + 'px';
 
-  const fullLabels = recipes.map(r => recipeShortName(r.recipe));
+  const isNew = recipes.map(isNewEntryRecipe);
+  const fullLabels = recipes.map((r, i) => isNew[i]
+    ? `${recipeShortName(r.recipe)} 🆕`
+    : recipeShortName(r.recipe));
   const tooltipFullNames = recipes.map(r => r.recipe);
 
-  const durRef = recipes.map(r => deltaValue(r, 'p95_job_duration_ms', 'reference'));
-  const durCur = recipes.map(r => deltaValue(r, 'p95_job_duration_ms', 'current'));
-  const execRef = recipes.map(r => deltaValue(r, 'p95_run_max_executors', 'reference'));
-  const execCur = recipes.map(r => deltaValue(r, 'p95_run_max_executors', 'current'));
+  const durRefRaw = recipes.map(r => recipeMetricValue(r, 'p95_job_duration_ms', 'reference'));
+  const durCurRaw = recipes.map(r => recipeMetricValue(r, 'p95_job_duration_ms', 'current'));
+  const execRefRaw = recipes.map(r => recipeMetricValue(r, 'p95_run_max_executors', 'reference'));
+  const execCurRaw = recipes.map(r => recipeMetricValue(r, 'p95_run_max_executors', 'current'));
+
+  // Mask values so reference/current bars are blank for new entries (and the
+  // gold "New (current only)" bar is blank for existing entries).
+  const durRef = durRefRaw.map((v, i) => isNew[i] ? NaN : v);
+  const durCur = durCurRaw.map((v, i) => isNew[i] ? NaN : v);
+  const durNew = durCurRaw.map((v, i) => isNew[i] ? v : NaN);
+  const execRef = execRefRaw.map((v, i) => isNew[i] ? NaN : v);
+  const execCur = execCurRaw.map((v, i) => isNew[i] ? NaN : v);
+  const execNew = execCurRaw.map((v, i) => isNew[i] ? v : NaN);
 
   const baseDataset = (label, values, color) => ({
     label,
@@ -982,7 +1240,8 @@ function renderDetailCharts(cluster, clusterName) {
       labels: fullLabels,
       datasets: [
         baseDataset('Reference', durRef, 'rgba(88,166,255,1)'),
-        baseDataset('Current', durCur, 'rgba(248,81,73,1)')
+        baseDataset('Current', durCur, 'rgba(248,81,73,1)'),
+        baseDataset('New (current only)', durNew, 'rgba(210,153,34,1)')
       ]
     },
     options: chartOpts({
@@ -999,7 +1258,8 @@ function renderDetailCharts(cluster, clusterName) {
       labels: fullLabels,
       datasets: [
         baseDataset('Reference', execRef, 'rgba(88,166,255,1)'),
-        baseDataset('Current', execCur, 'rgba(248,81,73,1)')
+        baseDataset('Current', execCur, 'rgba(248,81,73,1)'),
+        baseDataset('New (current only)', execNew, 'rgba(210,153,34,1)')
       ]
     },
     options: chartOpts({
@@ -1011,9 +1271,25 @@ function renderDetailCharts(cluster, clusterName) {
   });
 }
 
+function isNewEntryRecipe(r) {
+  return (!r.deltas || r.deltas.length === 0) && !!r.current_metrics;
+}
+
+function recipeMetricValue(recipe, metric, field) {
+  if (recipe.deltas && recipe.deltas.length > 0) {
+    const d = recipe.deltas.find(x => x.metric === metric);
+    return d ? d[field] : 0;
+  }
+  if (field === 'current' && recipe.current_metrics) {
+    const v = recipe.current_metrics[metric];
+    return v == null ? 0 : v;
+  }
+  return 0;
+}
+
 function deltaValue(recipe, metric, field) {
-  const d = recipe.deltas.find(x => x.metric === metric);
-  return d ? d[field] : 0;
+  // Backwards-compatible alias for callers outside the bar-chart path.
+  return recipeMetricValue(recipe, metric, field);
 }
 
 function recipeShortName(recipe) {
@@ -1201,45 +1477,176 @@ function closeModalSilently() {
 // ── Doc popover ─────────────────────────────────────────────────────────────
 
 function showDocPopover(event, doc) {
-  docPopover.innerHTML = `<div class="doc-title">${escapeHtml(doc.title)}</div><div>${escapeHtml(doc.body)}</div>`;
+  const parts = [
+    `<div class="doc-title">${escapeHtml(doc.title)}</div>`,
+    `<div class="doc-body">${escapeHtml(doc.body)}</div>`
+  ];
+  if (doc.formula) parts.push(`<div class="doc-formula">${escapeHtml(doc.formula)}</div>`);
+  if (doc.svg) parts.push(`<div class="doc-svg-wrap">${doc.svg}</div>`);
+  if (typeof doc.example === 'function' && data) {
+    try {
+      const ex = doc.example(data);
+      if (ex) parts.push(`<div class="doc-example">${ex}</div>`);
+    } catch (e) { /* example failed → skip silently, popover still useful */ }
+  }
+  docPopover.innerHTML = parts.join('');
   docPopover.style.display = 'block';
+  const isRich = !!(doc.formula || doc.svg || doc.example);
+  const w = isRich ? 420 : 380;
+  const h = isRich ? 320 : 200;
   const x = event.clientX + 12;
   const y = event.clientY + 12;
-  docPopover.style.left = Math.min(x, window.innerWidth - 380) + 'px';
-  docPopover.style.top = Math.min(y, window.innerHeight - 200) + 'px';
+  docPopover.style.left = Math.min(x, window.innerWidth - w) + 'px';
+  docPopover.style.top = Math.min(y, window.innerHeight - h) + 'px';
 }
 
 function hideDocPopover() {
   docPopover.style.display = 'none';
 }
 
-// ── Correlation Matrix ──────────────────────────────────────────────────────
+// ── Correlations: cards with mini scatter ───────────────────────────────────
 
-function renderCorrelationMatrix() {
-  const corrs = data.correlations;
-  if (!corrs || corrs.length === 0) {
-    document.getElementById('correlation-matrix').innerHTML =
-      '<p style="color:#8b949e">No correlation data available.</p>';
+// Active view + cluster scope are read from the DOM controls so listeners can
+// just trigger a re-render — no global state object required.
+function getCorrView() {
+  const btn = document.querySelector('#corr-view-toggle .seg.active');
+  return btn ? btn.dataset.view : 'delta';
+}
+function getCorrCluster() {
+  const sel = document.getElementById('corr-cluster-filter');
+  return sel ? sel.value : '';
+}
+
+// Picks the right correlation array for the (view, clusterFilter) combination.
+// Returns { results, scatterPool, fallbackResults, n } where fallbackResults
+// is the fleet-wide values shown when a per-cluster group has too few entries.
+function pickCorrelationSet(view, clusterFilter) {
+  if (clusterFilter && view === 'delta') {
+    const perCluster = (data.correlations_per_cluster || {})[clusterFilter];
+    if (perCluster && perCluster.length > 0) {
+      return { results: perCluster, scatterScope: 'cluster', fallback: null };
+    }
+    // Fall back to fleet values, marked as fallback so we can show a hint.
+    return { results: data.correlations || [], scatterScope: 'fleet', fallback: 'cluster_too_small' };
+  }
+  if (view === 'current_snapshot') {
+    return { results: data.correlations_current_snapshot || [], scatterScope: 'fleet', fallback: null };
+  }
+  return { results: data.correlations || [], scatterScope: 'fleet', fallback: null };
+}
+
+function renderCorrelationCards(view, clusterFilter) {
+  view = view || getCorrView();
+  clusterFilter = clusterFilter == null ? getCorrCluster() : clusterFilter;
+  const host = document.getElementById('correlation-cards');
+  if (!host) return;
+
+  const { results, fallback } = pickCorrelationSet(view, clusterFilter);
+  if (!results || results.length === 0) {
+    host.innerHTML = '<p style="color:#8b949e">No correlation data available.</p>';
     return;
   }
 
-  const html = corrs.map(c => {
-    const color = corrColor(c.pearson);
-    const shortA = labelMetric(c.metric_a.replace(/^delta_/, ''));
-    const shortB = labelMetric(c.metric_b.replace(/^delta_/, ''));
-    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-      <div style="width:200px;font-size:11px;color:#c9d1d9;text-align:right">${shortA}</div>
-      <div style="width:20px;text-align:center;color:#8b949e">↔</div>
-      <div style="width:200px;font-size:11px;color:#c9d1d9">${shortB}</div>
-      <div class="corr-cell" style="background:${color};color:#f0f6fc;min-width:80px" title="Pearson: ${c.pearson.toFixed(3)} | Cov: ${c.covariance.toFixed(2)} | n=${c.n}">
-        ${c.pearson.toFixed(3)}
+  const fallbackBanner = fallback === 'cluster_too_small'
+    ? `<div class="fallback-banner">This cluster has fewer than ${'5'} paired recipes — showing fleet-wide values as fallback.</div>`
+    : '';
+
+  const cardsHtml = results.map(c => {
+    const r = c.pearson;
+    const shortA = labelMetric(c.metric_a);
+    const shortB = labelMetric(c.metric_b);
+    const color = corrColor(r);
+    const interp = interpretCorrelation(r, shortA, shortB);
+    const points = scatterPointsFor(view, c.metric_a, c.metric_b, clusterFilter);
+    return `<div class="corr-card">
+      <div class="corr-card-pair">
+        <span class="corr-card-metric">${shortA}</span>
+        <span class="corr-card-arrow">↔</span>
+        <span class="corr-card-metric">${shortB}</span>
+        <span class="info-icon" data-doc-key="pearson_full">ⓘ</span>
       </div>
-      <div style="font-size:10px;color:#8b949e">n=${c.n} <span class="info-icon" data-doc-key="pearson">ⓘ</span></div>
+      <div class="corr-card-body">
+        <div class="corr-card-value" style="background:${color}">${r.toFixed(3)}</div>
+        <div class="corr-card-meta">
+          <div>n=${c.n}</div>
+          <div class="corr-card-view">${view === 'delta' ? 'deltas' : 'current snapshot'}</div>
+        </div>
+        ${renderMiniScatter(points)}
+      </div>
+      <div class="corr-card-interp">${interp}</div>
     </div>`;
   }).join('');
 
-  document.getElementById('correlation-matrix').innerHTML = html;
+  host.innerHTML = fallbackBanner + `<div class="corr-card-grid">${cardsHtml}</div>`;
 }
+
+// Look up the scatter points for one (metricA, metricB) pair, optionally
+// filtered to a single cluster.
+function scatterPointsFor(view, metricA, metricB, clusterFilter) {
+  const pool = (data.scatter_data || {})[view] || {};
+  const key = `${metricA}__${metricB}`;
+  const arr = pool[key] || [];
+  if (!clusterFilter) return arr;
+  return arr.filter(p => p.cluster === clusterFilter);
+}
+
+// Inline-SVG mini scatter, ~120x80 px, with new-job points overlaid in gold.
+function renderMiniScatter(points) {
+  const W = 120, H = 80, PAD = 6;
+  if (!points || points.length === 0) {
+    return `<div class="scatter-mini scatter-mini-empty">no points</div>`;
+  }
+  const xs = points.map(p => p.x);
+  const ys = points.map(p => p.y);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const yMin = Math.min(...ys), yMax = Math.max(...ys);
+  const xSpan = xMax - xMin || 1;
+  const ySpan = yMax - yMin || 1;
+  const project = (p) => {
+    const px = PAD + ((p.x - xMin) / xSpan) * (W - 2 * PAD);
+    const py = H - PAD - ((p.y - yMin) / ySpan) * (H - 2 * PAD);
+    return [px, py];
+  };
+  // Existing points first (blue), then new on top (gold) so they're never hidden.
+  const dots = points.map(p => {
+    const [px, py] = project(p);
+    const cls = p.is_new ? 'sc-new' : 'sc-pt';
+    const title = `${p.cluster} · ${p.recipe}\nx=${formatNum(p.x)}, y=${formatNum(p.y)}`;
+    return `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${p.is_new ? 2.5 : 1.8}" class="${cls}"><title>${escapeHtml(title)}</title></circle>`;
+  });
+  // Axes (just the box and a faint zero crossline if zero is in range).
+  let zeroXLine = '';
+  let zeroYLine = '';
+  if (xMin <= 0 && xMax >= 0) {
+    const zx = PAD + ((0 - xMin) / xSpan) * (W - 2 * PAD);
+    zeroXLine = `<line x1="${zx}" y1="${PAD}" x2="${zx}" y2="${H - PAD}" class="sc-zero"/>`;
+  }
+  if (yMin <= 0 && yMax >= 0) {
+    const zy = H - PAD - ((0 - yMin) / ySpan) * (H - 2 * PAD);
+    zeroYLine = `<line x1="${PAD}" y1="${zy}" x2="${W - PAD}" y2="${zy}" class="sc-zero"/>`;
+  }
+  return `<svg class="scatter-mini" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="scatter plot">
+    <rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" class="sc-frame"/>
+    ${zeroXLine}${zeroYLine}
+    ${dots.join('')}
+  </svg>`;
+}
+
+function interpretCorrelation(r, shortA, shortB) {
+  const abs = Math.abs(r);
+  let strength = 'weak';
+  if (abs >= 0.7) strength = 'strong';
+  else if (abs >= 0.3) strength = 'moderate';
+  if (abs < 0.1) {
+    return `<strong>No clear relationship</strong> between <em>${shortA}</em> and <em>${shortB}</em> (|r|=${abs.toFixed(2)}). Changes in one don't predict changes in the other.`;
+  }
+  if (r > 0) {
+    return `<strong>${capitalize(strength)} positive correlation</strong> — when <em>${shortA}</em> rises, <em>${shortB}</em> tends to rise too. (|r|=${abs.toFixed(2)})`;
+  }
+  return `<strong>${capitalize(strength)} negative correlation</strong> — when <em>${shortA}</em> rises, <em>${shortB}</em> tends to fall. (|r|=${abs.toFixed(2)})`;
+}
+
+function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 function corrColor(r) {
   if (r > 0.5) return `rgba(248, 81, 73, ${0.3 + Math.abs(r) * 0.5})`;
@@ -1249,30 +1656,125 @@ function corrColor(r) {
   return 'rgba(139, 148, 158, 0.1)';
 }
 
-// ── Divergence Table ────────────────────────────────────────────────────────
+// ── Divergences: z-score strip plot + table ─────────────────────────────────
 
-function renderDivergenceTable() {
+function getDivView() {
+  const btn = document.querySelector('#div-view-toggle .seg.active');
+  return btn ? btn.dataset.view : 'delta';
+}
+function getDivCluster() {
+  const sel = document.getElementById('div-cluster-filter');
+  return sel ? sel.value : '';
+}
+
+// Returns the divergence array for the (view, clusterFilter) combination.
+// Per-cluster scope uses the cluster's own internal stats (not the fleet's).
+function pickDivergenceSet(view, clusterFilter) {
+  if (clusterFilter && view === 'delta') {
+    const perCluster = (data.divergences_per_cluster || {})[clusterFilter];
+    if (perCluster && perCluster.length >= 0) {
+      // Even an empty list means "this cluster was big enough — no outliers".
+      if ((data.divergences_per_cluster || {})[clusterFilter] !== undefined) {
+        return { results: perCluster, fallback: null };
+      }
+    }
+    return { results: (data.divergences || []).filter(d => d.cluster === clusterFilter), fallback: 'cluster_too_small' };
+  }
+  if (view === 'current_snapshot') {
+    const all = data.divergences_current_snapshot || [];
+    return { results: clusterFilter ? all.filter(d => d.cluster === clusterFilter) : all, fallback: null };
+  }
+  const all = data.divergences || [];
+  return { results: clusterFilter ? all.filter(d => d.cluster === clusterFilter) : all, fallback: null };
+}
+
+function renderDivergenceTable(view, clusterFilter) {
+  view = view || getDivView();
+  clusterFilter = clusterFilter == null ? getDivCluster() : clusterFilter;
   const zMin = parseFloat(document.getElementById('z-min').value) || 0;
-  const divs = (data.divergences || [])
+  const { results, fallback } = pickDivergenceSet(view, clusterFilter);
+  const divs = results
     .filter(d => Math.abs(d.z_score) >= zMin)
     .sort((a, b) => Math.abs(b.z_score) - Math.abs(a.z_score));
 
   const tbody = document.querySelector('#divergence-table tbody');
-  tbody.innerHTML = divs.map(d => {
-    const zCls = Math.abs(d.z_score) >= 3 ? 'z-high' : 'z-med';
-    return `<tr>
-      <td>${escapeHtml(d.cluster)} ${copyIcon(d.cluster)}</td>
-      <td>${escapeHtml(d.recipe)} ${copyIcon(d.recipe)}</td>
-      <td>${labelMetric(d.metric)}</td>
-      <td>${formatMetricValue(d.metric, d.reference)}</td>
-      <td>${formatMetricValue(d.metric, d.current)}</td>
-      <td class="${zCls}">${d.z_score.toFixed(2)}</td>
-    </tr>`;
-  }).join('');
-
-  if (divs.length === 0) {
+  if (fallback === 'cluster_too_small') {
+    tbody.innerHTML = `<tr><td colspan="6" class="fallback-row">This cluster has fewer than 5 paired recipes — falling back to fleet z-scores filtered to this cluster.</td></tr>` +
+      divs.map(divergenceRowHtml).join('');
+  } else {
+    tbody.innerHTML = divs.map(divergenceRowHtml).join('');
+  }
+  if (divs.length === 0 && fallback !== 'cluster_too_small') {
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#8b949e;padding:24px">No divergences above threshold</td></tr>';
   }
+
+  renderZScoreStripPlot(view, clusterFilter);
+}
+
+function divergenceRowHtml(d) {
+  const zCls = Math.abs(d.z_score) >= 3 ? 'z-high' : 'z-med';
+  const newPill = d.is_new_entry ? '<span class="new-pill">NEW</span>' : '';
+  const refCell = d.view === 'current_snapshot' ? '—' : formatMetricValue(d.metric, d.reference);
+  return `<tr>
+    <td>${escapeHtml(d.cluster)} ${copyIcon(d.cluster)}</td>
+    <td>${escapeHtml(d.recipe)} ${newPill} ${copyIcon(d.recipe)}</td>
+    <td>${labelMetric(d.metric)}</td>
+    <td>${refCell}</td>
+    <td>${formatMetricValue(d.metric, d.current)}</td>
+    <td class="${zCls}">${d.z_score.toFixed(2)}</td>
+  </tr>`;
+}
+
+// One row per metric. Each row is a horizontal axis with the ±zThreshold band
+// shaded; circles plotted at each (cluster, recipe)'s z-score. New entries gold.
+function renderZScoreStripPlot(view, clusterFilter) {
+  const host = document.getElementById('z-strip-plot');
+  if (!host) return;
+  const { results } = pickDivergenceSet(view, clusterFilter);
+  const zMin = parseFloat(document.getElementById('z-min').value) || 0;
+  if (!results || results.length === 0) { host.innerHTML = ''; return; }
+
+  // Group by metric and pick a symmetric x-range from the data.
+  const byMetric = {};
+  results.forEach(d => {
+    (byMetric[d.metric] = byMetric[d.metric] || []).push(d);
+  });
+
+  const W = 720, H = 30, PAD = 100;
+  const innerW = W - PAD - 20;
+  const allZ = results.map(d => d.z_score);
+  const absMax = Math.max(zMin + 0.5, ...allZ.map(Math.abs));
+  const xMin = -absMax, xMax = absMax;
+  const project = (z) => PAD + ((z - xMin) / (xMax - xMin)) * innerW;
+
+  const rows = Object.entries(byMetric).sort((a, b) => a[0].localeCompare(b[0])).map(([metric, ds]) => {
+    const yMid = H / 2;
+    const bandLeft = project(-zMin);
+    const bandRight = project(zMin);
+    const dots = ds.map(d => {
+      const cx = project(d.z_score);
+      const cls = d.is_new_entry ? 'zs-new' : (Math.abs(d.z_score) >= 3 ? 'zs-high' : 'zs-med');
+      const tip = `${d.cluster} · ${d.recipe}\nz=${d.z_score.toFixed(2)}`;
+      return `<circle cx="${cx.toFixed(1)}" cy="${yMid}" r="3.5" class="${cls}"><title>${escapeHtml(tip)}</title></circle>`;
+    }).join('');
+    return `<div class="z-strip-row">
+      <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeAttr('z-score strip for ' + metric)}">
+        <text x="${PAD - 6}" y="${yMid + 4}" text-anchor="end" class="zs-label">${escapeHtml(labelMetric(metric))}</text>
+        <line x1="${PAD}" y1="${yMid}" x2="${W - 20}" y2="${yMid}" class="zs-axis"/>
+        <rect x="${PAD}" y="${yMid - 8}" width="${bandLeft - PAD}" height="16" class="zs-band-outlier"/>
+        <rect x="${bandRight}" y="${yMid - 8}" width="${(W - 20) - bandRight}" height="16" class="zs-band-outlier"/>
+        <line x1="${project(0)}" y1="${yMid - 8}" x2="${project(0)}" y2="${yMid + 8}" class="zs-zero"/>
+        ${dots}
+      </svg>
+    </div>`;
+  }).join('');
+
+  host.innerHTML = `<div class="z-strip-legend">
+    <span class="zs-legend-item"><span class="zs-dot zs-med"></span> 2 ≤ |z| &lt; 3</span>
+    <span class="zs-legend-item"><span class="zs-dot zs-high"></span> |z| ≥ 3</span>
+    <span class="zs-legend-item"><span class="zs-dot zs-new"></span> new job</span>
+    <span class="zs-legend-item"><span class="zs-band-outlier-swatch"></span> outlier band (|z| ≥ ${zMin})</span>
+  </div>${rows}`;
 }
 
 // ── Utilities ───────────────────────────────────────────────────────────────
@@ -1644,6 +2146,358 @@ function renderClustersSummarySection() {
     `</div>`;
   host.querySelectorAll('.cs-tile').forEach(t => {
     t.addEventListener('click', () => navigate({ summary: t.dataset.file }));
+  });
+}
+
+// ── Cluster Summary Graphs (historical trends) ──────────────────────────────
+
+// Cache: dirName -> { date, rows: [{ cluster_name, no_of_jobs, num_of_workers,
+// worker_machine_type, master_machine_type, total_active_minutes,
+// estimated_cost_eur, ... }] } so re-opening the section doesn't re-fetch.
+const historicalSummaryCache = {};
+
+async function loadHistoricalSummaries() {
+  // Use the run dirs from discoveredEntries — they cover every analysed run.
+  const dirs = (discoveredEntries || []).map(e => ({ dir: e.dir, date: e.current_date || e.dir }));
+  if (dirs.length === 0) return [];
+
+  const out = await Promise.all(dirs.map(async ({ dir, date }) => {
+    if (historicalSummaryCache[dir]) return historicalSummaryCache[dir];
+    try {
+      const r = await fetch(`${outputsRoot}/${encodeURIComponent(dir)}/_clusters-summary.csv`, { cache: 'no-store' });
+      if (!r.ok) return null;
+      const txt = await r.text();
+      const { headers, rows } = parseCsv(txt);
+      const idx = (name) => headers.indexOf(name);
+      const recs = rows.map(row => ({
+        cluster_name: row[idx('cluster_name')] || '',
+        dag_id: row[idx('dag_id')] || '',
+        no_of_jobs: toNum(row[idx('no_of_jobs')]),
+        num_of_workers: toNum(row[idx('num_of_workers')]),
+        worker_machine_type: row[idx('worker_machine_type')] || '',
+        master_machine_type: row[idx('master_machine_type')] || '',
+        total_active_minutes: toNum(row[idx('total_active_minutes')]),
+        estimated_cost_eur: toNum(row[idx('estimated_cost_eur')])
+      }));
+      const entry = { dir, date, rows: recs };
+      historicalSummaryCache[dir] = entry;
+      return entry;
+    } catch (e) { return null; }
+  }));
+
+  return out.filter(Boolean).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function toNum(s) {
+  if (s == null || s === '') return 0;
+  const n = parseFloat(s);
+  return isFinite(n) ? n : 0;
+}
+
+async function renderClusterSummaryGraphs() {
+  const body = document.getElementById('cs-graphs-body');
+  if (!body) return;
+  body.innerHTML = '<div class="empty-msg">Loading historical summaries…</div>';
+
+  const history = await loadHistoricalSummaries();
+  if (history.length === 0) {
+    body.innerHTML = '<div class="empty-msg">No historical cluster summaries found under the outputs directory.</div>';
+    return;
+  }
+
+  const currentDate = (data && data.metadata && data.metadata.current_date) || '';
+  const currentEntryHist = history.find(h => h.date === currentDate) || history[history.length - 1];
+
+  body.innerHTML = `
+    <div class="cs-kpi-strip" id="cs-kpi-strip"></div>
+    <div class="cs-chart-grid">
+      <div class="cs-chart-cell"><h4>Estimated cost (€) over time</h4><div class="cs-chart-canvas"><canvas id="cs-line-cost"></canvas></div></div>
+      <div class="cs-chart-cell"><h4>Workers over time</h4><div class="cs-chart-canvas"><canvas id="cs-line-workers"></canvas></div></div>
+      <div class="cs-chart-cell"><h4>Total active minutes over time</h4><div class="cs-chart-canvas"><canvas id="cs-line-minutes"></canvas></div></div>
+      <div class="cs-chart-cell"><h4>Number of jobs over time</h4><div class="cs-chart-canvas"><canvas id="cs-line-jobs"></canvas></div></div>
+      <div class="cs-chart-cell cs-chart-wide"><h4>Total fleet cost over time (stacked by cluster)</h4><div class="cs-chart-canvas"><canvas id="cs-area-cost"></canvas></div></div>
+      <div class="cs-chart-cell"><h4>Cost vs jobs <span class="cs-current-marker-legend">● current run</span></h4><div class="cs-chart-canvas"><canvas id="cs-scatter-jobs"></canvas></div></div>
+      <div class="cs-chart-cell"><h4>Cost vs workers</h4><div class="cs-chart-canvas"><canvas id="cs-scatter-workers"></canvas></div></div>
+      <div class="cs-chart-cell"><h4>Cost vs active minutes</h4><div class="cs-chart-canvas"><canvas id="cs-scatter-minutes"></canvas></div></div>
+      <div class="cs-chart-cell"><h4>Per-cluster cost distribution</h4><div id="cs-distribution"></div></div>
+      <div class="cs-chart-cell"><h4>Cost share by worker machine type (current run)</h4><div class="cs-chart-canvas"><canvas id="cs-pie-machine"></canvas></div></div>
+    </div>
+  `;
+
+  renderCsKpis(history, currentEntryHist);
+  renderCsLineCharts(history, currentDate);
+  renderCsAreaChart(history, currentDate);
+  renderCsScatters(history, currentDate);
+  renderCsDistribution(history, currentDate);
+  renderCsPie(currentEntryHist);
+}
+
+// Compute and render the saved-€ KPI strip. "Saved" is defined as the gap from
+// each cluster's worst historical run to the current run, summed and clamped ≥ 0.
+function renderCsKpis(history, currentEntry) {
+  const host = document.getElementById('cs-kpi-strip');
+  if (!host) return;
+
+  // Per-cluster: max prior cost (across all runs) - current cost. Clamp ≥ 0.
+  const currentByCluster = {};
+  (currentEntry.rows || []).forEach(r => { currentByCluster[r.cluster_name] = r; });
+
+  const priorByCluster = {};
+  history.forEach(h => {
+    if (h.dir === currentEntry.dir) return;
+    h.rows.forEach(r => {
+      const m = priorByCluster[r.cluster_name] || { maxCost: 0 };
+      if (r.estimated_cost_eur > m.maxCost) m.maxCost = r.estimated_cost_eur;
+      priorByCluster[r.cluster_name] = m;
+    });
+  });
+
+  let savedEur = 0;
+  Object.keys(currentByCluster).forEach(name => {
+    const cur = currentByCluster[name].estimated_cost_eur;
+    const max = (priorByCluster[name] || { maxCost: 0 }).maxCost;
+    savedEur += Math.max(0, max - cur);
+  });
+
+  const totalJobs = (currentEntry.rows || []).reduce((s, r) => s + r.no_of_jobs, 0);
+  const totalWorkers = (currentEntry.rows || []).reduce((s, r) => s + r.num_of_workers, 0);
+  const totalMinutes = (currentEntry.rows || []).reduce((s, r) => s + r.total_active_minutes, 0);
+
+  const kpi = (label, value, sub) => `<div class="cs-kpi-card">
+    <div class="cs-kpi-label">${label}</div>
+    <div class="cs-kpi-value">${value}</div>
+    ${sub ? `<div class="cs-kpi-sub">${sub}</div>` : ''}
+  </div>`;
+
+  host.innerHTML = [
+    kpi('Cumulative € saved', `${formatNum(savedEur)} €`, `vs each cluster's worst prior run`),
+    kpi('Saved € per job', totalJobs > 0 ? `${(savedEur / totalJobs).toFixed(2)} €` : '—', `current run · ${totalJobs} jobs`),
+    kpi('Saved € per worker', totalWorkers > 0 ? `${(savedEur / totalWorkers).toFixed(2)} €` : '—', `current run · ${totalWorkers} workers`),
+    kpi('Saved € per active min', totalMinutes > 0 ? `${(savedEur / totalMinutes).toFixed(3)} €` : '—', `current run · ${formatNum(totalMinutes)} min`)
+  ].join('');
+}
+
+// Build a multi-series line chart: one line per cluster, dates on the x-axis.
+// The current-date cluster lines render gold + thicker so users can spot them.
+function renderCsLineChart(canvasId, history, currentDate, valueKey, label, formatter) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  const dates = history.map(h => h.date);
+  const allClusters = Array.from(new Set(history.flatMap(h => h.rows.map(r => r.cluster_name)))).sort();
+  const currentEntry = history.find(h => h.date === currentDate);
+  const currentClusters = new Set((currentEntry ? currentEntry.rows : []).map(r => r.cluster_name));
+
+  // Assign each cluster a stable hue so colors don't flicker between charts.
+  const datasets = allClusters.map((c, i) => {
+    const series = history.map(h => {
+      const row = h.rows.find(r => r.cluster_name === c);
+      return row ? row[valueKey] : null;
+    });
+    const isCurrent = currentClusters.has(c);
+    const hue = (i * 47) % 360;
+    return {
+      label: c,
+      data: series,
+      borderColor: isCurrent ? 'rgba(210,153,34,1)' : `hsla(${hue}, 35%, 60%, 0.55)`,
+      backgroundColor: 'transparent',
+      borderWidth: isCurrent ? 2.4 : 1.1,
+      tension: 0.2,
+      spanGaps: true,
+      pointRadius: 2.5,
+      pointHoverRadius: 4
+    };
+  });
+
+  new Chart(canvas, {
+    type: 'line',
+    data: { labels: dates, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.dataset.label}: ${formatter(ctx.parsed.y)}`
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#8b949e', maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#8b949e', callback: (v) => formatter(v) }, grid: { color: 'rgba(255,255,255,0.04)' }, title: { display: true, text: label, color: '#8b949e' } }
+      }
+    }
+  });
+}
+
+function renderCsLineCharts(history, currentDate) {
+  renderCsLineChart('cs-line-cost', history, currentDate, 'estimated_cost_eur', '€', (v) => `${formatNum(v)} €`);
+  renderCsLineChart('cs-line-workers', history, currentDate, 'num_of_workers', 'workers', (v) => formatNum(v));
+  renderCsLineChart('cs-line-minutes', history, currentDate, 'total_active_minutes', 'min', (v) => formatNum(v));
+  renderCsLineChart('cs-line-jobs', history, currentDate, 'no_of_jobs', 'jobs', (v) => formatNum(v));
+}
+
+// Stacked-area chart of cost across all clusters over time.
+function renderCsAreaChart(history, currentDate) {
+  const canvas = document.getElementById('cs-area-cost');
+  if (!canvas) return;
+  const dates = history.map(h => h.date);
+  const allClusters = Array.from(new Set(history.flatMap(h => h.rows.map(r => r.cluster_name)))).sort();
+  const currentEntry = history.find(h => h.date === currentDate);
+  const currentClusters = new Set((currentEntry ? currentEntry.rows : []).map(r => r.cluster_name));
+
+  const datasets = allClusters.map((c, i) => {
+    const series = history.map(h => {
+      const row = h.rows.find(r => r.cluster_name === c);
+      return row ? row.estimated_cost_eur : 0;
+    });
+    const isCurrent = currentClusters.has(c);
+    const hue = (i * 47) % 360;
+    return {
+      label: c,
+      data: series,
+      borderColor: isCurrent ? 'rgba(210,153,34,1)' : `hsla(${hue}, 35%, 50%, 0.7)`,
+      backgroundColor: isCurrent ? 'rgba(210,153,34,0.45)' : `hsla(${hue}, 35%, 50%, 0.25)`,
+      borderWidth: isCurrent ? 2 : 1,
+      fill: true,
+      tension: 0.2,
+      pointRadius: 0
+    };
+  });
+  new Chart(canvas, {
+    type: 'line',
+    data: { labels: dates, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { stacked: true, ticks: { color: '#8b949e', maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { stacked: true, ticks: { color: '#8b949e', callback: (v) => `${formatNum(v)} €` }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
+}
+
+// Cost vs (jobs / workers / minutes) scatters. Every (cluster, date) is a point;
+// current-date points get a larger gold marker so they pop.
+function renderCsScatter(canvasId, history, currentDate, xKey, xLabel) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const points = [];
+  const currentPoints = [];
+  history.forEach(h => {
+    h.rows.forEach(r => {
+      const pt = { x: r[xKey], y: r.estimated_cost_eur, cluster: r.cluster_name, date: h.date };
+      if (h.date === currentDate) currentPoints.push(pt);
+      else points.push(pt);
+    });
+  });
+  new Chart(canvas, {
+    type: 'scatter',
+    data: {
+      datasets: [
+        { label: 'historical', data: points, backgroundColor: 'rgba(88,166,255,0.45)', borderColor: 'rgba(88,166,255,0.8)', pointRadius: 3 },
+        { label: 'current run', data: currentPoints, backgroundColor: 'rgba(210,153,34,0.85)', borderColor: 'rgba(210,153,34,1)', pointRadius: 5, pointStyle: 'rectRot' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#c9d1d9' } },
+        tooltip: { callbacks: { label: (ctx) => {
+          const p = ctx.raw;
+          return `${p.cluster} (${p.date}): ${formatNum(p.x)} ${xLabel} → ${formatNum(p.y)} €`;
+        } } }
+      },
+      scales: {
+        x: { ticks: { color: '#8b949e' }, grid: { color: 'rgba(255,255,255,0.04)' }, title: { display: true, text: xLabel, color: '#8b949e' } },
+        y: { ticks: { color: '#8b949e', callback: (v) => `${formatNum(v)} €` }, grid: { color: 'rgba(255,255,255,0.04)' }, title: { display: true, text: '€', color: '#8b949e' } }
+      }
+    }
+  });
+}
+
+function renderCsScatters(history, currentDate) {
+  renderCsScatter('cs-scatter-jobs', history, currentDate, 'no_of_jobs', 'jobs');
+  renderCsScatter('cs-scatter-workers', history, currentDate, 'num_of_workers', 'workers');
+  renderCsScatter('cs-scatter-minutes', history, currentDate, 'total_active_minutes', 'minutes');
+}
+
+// One column per cluster, one dot per historical run on the y-axis (cost).
+// Current-date dot is gold and slightly larger.
+function renderCsDistribution(history, currentDate) {
+  const host = document.getElementById('cs-distribution');
+  if (!host) return;
+  const allClusters = Array.from(new Set(history.flatMap(h => h.rows.map(r => r.cluster_name)))).sort();
+  if (allClusters.length === 0) { host.innerHTML = '<div class="empty-msg">No clusters.</div>'; return; }
+
+  const W = Math.max(360, allClusters.length * 22);
+  const H = 220;
+  const PAD_L = 50, PAD_R = 10, PAD_T = 10, PAD_B = 36;
+  const innerW = W - PAD_L - PAD_R;
+  const innerH = H - PAD_T - PAD_B;
+
+  const allCosts = history.flatMap(h => h.rows.map(r => r.estimated_cost_eur));
+  const yMax = Math.max(1, ...allCosts);
+  const projectY = (v) => PAD_T + innerH - (v / yMax) * innerH;
+  const colWidth = innerW / allClusters.length;
+  const projectX = (i) => PAD_L + colWidth * (i + 0.5);
+
+  const dots = allClusters.map((c, i) => {
+    const cx = projectX(i);
+    return history.map(h => {
+      const row = h.rows.find(r => r.cluster_name === c);
+      if (!row) return '';
+      const cy = projectY(row.estimated_cost_eur);
+      const isCurrent = h.date === currentDate;
+      const cls = isCurrent ? 'cs-dist-current' : 'cs-dist-prior';
+      const r = isCurrent ? 4 : 2.5;
+      const tip = `${c} (${h.date})\n${formatNum(row.estimated_cost_eur)} €`;
+      return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r}" class="${cls}"><title>${escapeHtml(tip)}</title></circle>`;
+    }).join('');
+  }).join('');
+
+  const labels = allClusters.map((c, i) => {
+    const x = projectX(i);
+    const short = c.replace(/^cluster-/, '').slice(0, 20);
+    return `<text x="${x.toFixed(1)}" y="${(H - 8).toFixed(1)}" class="cs-dist-label" transform="rotate(-35 ${x.toFixed(1)} ${(H - 8).toFixed(1)})">${escapeHtml(short)}</text>`;
+  }).join('');
+
+  // y-axis: 4 ticks
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map(t => {
+    const v = yMax * t;
+    const y = projectY(v);
+    return `<line x1="${PAD_L}" y1="${y}" x2="${W - PAD_R}" y2="${y}" class="cs-dist-grid"/>
+            <text x="${PAD_L - 6}" y="${y + 4}" text-anchor="end" class="cs-dist-axis">${formatNum(v)} €</text>`;
+  }).join('');
+
+  host.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="cluster cost distribution">
+    ${ticks}${dots}${labels}
+  </svg>`;
+}
+
+// Pie chart of current-run cost share by worker_machine_type.
+function renderCsPie(currentEntry) {
+  const canvas = document.getElementById('cs-pie-machine');
+  if (!canvas || !currentEntry) return;
+  const byType = {};
+  (currentEntry.rows || []).forEach(r => {
+    if (!r.worker_machine_type) return;
+    byType[r.worker_machine_type] = (byType[r.worker_machine_type] || 0) + r.estimated_cost_eur;
+  });
+  const labels = Object.keys(byType);
+  const values = labels.map(l => byType[l]);
+  const colors = labels.map((_, i) => `hsla(${(i * 47) % 360}, 50%, 55%, 0.75)`);
+  new Chart(canvas, {
+    type: 'pie',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { color: '#c9d1d9' } },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${formatNum(ctx.parsed)} €` } }
+      }
+    }
   });
 }
 
