@@ -6,21 +6,21 @@ import scala.util.Try
 
 /** Parsed representation of a tuned cluster JSON file (auto-scale or manual). */
 final case class TunedClusterConfig(
-  rawJson: String,
-  clusterName: String,
-  clusterConfFields: Seq[(String, String)],
-  recipeOrder: Seq[String],
-  recipes: Map[String, RecipeConfig]
-)
+                                     rawJson: String,
+                                     clusterName: String,
+                                     clusterConfFields: Seq[(String, String)],
+                                     recipeOrder: Seq[String],
+                                     recipes: Map[String, RecipeConfig]
+                                   )
 
 /** Per-recipe Spark configuration extracted from a tuned JSON. */
 final case class RecipeConfig(
-  parallelizationFactor: Int,
-  sparkOptsMap: Map[String, String],
-  totalExecutorMinAllocatedMemoryGb: Int,
-  totalExecutorMaxAllocatedMemoryGb: Int,
-  extraFields: Map[String, String]
-)
+                               parallelizationFactor: Int,
+                               sparkOptsMap: Map[String, String],
+                               totalExecutorMinAllocatedMemoryGb: Int,
+                               totalExecutorMaxAllocatedMemoryGb: Int,
+                               extraFields: Map[String, String]
+                             )
 
 /**
  * Lightweight JSON parser for the machine-generated tuned cluster JSONs.
@@ -59,7 +59,11 @@ object SimpleJsonParser {
         val sparkOpts = extractStringFields(sparkOptsBlock)
         val minMem = extractIntField(block, "total_executor_minimum_allocated_memory_gb").getOrElse(0)
         val maxMem = extractIntField(block, "total_executor_maximum_allocated_memory_gb").getOrElse(0)
-        key -> RecipeConfig(pf, sparkOpts, minMem, maxMem, Map.empty)
+        // Carry forward any previously-applied boost factor so the pipeline can
+        // detect already-boosted recipes and avoid double-boosting on re-runs.
+        val boostFactor = extractDoubleField(block, "appliedMemoryHeapBoostFactor")
+        val extraFields: Map[String, String] = boostFactor.map("appliedMemoryHeapBoostFactor" -> _.toString).toMap
+        key -> RecipeConfig(pf, sparkOpts, minMem, maxMem, extraFields)
       }.toOption
     }
     (recipeKeys, entries.toMap)
@@ -170,6 +174,13 @@ object SimpleJsonParser {
     val escapedField = java.util.regex.Pattern.quote(fieldName)
     val pattern = s""""$escapedField"\\s*:\\s*(\\d+)""".r
     pattern.findFirstMatchIn(json).flatMap(m => Try(m.group(1).toInt).toOption)
+  }
+
+  /** Extract a double field value by name. */
+  private[refinement] def extractDoubleField(json: String, fieldName: String): Option[Double] = {
+    val escapedField = java.util.regex.Pattern.quote(fieldName)
+    val pattern = s""""$escapedField"\\s*:\\s*([\\d.]+)""".r
+    pattern.findFirstMatchIn(json).flatMap(m => Try(m.group(1).toDouble).toOption)
   }
 
   /** Parse memory string like "8g" to integer GB value. */

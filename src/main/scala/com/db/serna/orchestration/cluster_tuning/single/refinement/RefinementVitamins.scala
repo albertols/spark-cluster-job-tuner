@@ -16,12 +16,12 @@ sealed trait VitaminSignal {
 }
 
 final case class MemoryHeapOomSignal(
-  clusterName: String,
-  recipeFilename: String,
-  jobId: String,
-  latestDriverLogTs: String,
-  latestDriverMessage: String
-) extends VitaminSignal {
+                                      clusterName: String,
+                                      recipeFilename: String,
+                                      jobId: String,
+                                      latestDriverLogTs: String,
+                                      latestDriverMessage: String
+                                    ) extends VitaminSignal {
   val description: String = s"Java heap OOM for job $jobId ($recipeFilename) at $latestDriverLogTs"
 }
 
@@ -29,14 +29,14 @@ final case class MemoryHeapOomSignal(
 
 /** A diagnostic CSV entry that could not be matched to any recipe in the cluster. */
 final case class UnresolvedEntry(
-  vitaminName: String,
-  csvSource: String,
-  jobId: String,
-  clusterName: String,
-  rawRecipeFilename: String,
-  latestDriverLogTs: String,
-  latestDriverMessage: String
-)
+                                  vitaminName: String,
+                                  csvSource: String,
+                                  jobId: String,
+                                  clusterName: String,
+                                  rawRecipeFilename: String,
+                                  latestDriverLogTs: String,
+                                  latestDriverMessage: String
+                                )
 
 // ── Boosts ──────────────────────────────────────────────────────────────────
 
@@ -47,11 +47,11 @@ sealed trait VitaminBoost {
 }
 
 final case class MemoryHeapBoost(
-  recipeFilename: String,
-  originalMemory: String,
-  boostedMemory: String,
-  boostFactor: Double
-) extends VitaminBoost {
+                                  recipeFilename: String,
+                                  originalMemory: String,
+                                  boostedMemory: String,
+                                  boostFactor: Double
+                                ) extends VitaminBoost {
   val description: String =
     s"spark.executor.memory: $originalMemory -> $boostedMemory (x$boostFactor heap OOM boost)"
 }
@@ -118,9 +118,9 @@ object RecipeResolver {
    * Returns (resolved signals, unresolved signals).
    */
   def resolve(
-    signals: Seq[VitaminSignal],
-    recipeNames: Set[String]
-  ): (Seq[VitaminSignal], Seq[VitaminSignal]) = {
+               signals: Seq[VitaminSignal],
+               recipeNames: Set[String]
+             ): (Seq[VitaminSignal], Seq[VitaminSignal]) = {
 
     // Build lookup: job prefix → known recipe (from signals that already have one)
     val prefixToRecipe: Map[String, String] = signals
@@ -212,8 +212,18 @@ class MemoryHeapBoostVitamin(val boostFactor: Double = 1.5) extends RefinementVi
     affectedRecipes.flatMap { recipe =>
       recipes.get(recipe).map { rc =>
         val currentMem = rc.sparkOptsMap.getOrElse("spark.executor.memory", "8g")
-        val boostedMem = boostMemory(currentMem, boostFactor)
-        MemoryHeapBoost(recipe, currentMem, boostedMem, boostFactor)
+        // Idempotency: if this recipe was already boosted with at least the desired factor
+        // (e.g. in a previous run whose output we're now re-processing), return a no-op
+        // boost so the recipe appears in tracking/summary without double-boosting memory.
+        val existingFactor = rc.extraFields.get(boostFieldKey).flatMap(s => scala.util.Try(s.toDouble).toOption)
+        val alreadyBoosted = existingFactor.exists(_ >= boostFactor)
+        if (alreadyBoosted) {
+          // No-op: originalMemory == boostedMemory signals "propagated, no change"
+          MemoryHeapBoost(recipe, currentMem, currentMem, existingFactor.getOrElse(boostFactor))
+        } else {
+          val boostedMem = boostMemory(currentMem, boostFactor)
+          MemoryHeapBoost(recipe, currentMem, boostedMem, boostFactor)
+        }
       }
     }
   }
@@ -223,16 +233,21 @@ class MemoryHeapBoostVitamin(val boostFactor: Double = 1.5) extends RefinementVi
       case (cfg, b: MemoryHeapBoost) =>
         cfg.get(b.recipeFilename) match {
           case Some(rc) =>
-            val updatedOpts = rc.sparkOptsMap.updated("spark.executor.memory", b.boostedMemory)
             val updatedExtra = rc.extraFields + (boostFieldKey -> b.boostFactor.toString)
-            val memGb = SimpleJsonParser.parseMemoryGb(b.boostedMemory)
-            val (minExec, maxExec) = extractExecutorCounts(rc)
-            cfg.updated(b.recipeFilename, rc.copy(
-              sparkOptsMap = updatedOpts,
-              totalExecutorMinAllocatedMemoryGb = minExec * memGb,
-              totalExecutorMaxAllocatedMemoryGb = maxExec * memGb,
-              extraFields = updatedExtra
-            ))
+            if (b.originalMemory == b.boostedMemory) {
+              // Propagated (already boosted) — only refresh the boost marker, no memory change
+              cfg.updated(b.recipeFilename, rc.copy(extraFields = updatedExtra))
+            } else {
+              val updatedOpts = rc.sparkOptsMap.updated("spark.executor.memory", b.boostedMemory)
+              val memGb = SimpleJsonParser.parseMemoryGb(b.boostedMemory)
+              val (minExec, maxExec) = extractExecutorCounts(rc)
+              cfg.updated(b.recipeFilename, rc.copy(
+                sparkOptsMap = updatedOpts,
+                totalExecutorMinAllocatedMemoryGb = minExec * memGb,
+                totalExecutorMaxAllocatedMemoryGb = maxExec * memGb,
+                extraFields = updatedExtra
+              ))
+            }
           case None => cfg
         }
       case (cfg, _) => cfg
@@ -263,22 +278,33 @@ class MemoryHeapBoostVitamin(val boostFactor: Double = 1.5) extends RefinementVi
 
 /** Result of applying all vitamins to a single cluster config. */
 final case class RefinementResult(
-  clusterName: String,
-  originalConfig: TunedClusterConfig,
-  refinedRecipes: Map[String, RecipeConfig],
-  appliedBoosts: Seq[VitaminBoost],
-  boostCounters: Map[String, Int],
-  boostLists: Map[String, Seq[String]],
-  unresolvedEntries: Seq[UnresolvedEntry]
-)
+                                   clusterName: String,
+                                   originalConfig: TunedClusterConfig,
+                                   refinedRecipes: Map[String, RecipeConfig],
+                                   appliedBoosts: Seq[VitaminBoost],
+                                   boostCounters: Map[String, Int],
+                                   boostLists: Map[String, Seq[String]],
+                                   unresolvedEntries: Seq[UnresolvedEntry]
+                                 )
 
 object RefinementPipeline {
 
+  /**
+   * Apply all vitamins to a single cluster config, collecting signals from
+   * multiple input directories.
+   *
+   * Signals from all `inputDirs` are merged per vitamin; after resolution,
+   * duplicates by `recipeFilename` are removed keeping the first occurrence
+   * (earlier entries in `inputDirs` — i.e. the more recent date — take
+   * priority).  This prevents double-boosting when a previously-boosted
+   * reference config is re-processed alongside an older CSV that also
+   * contains the same recipe.
+   */
   def refine(
-    config: TunedClusterConfig,
-    vitamins: Seq[RefinementVitamin],
-    inputDir: File
-  ): RefinementResult = {
+              config: TunedClusterConfig,
+              vitamins: Seq[RefinementVitamin],
+              inputDirs: Seq[File]
+            ): RefinementResult = {
     var currentRecipes = config.recipes
     val allBoosts = mutable.ArrayBuffer.empty[VitaminBoost]
     val allUnresolved = mutable.ArrayBuffer.empty[UnresolvedEntry]
@@ -286,53 +312,40 @@ object RefinementPipeline {
     val lists = mutable.LinkedHashMap.empty[String, Seq[String]]
 
     vitamins.foreach { vitamin =>
-      val signals = vitamin.loadSignals(inputDir, config.clusterName)
-      val (resolved, unresolved) = RecipeResolver.resolve(signals, currentRecipes.keySet)
+      // Collect signals from ALL input dirs (curDate first, then refDate, etc.)
+      val rawSignals = inputDirs.flatMap(dir => vitamin.loadSignals(dir, config.clusterName))
+
+      // Resolve all signals, then deduplicate by recipeFilename keeping first occurrence
+      val (allResolved, allUnresolvd) = RecipeResolver.resolve(rawSignals, currentRecipes.keySet)
+      val seen = mutable.LinkedHashSet.empty[String]
+      val resolved = allResolved.filter { s =>
+        if (s.recipeFilename.isEmpty) false
+        else if (seen.contains(s.recipeFilename)) false
+        else { seen += s.recipeFilename; true }
+      }
+
       val boosts = vitamin.computeBoosts(resolved, currentRecipes)
       currentRecipes = vitamin.applyBoosts(boosts, currentRecipes)
       allBoosts ++= boosts
       counters(vitamin.counterKey) = boosts.size
       lists(vitamin.listKey) = boosts.map(_.recipeFilename).distinct
 
+      def toEntry(s: VitaminSignal) = UnresolvedEntry(
+        vitaminName = vitamin.name,
+        csvSource = vitamin.csvFileName,
+        jobId = s.jobId,
+        clusterName = s.clusterName,
+        rawRecipeFilename = s.recipeFilename,
+        latestDriverLogTs = s match { case h: MemoryHeapOomSignal => h.latestDriverLogTs; case _ => "" },
+        latestDriverMessage = s match { case h: MemoryHeapOomSignal => h.latestDriverMessage; case _ => "" }
+      )
+
       // Track signals that couldn't be resolved to a recipe name
-      unresolved.foreach { s =>
-        allUnresolved += UnresolvedEntry(
-          vitaminName = vitamin.name,
-          csvSource = vitamin.csvFileName,
-          jobId = s.jobId,
-          clusterName = s.clusterName,
-          rawRecipeFilename = s.recipeFilename,
-          latestDriverLogTs = s match {
-            case h: MemoryHeapOomSignal => h.latestDriverLogTs
-            case _ => ""
-          },
-          latestDriverMessage = s match {
-            case h: MemoryHeapOomSignal => h.latestDriverMessage
-            case _ => ""
-          }
-        )
-      }
+      allUnresolvd.foreach(s => allUnresolved += toEntry(s))
 
       // Track resolved signals whose recipe doesn't exist in the cluster config
-      resolved.filter { s =>
-        s.recipeFilename.nonEmpty && !currentRecipes.contains(s.recipeFilename)
-      }.foreach { s =>
-        allUnresolved += UnresolvedEntry(
-          vitaminName = vitamin.name,
-          csvSource = vitamin.csvFileName,
-          jobId = s.jobId,
-          clusterName = s.clusterName,
-          rawRecipeFilename = s.recipeFilename,
-          latestDriverLogTs = s match {
-            case h: MemoryHeapOomSignal => h.latestDriverLogTs
-            case _ => ""
-          },
-          latestDriverMessage = s match {
-            case h: MemoryHeapOomSignal => h.latestDriverMessage
-            case _ => ""
-          }
-        )
-      }
+      resolved.filter(s => s.recipeFilename.nonEmpty && !currentRecipes.contains(s.recipeFilename))
+        .foreach(s => allUnresolved += toEntry(s))
     }
 
     RefinementResult(
@@ -340,6 +353,13 @@ object RefinementPipeline {
       counters.toMap, lists.toMap, allUnresolved.toSeq
     )
   }
+
+  /** Backward-compatible single-directory overload — delegates to the multi-dir variant. */
+  def refine(
+              config: TunedClusterConfig,
+              vitamins: Seq[RefinementVitamin],
+              inputDir: File
+            ): RefinementResult = refine(config, vitamins, Seq(inputDir))
 
   /** Rebuild the refined JSON string from a RefinementResult. */
   def toRefinedJson(result: RefinementResult): String = {

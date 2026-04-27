@@ -429,14 +429,19 @@ object ClusterMachineAndRecipeAutoTuner {
   /**
    * Apply b16 memory heap OOM reboosting to a cluster's output JSONs.
    *
-   * Searches multiple input directories for the b16 CSV (e.g. reference_date
-   * and current_date). OOM signals from either date are valid: if a recipe
-   * had heap OOM in reference_date but the b16 CSV is absent in current_date,
-   * the boost must still persist to prevent regression.
+   * Searches ALL input directories for the b16 CSV (e.g. current_date first,
+   * then reference_date). Signals from every available CSV are merged and
+   * deduplicated by recipe so that:
+   *  - Freshly generated configs receive boosts from both the current and older
+   *    CSVs, preventing OOM regression when the old signal is not repeated.
+   *  - Preserved (copied) reference configs don't get double-boosted: recipes
+   *    that already carry appliedMemoryHeapBoostFactor are tracked as propagated
+   *    boosts (reported in the summary) without re-applying the factor.
    */
   private def applyB16Reboosting(clusterName: String, outputDir: File, inputDirs: Seq[File], factor: Double): Seq[MemoryHeapBoost] = {
-    val effectiveInputDir = inputDirs.find(d => d.exists() && new File(d, "b16_oom_job_driver_exceptions.csv").exists())
-    if (effectiveInputDir.isEmpty) return Seq.empty
+    // Collect ALL dirs that have a b16 CSV (not just the first one).
+    val validInputDirs = inputDirs.filter(d => d.exists() && new File(d, "b16_oom_job_driver_exceptions.csv").exists())
+    if (validInputDirs.isEmpty) return Seq.empty
 
     val vitamins: Seq[RefinementVitamin] = Seq(new MemoryHeapBoostVitamin(factor))
     val allBoosts = ArrayBuffer.empty[MemoryHeapBoost]
@@ -446,12 +451,15 @@ object ClusterMachineAndRecipeAutoTuner {
       if (jsonFile.exists()) {
         try {
           val config = SimpleJsonParser.parseFile(jsonFile)
-          val result = RefinementPipeline.refine(config, vitamins, effectiveInputDir.get)
+          // Pass all valid dirs; RefinementPipeline merges and deduplicates signals.
+          val result = RefinementPipeline.refine(config, vitamins, validInputDirs)
           if (result.appliedBoosts.nonEmpty) {
             val refinedJson = RefinementPipeline.toRefinedJson(result)
             ClusterMachineAndRecipeTuner.writeFile(outputDir, jsonFile.getName, refinedJson)
             allBoosts ++= result.appliedBoosts.collect { case b: MemoryHeapBoost => b }
-            logger.info(s"  b16 reboosting applied to $clusterName$suffix: ${result.appliedBoosts.size} boost(s)")
+            val newCount  = result.appliedBoosts.count { case b: MemoryHeapBoost => b.originalMemory != b.boostedMemory; case _ => true }
+            val propCount = result.appliedBoosts.count { case b: MemoryHeapBoost => b.originalMemory == b.boostedMemory; case _ => false }
+            logger.info(s"  b16 reboosting applied to $clusterName$suffix: $newCount new boost(s), $propCount propagated")
           }
         } catch {
           case e: Exception =>
@@ -474,21 +482,21 @@ object ClusterMachineAndRecipeAutoTuner {
   }
 
   private[auto] def writeAutoTunerSummaryReport(
-    outputDir: File,
-    refDate: String,
-    curDate: String,
-    strategyName: String,
-    allTrends: Seq[TrendAssessment],
-    kept: Int,
-    boosted: Int,
-    fresh: Int,
-    preserved: Int,
-    skipped: Int,
-    b14Boosts: Seq[(String, String)],
-    b16Boosts: Seq[(String, Seq[MemoryHeapBoost])],
-    correlationCount: Int,
-    divergenceCount: Int
-  ): Unit = {
+                                                 outputDir: File,
+                                                 refDate: String,
+                                                 curDate: String,
+                                                 strategyName: String,
+                                                 allTrends: Seq[TrendAssessment],
+                                                 kept: Int,
+                                                 boosted: Int,
+                                                 fresh: Int,
+                                                 preserved: Int,
+                                                 skipped: Int,
+                                                 b14Boosts: Seq[(String, String)],
+                                                 b16Boosts: Seq[(String, Seq[MemoryHeapBoost])],
+                                                 correlationCount: Int,
+                                                 divergenceCount: Int
+                                               ): Unit = {
     val trendCounts = allTrends.groupBy(_.trend.label).mapValues(_.size)
     val totalRecipes = allTrends.size
     val totalClusters = allTrends.map(_.cluster).distinct.size
@@ -535,8 +543,10 @@ object ClusterMachineAndRecipeAutoTuner {
     }
     sb.append("\n")
 
+    val b16TotalClusters = b16Boosts.size
+    val b16TotalRecipes  = b16Boosts.flatMap { case (_, boosts) => boosts.map(_.recipeFilename) }.distinct.size
     sb.append("-" * 72).append("\n")
-    sb.append("  b16 OOM REBOOSTING\n")
+    sb.append(s"  b16 OOM REBOOSTING  ($b16TotalRecipes recipe(s) across $b16TotalClusters cluster(s))\n")
     sb.append("-" * 72).append("\n")
     if (b16Boosts.isEmpty) {
       sb.append("  (none)\n")
@@ -547,7 +557,9 @@ object ClusterMachineAndRecipeAutoTuner {
         sb.append(s"  $cluster  (${uniqueBoosts.size} recipe(s))\n")
         uniqueBoosts.foreach { b =>
           val recipe = b.recipeFilename.stripPrefix("_").stripSuffix(".json")
-          sb.append("    %-60s  spark.executor.memory: %s -> %s  (x%.1f)\n".format(recipe, b.originalMemory, b.boostedMemory, b.boostFactor))
+          val propagatedTag = if (b.originalMemory == b.boostedMemory) "  [propagated]" else ""
+          sb.append(("    %-60s  spark.executor.memory: %s -> %s  (x%.1f)%s\n")
+            .format(recipe, b.originalMemory, b.boostedMemory, b.boostFactor, propagatedTag))
         }
       }
     }
@@ -563,6 +575,106 @@ object ClusterMachineAndRecipeAutoTuner {
 
     ClusterMachineAndRecipeTuner.writeFile(outputDir, "_generation_summary_auto_tuner.txt", sb.toString())
     logger.info(s"Auto-tuner summary report written to ${outputDir.getPath}/_generation_summary_auto_tuner.txt")
+
+    // Also emit a structured JSON sibling for the dashboard frontend.
+    writeAutoTunerSummaryJson(
+      outputDir, refDate, curDate, strategyName, allTrends,
+      kept, boosted, fresh, preserved, skipped,
+      b14Boosts, b16Boosts, correlationCount, divergenceCount
+    )
+  }
+
+  /** Emit the same summary as a structured JSON so the dashboard can render
+   * boost groups generically (b14, b16, future bxx) without parsing text. */
+  private[auto] def writeAutoTunerSummaryJson(
+                                               outputDir: File,
+                                               refDate: String,
+                                               curDate: String,
+                                               strategyName: String,
+                                               allTrends: Seq[TrendAssessment],
+                                               kept: Int,
+                                               boosted: Int,
+                                               fresh: Int,
+                                               preserved: Int,
+                                               skipped: Int,
+                                               b14Boosts: Seq[(String, String)],
+                                               b16Boosts: Seq[(String, Seq[MemoryHeapBoost])],
+                                               correlationCount: Int,
+                                               divergenceCount: Int
+                                             ): Unit = {
+    val trendCounts = allTrends.groupBy(_.trend.label).mapValues(_.size)
+    val totalRecipes = allTrends.size
+    val totalClusters = allTrends.map(_.cluster).distinct.size
+
+    def esc(s: String): String = {
+      val sb = new StringBuilder
+      s.foreach {
+        case '"'  => sb.append("\\\"")
+        case '\\' => sb.append("\\\\")
+        case '\n' => sb.append("\\n")
+        case '\r' => sb.append("\\r")
+        case '\t' => sb.append("\\t")
+        case c if c < 0x20 => sb.append("\\u%04x".format(c.toInt))
+        case c    => sb.append(c)
+      }
+      sb.toString
+    }
+    def q(s: String): String = "\"" + esc(s) + "\""
+
+    // Parse a b14 reason like "... Promoted X -> Y" and "... eviction (...): A (ref) -> B (cur)".
+    val promotionRe = """Promoted\s+([\w\-]+)\s*->\s*([\w\-]+)""".r
+    val evictRe     = """:\s*(\d+)\s*\(ref\)\s*->\s*(\d+)\s*\(cur\)""".r
+    val curOnlyRe   = """eviction\s*\((\d+)\)""".r
+
+    val b14Json: String = b14Boosts.map { case (cluster, reason) =>
+      val (fromM, toM) = promotionRe.findFirstMatchIn(reason).map(m => (m.group(1), m.group(2))).getOrElse(("", ""))
+      val persistence = if (reason.toLowerCase.contains("persistent")) "persistent" else "current"
+      val (refE, curE) = evictRe.findFirstMatchIn(reason).map(m => (Some(m.group(1).toInt), Some(m.group(2).toInt))).getOrElse {
+        if (persistence == "current") (None, curOnlyRe.findFirstMatchIn(reason).map(_.group(1).toInt)) else (None, None)
+      }
+      val parts = scala.collection.mutable.ArrayBuffer.empty[String]
+      parts += s"${q("cluster")}:${q(cluster)}"
+      parts += s"${q("reason")}:${q(reason)}"
+      parts += s"${q("persistence")}:${q(persistence)}"
+      if (fromM.nonEmpty) parts += s"${q("promotion")}:{${q("from")}:${q(fromM)},${q("to")}:${q(toM)}}"
+      val evicts = scala.collection.mutable.ArrayBuffer.empty[String]
+      refE.foreach(v => evicts += s"${q("ref")}:$v")
+      curE.foreach(v => evicts += s"${q("cur")}:$v")
+      if (evicts.nonEmpty) parts += s"${q("evictions")}:{${evicts.mkString(",")}}"
+      "{" + parts.mkString(",") + "}"
+    }.mkString(",")
+
+    val b16Json: String = b16Boosts.map { case (cluster, boosts) =>
+      val unique = boosts.groupBy(_.recipeFilename).values.map(_.head).toSeq.sortBy(_.recipeFilename)
+      val recipes = unique.map { b =>
+        val recipe = b.recipeFilename.stripPrefix("_").stripSuffix(".json")
+        val propagated = b.originalMemory == b.boostedMemory
+        s"{${q("recipe")}:${q(recipe)}," +
+          s"${q("recipe_filename")}:${q(b.recipeFilename)}," +
+          s"${q("propagated")}:$propagated," +
+          s"${q("spark_executor_memory")}:{${q("from")}:${q(b.originalMemory)},${q("to")}:${q(b.boostedMemory)},${q("factor")}:${"%.2f".format(b.boostFactor)}}}"
+      }.mkString(",")
+      s"{${q("cluster")}:${q(cluster)},${q("recipes")}:[$recipes]}"
+    }.mkString(",")
+
+    val b16TotalRecipesJson = b16Boosts.flatMap { case (_, boosts) => boosts.map(_.recipeFilename) }.distinct.size
+
+    val sb = new StringBuilder
+    sb.append("{\n")
+    sb.append(s"  ${q("metadata")}:{${q("reference_date")}:${q(refDate)},${q("current_date")}:${q(curDate)},${q("strategy")}:${q(strategyName)},${q("generated_at")}:${q(java.time.Instant.now().toString)}},\n")
+    sb.append(s"  ${q("trend_summary")}:{${q("total_clusters")}:$totalClusters,${q("total_recipes")}:$totalRecipes,")
+    sb.append(s"${q("improved")}:${trendCounts.getOrElse("improved", 0)},${q("degraded")}:${trendCounts.getOrElse("degraded", 0)},${q("stable")}:${trendCounts.getOrElse("stable", 0)},")
+    sb.append(s"${q("new_entries")}:${trendCounts.getOrElse("new_entry", 0)},${q("dropped_entries")}:${trendCounts.getOrElse("dropped_entry", 0)}},\n")
+    sb.append(s"  ${q("evolution_actions")}:{${q("kept")}:$kept,${q("boosted")}:$boosted,${q("fresh")}:$fresh,${q("preserved")}:$preserved,${q("skipped")}:$skipped},\n")
+    sb.append(s"  ${q("boost_groups")}:[\n")
+    sb.append(s"    {${q("code")}:${q("b14")},${q("title")}:${q("Driver Boosts")},${q("kind")}:${q("cluster")},${q("count")}:${b14Boosts.size},${q("entries")}:[$b14Json]},\n")
+    sb.append(s"    {${q("code")}:${q("b16")},${q("title")}:${q("OOM Reboosting")},${q("kind")}:${q("recipe")},${q("count")}:$b16TotalRecipesJson,${q("cluster_count")}:${b16Boosts.size},${q("entries")}:[$b16Json]}\n")
+    sb.append("  ],\n")
+    sb.append(s"  ${q("statistical_analysis")}:{${q("correlation_pairs")}:$correlationCount,${q("divergences")}:$divergenceCount}\n")
+    sb.append("}\n")
+
+    ClusterMachineAndRecipeTuner.writeFile(outputDir, "_generation_summary_auto_tuner.json", sb.toString())
+    logger.info(s"Auto-tuner summary JSON written to ${outputDir.getPath}/_generation_summary_auto_tuner.json")
   }
 
   private def logTrendSummary(trends: Seq[TrendAssessment]): Unit = {

@@ -42,8 +42,24 @@ header h1 {
   letter-spacing: 0.4px;
 }
 
-.date-pill.ref { color: #58a6ff; }
-.date-pill.cur { color: #f0883e; }
+.date-pill.ref {
+  color: #04282a;
+  background: linear-gradient(135deg, #c8f3ee, #a7e4dd);
+  border-color: rgba(20, 180, 170, 0.35);
+  text-shadow: none;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);
+}
+.date-pill.cur {
+  --age: 1;
+  /* mix a light turquoise (#7fe9e0) with a deeper one (#0a8a82) by --age */
+  background: linear-gradient(135deg,
+    color-mix(in srgb, #7fe9e0 calc((1 - var(--age)) * 100%), #0a8a82 calc(var(--age) * 100%)),
+    color-mix(in srgb, #5fcfc6 calc((1 - var(--age)) * 100%), #086a64 calc(var(--age) * 100%)));
+  color: #04282a;
+  border-color: rgba(20, 180, 170, 0.6);
+  box-shadow: 0 2px 6px rgba(20, 180, 170, 0.35), inset 0 1px 0 rgba(255,255,255,0.18);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.15);
+}
 .date-arrow { font-size: 18px; color: #c9d1d9; font-weight: 700; }
 
 /* Tabs */
@@ -823,3 +839,339 @@ main {
   pointer-events: none; /* card click handles open; button is visual affordance */
 }
 .landing-card:hover .landing-card-open { background: #2ea043; }
+
+/* ── Date pill: turquoise gradient for "current" date pills ──────────────── */
+/* Older runs: lighter turquoise. Newer runs: darker turquoise. Driven by the
+   inline CSS variable --age (0..1) set by JS via applyAgePill(). */
+.date-pill.cur {
+  --age: 1;
+  /* mix a light turquoise (#7fe9e0) with a deeper one (#0a8a82) by --age */
+  background: linear-gradient(135deg,
+    color-mix(in srgb, #7fe9e0 calc((1 - var(--age)) * 100%), #0a8a82 calc(var(--age) * 100%)),
+    color-mix(in srgb, #5fcfc6 calc((1 - var(--age)) * 100%), #086a64 calc(var(--age) * 100%)));
+  color: #04282a;
+  border-color: rgba(20, 180, 170, 0.6);
+  box-shadow: 0 2px 6px rgba(20, 180, 170, 0.35), inset 0 1px 0 rgba(255,255,255,0.18);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.15);
+}
+
+#metadata-bar .metadata-generated { font-style: italic; color: #8b949e; }
+#metadata-bar .metadata-generated strong { font-style: italic; color: #c9d1d9; font-weight: 600; }
+
+/* ── Cluster tooltip: master | worker, then workers / jobs underneath ───── */
+.tooltip-conf-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 14px;
+  margin-top: 6px;
+  font-size: 11px;
+}
+.tooltip-conf-grid .k { color: #8b949e; margin-right: 4px; }
+.tooltip-conf-grid .v { color: #f0f6fc; }
+.tooltip-conf-grid .full { grid-column: 1 / -1; }
+
+/* ── Boost overview (b14, b16, future bxx) ───────────────────────────────── */
+#boost-overview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 8px 0 18px;
+  padding-top: 14px;
+  border-top: 1px dashed #21262d;
+}
+.boost-card {
+  background: #11161d;
+  border: 1px solid #2a3340;
+  border-left: 3px solid #6e7681;
+  border-radius: 6px;
+  padding: 10px 14px;
+  flex: 1 1 280px;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.boost-card.b14 { border-left-color: #d29922; }
+.boost-card.b16 { border-left-color: #bc8cff; }
+.boost-card-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.boost-card-header .bxx-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #1f2733;
+  color: #c9d1d9;
+  letter-spacing: 0.4px;
+  border: 1px solid #30363d;
+}
+.boost-card-header .boost-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #c9d1d9;
+  font-weight: 600;
+}
+.boost-card-header .boost-count {
+  margin-left: auto;
+  font-size: 18px;
+  font-weight: 700;
+  color: #f0f6fc;
+}
+.boost-card-header .boost-count .boost-count-sub {
+  font-size: 11px;
+  font-weight: 400;
+  color: #8b949e;
+  margin-left: 4px;
+}
+.boost-card-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+  overflow: auto;
+  font-size: 11px;
+  border-top: 1px solid #21262d;
+  padding-top: 6px;
+}
+.boost-card-list li {
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.boost-card-list li:last-child { border-bottom: none; }
+.boost-cluster-link, .boost-recipe-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #58a6ff;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.boost-cluster-link:hover, .boost-recipe-link:hover { text-decoration: underline; color: #79b8ff; }
+.boost-meta { color: #8b949e; font-size: 10px; }
+.boost-recipe-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-left: 12px;
+  padding: 2px 0;
+}
+.boost-recipe-row .delta { color: #d29922; font-family: "SF Mono", Menlo, monospace; font-size: 10px; }
+
+/* ── Cluster summary tiles + modal ───────────────────────────────────────── */
+#clusters-summary-section {
+  margin: 0 0 16px;
+}
+#clusters-summary-section h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #8b949e;
+  margin-bottom: 8px;
+}
+.cs-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+.cs-tile {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #c9d1d9;
+  transition: border-color 0.15s, background 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cs-tile:hover { border-color: #58a6ff; background: #1c2128; }
+.cs-tile .cs-tile-title { font-weight: 600; color: #f0f6fc; word-break: break-all; }
+.cs-tile .cs-tile-meta { color: #8b949e; font-size: 10px; }
+
+.summary-search-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+  position: sticky;
+  top: 0;
+  background: #161b22;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid #21262d;
+  z-index: 1;
+}
+.summary-search-row input {
+  flex: 1;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  color: #c9d1d9;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.summary-search-row .summary-meta { color: #8b949e; font-size: 11px; }
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.summary-table th {
+  position: sticky;
+  top: 38px;
+  background: #1c2128;
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid #30363d;
+  color: #8b949e;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 10px;
+}
+.summary-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid #21262d;
+  vertical-align: top;
+}
+.summary-table tr.hit { background: rgba(88, 166, 255, 0.06); }
+.summary-row-cluster-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #58a6ff;
+  cursor: pointer;
+  font: inherit;
+}
+.summary-row-cluster-link:hover { text-decoration: underline; }
+
+/* ── Inputs tree (landing) ───────────────────────────────────────────────── */
+.inputs-tree {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  font-size: 12px;
+}
+.inputs-tree details { margin: 2px 0; }
+.inputs-tree summary {
+  cursor: pointer;
+  color: #f0f6fc;
+  font-weight: 600;
+  padding: 4px 0;
+  outline: none;
+  list-style: none;
+}
+.inputs-tree summary::-webkit-details-marker { display: none; }
+.inputs-tree summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 14px;
+  color: #8b949e;
+  transition: transform 0.1s;
+}
+.inputs-tree details[open] > summary::before {
+  content: "▾";
+}
+.inputs-tree .file {
+  margin-left: 22px;
+  padding: 2px 0;
+  color: #c9d1d9;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 11px;
+}
+.inputs-tree .file a { color: #c9d1d9; text-decoration: none; }
+.inputs-tree .file a:hover { color: #58a6ff; text-decoration: underline; }
+.inputs-tree .summary-count { color: #8b949e; font-weight: 400; font-size: 11px; margin-left: 6px; }
+
+/* Landing inputs section heading */
+.landing-inputs h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f0f6fc;
+  margin-bottom: 6px;
+}
+
+/* Landing card date pill: use same style as elsewhere (already inherited). */
+
+/* ── FIX_2: wider, taller, more compact CSV summary modal ─────────────────── */
+.modal.summary-modal {
+  max-width: min(1700px, 96vw);
+  max-height: 95vh;
+  width: 96vw;
+}
+.modal.summary-modal .modal-body {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* allow inner scroll container to shrink */
+}
+.modal.summary-modal .summary-search-row {
+  position: static; /* moved outside scroll container — no overlap */
+  margin: 0 0 8px;
+  padding: 0;
+  border-bottom: none;
+}
+.modal.summary-modal .summary-scroll {
+  overflow: auto;
+  flex: 1 1 auto;
+  border: 1px solid #21262d;
+  border-radius: 4px;
+}
+.modal.summary-modal .summary-table {
+  font-size: 11px;
+}
+.modal.summary-modal .summary-table th {
+  /* Sticky to the inner scroll container only — top:0 since search-row is outside. */
+  position: sticky;
+  top: 0;
+  background: #1c2128;
+  padding: 5px 8px;
+  z-index: 2;
+  box-shadow: inset 0 -1px 0 #30363d;
+}
+.modal.summary-modal .summary-table td {
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+.modal.summary-modal .summary-table tr:hover td { background: rgba(88, 166, 255, 0.05); }
+
+/* Default scroll container styling for non-wide modal usage. */
+.summary-scroll { overflow: auto; max-height: 70vh; }
+
+/* ── FIX_5: section heading above filter bar ─────────────────────────────── */
+h3.section-heading {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #8b949e;
+  margin: 14px 0 8px;
+}
+
+/* ── FIX_1: file preview button (looks like a link, behaves like a button) ─ */
+.inputs-tree .file-preview-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: #c9d1d9;
+  cursor: pointer;
+  text-align: left;
+}
+.inputs-tree .file-preview-link:hover { color: #58a6ff; text-decoration: underline; }
+
+/* ── Date pills: unified turquoise palette across landing + metadata bar ──── */
+/* Both .ref and .cur pills now follow the same turquoise family (see the global
+   .date-pill.ref / .date-pill.cur rules at the top of the file). No overrides
+   needed here — the landing-card-title .cur rule below only adjusts the shadow. */
+.landing-card-title .date-pill.cur {
+  /* Slightly stronger shadow to make the “current” pill the visual anchor. */
+  box-shadow: 0 3px 8px rgba(20, 180, 170, 0.45), inset 0 1px 0 rgba(255,255,255,0.18);
+}
