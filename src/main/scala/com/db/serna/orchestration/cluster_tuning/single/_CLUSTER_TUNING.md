@@ -93,6 +93,12 @@ Alternative (fine-grained):
 - Export individual CSVs for b1, b3, b5, b8, b11, b12.
   The [ClusterMachineAndRecipeTuner.scala](ClusterMachineAndRecipeTuner.scala) supports both modes.
 
+Optional (cluster wall-clock cost): export `b20_cluster_span_time.csv` (one row
+per Create→Delete incarnation) and `b21_cluster_autoscaler_values.csv` (one row
+per autoscaler decision) to enable the cluster-span cost path described in
+[Cost estimation](#cost-estimation). When absent, the tuner logs a warning and
+uses the legacy job-sum formula.
+
 ### Flattened vs individual CSVs: parity
 
 Both ingestion paths (`loadFlattened` via b13 and `loadFromIndividualCSVs` via b1/b3/b5/b8/b11/b12)
@@ -155,11 +161,27 @@ Optional (diagnostics):
 
 ## Cost estimation
 
-- Uses approximate europe-west3 on-demand VM pricing (EUR) per machine type.
-- Estimated cluster cost = (workers × worker_hourly + master_hourly) × active_hours
-- Active minutes are approximated from `avg_job_duration_ms × runs` per recipe.
+The `estimated_cost_eur` field in the cluster-summary CSVs is computed in this order:
 
-Adjust the `PriceCatalog` if you need more accurate rates or committed use discounts.
+1. **Cluster wall-clock cost (preferred — b20 + b21)** — for each Dataproc cluster
+   incarnation in `b20_cluster_span_time.csv`, integrate worker count × time over
+   `(span_start_ts, span_end_ts]` using the autoscaler step function in
+   `b21_cluster_autoscaler_values.csv` (filtered to `RECOMMENDING` events with a
+   numeric `target_primary_workers`). Master is +1 node, priced separately and
+   pinned to the same family as workers. When a span has no autoscaler events, the
+   b23 fallback applies: `cost = (clusterPlan.workers × worker_hourly + master_hourly) × span_hours`.
+2. **Legacy job-sum (last-ditch fallback)** — when no `b20` row exists for a cluster
+   we fall back to `(workers × worker_hourly + master_hourly) × Σ(avg_job_duration_ms / 60_000) / 60`.
+   This sum-of-job-durations approach over-counts concurrent jobs and ignores idle
+   cluster time, so a `WARN` is logged whenever it kicks in. Drop `b20.csv` (and
+   ideally `b21.csv`) into the inputs directory to switch to the accurate path.
+
+Pricing comes from `PriceCatalog` (in `ClusterMachineAndRecipeTuner.scala`), which
+loads `src/main/resources/composer/dwh/config/cluster_tuning/price_catalog_europe_west3.csv`
+(`family,vCpu_eur_per_hour,memGb_eur_per_hour`). Edit that CSV — or swap it for a
+different region's file — to update rates without touching code. If the CSV is
+missing or unreadable the catalog falls back to the hardcoded europe-west3 values
+in the same file.
 
 ## Tips
 - Prefer [b13_recommendations_inputs_per_recipe_per_cluster.sql](../log_analytics/b13_recommendations_inputs_per_recipe_per_cluster.sql)
