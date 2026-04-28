@@ -1329,55 +1329,220 @@ h3.section-heading {
 /* ── Z-score strip plot ──────────────────────────────────────────────────── */
 #z-strip-plot { margin: 12px 0 16px; }
 .z-strip-row { margin-bottom: 4px; }
-.z-strip-row svg { display: block; max-width: 100%; }
-.z-strip-row .zs-axis { stroke: rgba(139,148,158,0.5); stroke-width: 0.8; }
-.z-strip-row .zs-zero { stroke: rgba(110, 118, 129, 0.4); stroke-width: 0.6; stroke-dasharray: 2 2; }
-.z-strip-row .zs-band-outlier { fill: rgba(248, 81, 73, 0.10); }
-.z-strip-row .zs-label { fill: #8b949e; font: 11px/1 monospace; }
-.z-strip-row .zs-med { fill: rgba(248, 201, 73, 0.85); }
-.z-strip-row .zs-high { fill: rgba(248, 81, 73, 1); stroke: rgba(255,255,255,0.4); stroke-width: 0.4; }
-.z-strip-row .zs-new { fill: rgba(210, 153, 34, 1); stroke: rgba(0,0,0,0.5); stroke-width: 0.5; }
+.z-strip-row svg { display: block; /* removed max-width:100% to allow wider SVG */ }
+.z-strip-container {
+  overflow-x: auto;
+  overflow-y: hidden;
+  cursor: grab;
+  position: relative;
+}
+.z-strip-container.dragging { cursor: grabbing; }
+.z-strip-container .zs-dot-circle { cursor: pointer; transition: r 0.1s; }
+.z-strip-container .zs-dot-circle:hover { filter: brightness(1.3); }
+
+/* Strip plot SVG elements */
+.zs-label { fill: #8b949e; font: 11px/1 -apple-system, BlinkMacSystemFont, sans-serif; }
+.zs-axis { stroke: #30363d; stroke-width: 1; }
+.zs-zero { stroke: #6e7681; stroke-width: 1; stroke-dasharray: 3 3; }
+.zs-band-outlier { fill: rgba(248, 81, 73, 0.06); }
+.zs-med { fill: #d29922; }
+.zs-high { fill: #f85149; }
+.zs-new { fill: #58a6ff; stroke: rgba(0,0,0,0.4); stroke-width: 0.5; }
+
+/* Strip plot legend */
 .z-strip-legend {
   display: flex;
-  gap: 16px;
+  align-items: center;
+  gap: 14px;
   flex-wrap: wrap;
   margin-bottom: 8px;
-  font-size: 10px;
+  font-size: 11px;
   color: #8b949e;
 }
-.zs-legend-item { display: inline-flex; align-items: center; gap: 4px; }
+.zs-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
 .zs-dot {
   display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: 50%;
 }
-.zs-dot.zs-med { background: rgba(248, 201, 73, 0.85); }
-.zs-dot.zs-high { background: rgba(248, 81, 73, 1); }
-.zs-dot.zs-new { background: rgba(210, 153, 34, 1); }
+.zs-dot.zs-med { background: #d29922; }
+.zs-dot.zs-high { background: #f85149; }
+.zs-dot.zs-new { background: #58a6ff; }
 .zs-band-outlier-swatch {
   display: inline-block;
   width: 16px;
   height: 8px;
-  background: rgba(248, 81, 73, 0.18);
-  border: 1px solid rgba(248, 81, 73, 0.4);
+  background: rgba(248, 81, 73, 0.15);
+  border: 1px solid rgba(248, 81, 73, 0.3);
+  border-radius: 2px;
+}
+.z-strip-highlight { background: rgba(210, 153, 34, 0.15) !important; transition: background 0.5s; }
+
+/* Divergence table clickable rows */
+.div-row-clickable { cursor: pointer; }
+.div-row-clickable:hover { background: rgba(88, 166, 255, 0.08) !important; }
+
+/* Reset zoom button (strip plot) */
+.zs-reset-btn {
+  background: #1f2733;
+  border: 1px solid #30363d;
+  color: #8b949e;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 10px;
+  cursor: pointer;
+  margin-left: 12px;
+  display: none;
+}
+.zs-reset-btn:hover { color: #58a6ff; border-color: #58a6ff; }
+.zs-reset-btn.visible { display: inline-block; }
+
+/* Zoom hint */
+.zs-zoom-hint {
+  margin-left: auto;
+  font-size: 10px;
+  color: #6e7681;
 }
 
-/* ── Cluster-detail foldouts (per-cluster correlations + outliers) ────────── */
-.detail-foldout {
-  background: #0d1117;
+/* ── ENHANCED: Chart cell expand / reset / zoom ──────────────────────────── */
+/* Chart grid: 2-col mosaic by default */
+.cs-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.cs-chart-cell {
+  background: #161b22;
   border: 1px solid #30363d;
   border-radius: 8px;
-  margin: 12px 0;
+  padding: 14px 16px;
+}
+.cs-chart-canvas {
+  position: relative;
+  width: 100%;
+  height: 220px;
+}
+.cs-chart-canvas canvas { width: 100% !important; height: 100% !important; }
+
+/* Permanently wide cells (e.g. distribution) span full row + taller */
+.cs-chart-cell.cs-chart-wide {
+  grid-column: 1 / -1;
+}
+.cs-chart-cell.cs-chart-wide .cs-chart-canvas { height: 340px; }
+
+.cs-chart-cell-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+.cs-chart-cell-header h4 { margin: 0; flex: 1; font-size: 12px; color: #c9d1d9; font-weight: 600; }
+
+.cs-expand-btn, .cs-reset-btn {
+  background: #1f2733;
+  border: 1px solid #30363d;
+  color: #8b949e;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.cs-expand-btn:hover, .cs-reset-btn:hover { color: #58a6ff; border-color: #58a6ff; }
+.cs-reset-btn { display: none; font-size: 10px; }
+.cs-reset-btn.visible { display: inline-flex; }
+
+/* Expanded: take full width and taller canvas */
+.cs-chart-cell.cs-chart-expanded {
+  grid-column: 1 / -1;
+}
+.cs-chart-cell.cs-chart-expanded .cs-chart-canvas { height: 440px; }
+
+
+/* Distribution chart zoom hint */
+.cs-zoom-hint {
+  font-size: 10px;
+  color: #6e7681;
+  margin: 4px 0 12px;
+  text-align: right;
+}
+
+/* KPI strip */
+.cs-kpi-strip {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.cs-kpi-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 12px 16px;
+  flex: 1 1 160px;
+  min-width: 140px;
+  text-align: center;
+}
+.cs-kpi-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #8b949e;
+  margin-bottom: 4px;
+}
+.cs-kpi-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #3fb950;
+}
+.cs-kpi-sub {
+  font-size: 10px;
+  color: #6e7681;
+  margin-top: 2px;
+}
+.cs-current-marker-legend {
+  color: #58a6ff;
+  font-size: 10px;
+}
+
+/* ── ENHANCED: Mini scatter axis labels ──────────────────────────────────── */
+.scatter-mini .sc-axis-label {
+  fill: #6e7681;
+  font: 9px/1 -apple-system, sans-serif;
+}
+
+/* ── Detail foldout sections (Correlations, Outliers) ────────────────────── */
+.detail-foldout {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  overflow: hidden;
 }
 .detail-foldout > summary {
-  cursor: pointer;
-  padding: 10px 14px;
+  padding: 12px 16px;
   font-size: 13px;
   font-weight: 600;
   color: #f0f6fc;
+  cursor: pointer;
   list-style: none;
-  outline: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #161b22;
+  border-bottom: 1px solid transparent;
+  transition: background 0.15s;
   user-select: none;
 }
 .detail-foldout > summary::-webkit-details-marker { display: none; }
@@ -1386,176 +1551,37 @@ h3.section-heading {
   display: inline-block;
   width: 14px;
   color: #8b949e;
-  transition: transform 0.1s;
+  transition: transform 0.15s;
+  font-size: 12px;
 }
 .detail-foldout[open] > summary::before { content: "▾"; }
-.detail-foldout > div { padding: 10px 14px 14px; }
+.detail-foldout[open] > summary { border-bottom-color: #30363d; background: #1c2128; }
+.detail-foldout > summary:hover { background: #1c2128; }
+.detail-foldout > div { padding: 14px 16px; }
 
+/* ── Cluster outlier table (in cluster detail view) ──────────────────────── */
 .cluster-outlier-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11px;
-}
-.cluster-outlier-table th,
-.cluster-outlier-table td {
-  padding: 6px 10px;
-  text-align: left;
-  border-bottom: 1px solid #21262d;
+  font-size: 12px;
 }
 .cluster-outlier-table th {
+  background: #1c2128;
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 2px solid #30363d;
   color: #8b949e;
-  font-weight: 600;
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
 }
+.cluster-outlier-table td {
+  padding: 6px 12px;
+  border-bottom: 1px solid #21262d;
+}
+.cluster-outlier-table tr:hover { background: rgba(88, 166, 255, 0.05); }
 .cluster-outlier-table .z-high { color: #f85149; font-weight: 600; }
-.cluster-outlier-table .z-med  { color: #f8c949; }
-
-/* ── Cluster Summary Graphs (collapsible historical trends) ──────────────── */
-.cs-graphs {
-  margin: 16px 0;
-  background: #0d1117;
-  border: 1px solid #30363d;
-  border-radius: 8px;
-}
-.cs-graphs > summary {
-  cursor: pointer;
-  padding: 12px 16px;
-  list-style: none;
-  outline: none;
-  user-select: none;
-}
-.cs-graphs > summary::-webkit-details-marker { display: none; }
-.cs-graphs > summary::before {
-  content: "▸";
-  display: inline-block;
-  width: 16px;
-  color: #8b949e;
-  transition: transform 0.1s;
-}
-.cs-graphs[open] > summary::before { content: "▾"; }
-.cs-graphs > summary h3 {
-  margin: 0;
-  font-size: 16px;
-  color: #f0f6fc;
-}
-.cs-graphs-help {
-  display: inline-block;
-  margin-left: 12px;
-  font-size: 11px;
-  color: #8b949e;
-  font-weight: 400;
-}
-#cs-graphs-body {
-  padding: 16px;
-  border-top: 1px solid #21262d;
-}
-
-.cs-kpi-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
-}
-.cs-kpi-card {
-  background: linear-gradient(180deg, rgba(31,111,235,0.12), rgba(31,111,235,0.04));
-  border: 1px solid rgba(88,166,255,0.25);
-  border-radius: 8px;
-  padding: 12px 14px;
-}
-.cs-kpi-label {
-  color: #8b949e;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.cs-kpi-value {
-  margin-top: 4px;
-  color: #f0f6fc;
-  font-size: 22px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.cs-kpi-sub {
-  margin-top: 2px;
-  color: #6e7681;
-  font-size: 10px;
-}
-
-.cs-chart-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-  gap: 16px;
-}
-.cs-chart-cell {
-  background: #161b22;
-  border: 1px solid #30363d;
-  border-radius: 8px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-}
-.cs-chart-cell.cs-chart-wide { grid-column: 1 / -1; }
-.cs-chart-cell h4 {
-  margin: 0 0 8px;
-  font-size: 12px;
-  color: #c9d1d9;
-  font-weight: 600;
-}
-.cs-chart-canvas {
-  position: relative;
-  height: 240px;
-}
-.cs-current-marker-legend {
-  font-size: 10px;
-  color: #f8c949;
-  font-weight: 400;
-  margin-left: 6px;
-}
-
-/* Distribution strip plot */
-#cs-distribution { overflow-x: auto; }
-#cs-distribution svg { display: block; }
-.cs-dist-grid { stroke: rgba(255,255,255,0.04); stroke-width: 0.6; }
-.cs-dist-axis { fill: #6e7681; font: 10px/1 monospace; }
-.cs-dist-label { fill: #8b949e; font: 10px/1 monospace; text-anchor: end; }
-.cs-dist-prior { fill: rgba(88, 166, 255, 0.55); }
-.cs-dist-current { fill: rgba(210, 153, 34, 1); stroke: rgba(0,0,0,0.4); stroke-width: 0.6; }
-
-/* ── Doc popover: formula + svg + example additions ──────────────────────── */
-.doc-popover { max-width: 440px; }
-.doc-body {
-  margin-top: 6px;
-  color: #c9d1d9;
-  font-size: 12px;
-  line-height: 1.5;
-}
-.doc-formula {
-  margin-top: 10px;
-  padding: 8px 10px;
-  background: #0d1117;
-  border: 1px solid #30363d;
-  border-radius: 4px;
-  color: #58a6ff;
-  font: 12px/1.4 "SF Mono", Menlo, monospace;
-  text-align: center;
-}
-.doc-svg-wrap {
-  margin-top: 10px;
-  background: #0d1117;
-  border: 1px solid #30363d;
-  border-radius: 4px;
-  padding: 6px;
-}
-.doc-svg-wrap svg { display: block; }
-.doc-example {
-  margin-top: 10px;
-  padding: 8px 10px;
-  background: rgba(31, 111, 235, 0.08);
-  border-left: 2px solid #58a6ff;
-  color: #c9d1d9;
-  font-size: 11px;
-  border-radius: 0 4px 4px 0;
-}
-.doc-example em { color: #58a6ff; font-style: normal; }
+.cluster-outlier-table .z-med { color: #d29922; }

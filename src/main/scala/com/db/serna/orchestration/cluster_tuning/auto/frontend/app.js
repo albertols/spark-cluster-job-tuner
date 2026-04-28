@@ -1,6 +1,3 @@
-Classification: Public
-
-app.js
 // Spark Cluster Auto-Tuner Dashboard
 // Reads _auto_tuner_analysis.json and renders interactive visualizations.
 
@@ -708,6 +705,12 @@ function renderLandingPage(entries) {
       const idx = parseInt(card.dataset.idx, 10);
       navigate({ data: sorted[idx].dir, tab: null, cluster: null, recipe: null, summary: null });
     });
+    card.addEventListener('auxclick', (e) => {
+      if (e.button !== 1) return;
+      e.preventDefault();
+      const idx = parseInt(card.dataset.idx, 10);
+      window.open(buildUrl({ data: sorted[idx].dir }), '_blank');
+    });
   });
 }
 
@@ -868,6 +871,11 @@ function renderClusterGrid() {
 
   grid.querySelectorAll('.cluster-card').forEach(card => {
     card.addEventListener('click', () => navigate({ cluster: card.dataset.cluster, recipe: null }));
+    card.addEventListener('auxclick', (e) => {
+      if (e.button !== 1) return;
+      e.preventDefault();
+      window.open(buildUrl(Object.assign({}, parseRoute(), { cluster: card.dataset.cluster, recipe: null })), '_blank');
+    });
     // Lazy-load mini conf
     populateMiniConf(card.dataset.cluster);
   });
@@ -1040,6 +1048,11 @@ async function showClusterDetailRaw(clusterName) {
       if (e.target.closest('.copy-btn') || e.target.closest('.info-icon')) return;
       navigate({ recipe: card.dataset.recipe });
     });
+    card.addEventListener('auxclick', (e) => {
+      if (e.button !== 1) return;
+      e.preventDefault();
+      window.open(buildUrl(Object.assign({}, parseRoute(), { recipe: card.dataset.recipe })), '_blank');
+    });
   });
 
   renderDetailCharts(cluster, clusterName);
@@ -1074,7 +1087,7 @@ function renderClusterDetailCorrelations(clusterName) {
       <div class="corr-card-body">
         <div class="corr-card-value" style="background:${color}">${r.toFixed(3)}</div>
         <div class="corr-card-meta"><div>n=${c.n}</div><div class="corr-card-view">cluster-scope</div></div>
-        ${renderMiniScatter(points)}
+        ${renderMiniScatter(points, shortA, shortB)}
       </div>
       <div class="corr-card-interp">${interpretCorrelation(r, shortA, shortB)}</div>
     </div>`;
@@ -1571,7 +1584,7 @@ function renderCorrelationCards(view, clusterFilter) {
           <div>n=${c.n}</div>
           <div class="corr-card-view">${view === 'delta' ? 'deltas' : 'current snapshot'}</div>
         </div>
-        ${renderMiniScatter(points)}
+        ${renderMiniScatter(points, shortA, shortB)}
       </div>
       <div class="corr-card-interp">${interp}</div>
     </div>`;
@@ -1590,11 +1603,17 @@ function scatterPointsFor(view, metricA, metricB, clusterFilter) {
   return arr.filter(p => p.cluster === clusterFilter);
 }
 
-// Inline-SVG mini scatter, ~120x80 px, with new-job points overlaid in gold.
-function renderMiniScatter(points) {
-  const W = 120, H = 80, PAD = 6;
+// Inline-SVG mini scatter, ~160x110 px, with new-job points overlaid in gold.
+// Optional xAxisLabel / yAxisLabel add small labels on the axes.
+function renderMiniScatter(points, xAxisLabel, yAxisLabel) {
+  const hasLabels = !!(xAxisLabel || yAxisLabel);
+  const W = hasLabels ? 168 : 120;
+  const H = hasLabels ? 114 : 80;
+  const PAD_L = hasLabels && yAxisLabel ? 22 : 6;
+  const PAD_B = hasLabels && xAxisLabel ? 18 : 6;
+  const PAD_T = 6, PAD_R = 6;
   if (!points || points.length === 0) {
-    return `<div class="scatter-mini scatter-mini-empty">no points</div>`;
+    return `<div class="scatter-mini scatter-mini-empty" style="width:${W}px;height:${H}px">no points</div>`;
   }
   const xs = points.map(p => p.x);
   const ys = points.map(p => p.y);
@@ -1603,32 +1622,40 @@ function renderMiniScatter(points) {
   const xSpan = xMax - xMin || 1;
   const ySpan = yMax - yMin || 1;
   const project = (p) => {
-    const px = PAD + ((p.x - xMin) / xSpan) * (W - 2 * PAD);
-    const py = H - PAD - ((p.y - yMin) / ySpan) * (H - 2 * PAD);
+    const px = PAD_L + ((p.x - xMin) / xSpan) * (W - PAD_L - PAD_R);
+    const py = PAD_T + (1 - (p.y - yMin) / ySpan) * (H - PAD_T - PAD_B);
     return [px, py];
   };
-  // Existing points first (blue), then new on top (gold) so they're never hidden.
   const dots = points.map(p => {
     const [px, py] = project(p);
     const cls = p.is_new ? 'sc-new' : 'sc-pt';
     const title = `${p.cluster} · ${p.recipe}\nx=${formatNum(p.x)}, y=${formatNum(p.y)}`;
     return `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${p.is_new ? 2.5 : 1.8}" class="${cls}"><title>${escapeHtml(title)}</title></circle>`;
   });
-  // Axes (just the box and a faint zero crossline if zero is in range).
   let zeroXLine = '';
   let zeroYLine = '';
   if (xMin <= 0 && xMax >= 0) {
-    const zx = PAD + ((0 - xMin) / xSpan) * (W - 2 * PAD);
-    zeroXLine = `<line x1="${zx}" y1="${PAD}" x2="${zx}" y2="${H - PAD}" class="sc-zero"/>`;
+    const zx = PAD_L + ((0 - xMin) / xSpan) * (W - PAD_L - PAD_R);
+    zeroXLine = `<line x1="${zx}" y1="${PAD_T}" x2="${zx}" y2="${H - PAD_B}" class="sc-zero"/>`;
   }
   if (yMin <= 0 && yMax >= 0) {
-    const zy = H - PAD - ((0 - yMin) / ySpan) * (H - 2 * PAD);
-    zeroYLine = `<line x1="${PAD}" y1="${zy}" x2="${W - PAD}" y2="${zy}" class="sc-zero"/>`;
+    const zy = PAD_T + (1 - (0 - yMin) / ySpan) * (H - PAD_T - PAD_B);
+    zeroYLine = `<line x1="${PAD_L}" y1="${zy}" x2="${W - PAD_R}" y2="${zy}" class="sc-zero"/>`;
+  }
+  let axisLabels = '';
+  if (xAxisLabel) {
+    axisLabels += `<text x="${(PAD_L + W - PAD_R) / 2}" y="${H - 2}" text-anchor="middle" class="sc-axis-label">${escapeHtml(xAxisLabel)}</text>`;
+  }
+  if (yAxisLabel) {
+    const cx = PAD_L / 2;
+    const cy = (PAD_T + H - PAD_B) / 2;
+    axisLabels += `<text x="${cx}" y="${cy}" text-anchor="middle" class="sc-axis-label" transform="rotate(-90 ${cx} ${cy})">${escapeHtml(yAxisLabel)}</text>`;
   }
   return `<svg class="scatter-mini" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="scatter plot">
     <rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" class="sc-frame"/>
     ${zeroXLine}${zeroYLine}
     ${dots.join('')}
+    ${axisLabels}
   </svg>`;
 }
 
@@ -1709,13 +1736,27 @@ function renderDivergenceTable(view, clusterFilter) {
   }
 
   renderZScoreStripPlot(view, clusterFilter);
+
+  // Wire clickable rows → navigate to recipe tuning details
+  document.querySelectorAll('#divergence-table tbody tr.div-row-clickable').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.copy-btn')) return; // don't interfere with copy buttons
+      navigate({ cluster: row.dataset.cluster, recipe: row.dataset.recipe });
+    });
+    row.addEventListener('auxclick', (e) => {
+      if (e.button !== 1) return;
+      e.preventDefault();
+      const url = buildUrl(Object.assign({}, parseRoute(), { cluster: row.dataset.cluster, recipe: row.dataset.recipe }));
+      window.open(url, '_blank');
+    });
+  });
 }
 
 function divergenceRowHtml(d) {
   const zCls = Math.abs(d.z_score) >= 3 ? 'z-high' : 'z-med';
   const newPill = d.is_new_entry ? '<span class="new-pill">NEW</span>' : '';
-  const refCell = d.view === 'current_snapshot' ? '—' : formatMetricValue(d.metric, d.reference);
-  return `<tr>
+  const refCell = (d.is_new_entry || d.reference == null) ? '—' : formatMetricValue(d.metric, d.reference);
+  return `<tr class="div-row-clickable" data-cluster="${escapeAttr(d.cluster)}" data-recipe="${escapeAttr(d.recipe)}">
     <td>${escapeHtml(d.cluster)} ${copyIcon(d.cluster)}</td>
     <td>${escapeHtml(d.recipe)} ${newPill} ${copyIcon(d.recipe)}</td>
     <td>${labelMetric(d.metric)}</td>
@@ -1727,54 +1768,186 @@ function divergenceRowHtml(d) {
 
 // One row per metric. Each row is a horizontal axis with the ±zThreshold band
 // shaded; circles plotted at each (cluster, recipe)'s z-score. New entries gold.
-function renderZScoreStripPlot(view, clusterFilter) {
-  const host = document.getElementById('z-strip-plot');
-  if (!host) return;
-  const { results } = pickDivergenceSet(view, clusterFilter);
-  const zMin = parseFloat(document.getElementById('z-min').value) || 0;
-  if (!results || results.length === 0) { host.innerHTML = ''; return; }
+// Enhanced: data-level zoom (Ctrl/⌘+wheel), drag-to-pan, hover tooltip, clickable dots & rows.
+let _stripZoomLevel = 0;   // 0 = default; positive = zoomed in
+let _stripZoomMax = 10;
+let _stripBaseAbsMax = null;
+let _stripPanOffset = 0;   // shift the visible centre (in z-score units)
+let _stripAbortCtrl = null; // AbortController for document-level drag listeners
 
-  // Group by metric and pick a symmetric x-range from the data.
+/** Build the SVG rows HTML for the strip plot (no side-effects). */
+function _buildStripSVGs(results, zMin) {
   const byMetric = {};
   results.forEach(d => {
     (byMetric[d.metric] = byMetric[d.metric] || []).push(d);
   });
 
-  const W = 720, H = 30, PAD = 100;
-  const innerW = W - PAD - 20;
   const allZ = results.map(d => d.z_score);
-  const absMax = Math.max(zMin + 0.5, ...allZ.map(Math.abs));
-  const xMin = -absMax, xMax = absMax;
+  const dataAbsMax = Math.max(zMin + 0.5, ...allZ.map(Math.abs));
+  if (_stripBaseAbsMax === null) _stripBaseAbsMax = dataAbsMax;
+
+  const zoomFactor = Math.pow(0.8, _stripZoomLevel);
+  const visAbsMax = _stripBaseAbsMax * zoomFactor;
+  const xMin = -visAbsMax + _stripPanOffset, xMax = visAbsMax + _stripPanOffset;
+
+  const W = 1100, H = 34, PAD = 210;
+  const innerW = W - PAD - 20;
   const project = (z) => PAD + ((z - xMin) / (xMax - xMin)) * innerW;
 
-  const rows = Object.entries(byMetric).sort((a, b) => a[0].localeCompare(b[0])).map(([metric, ds]) => {
+  return Object.entries(byMetric).sort((a, b) => a[0].localeCompare(b[0])).map(([metric, ds]) => {
     const yMid = H / 2;
     const bandLeft = project(-zMin);
     const bandRight = project(zMin);
     const dots = ds.map(d => {
       const cx = project(d.z_score);
       const cls = d.is_new_entry ? 'zs-new' : (Math.abs(d.z_score) >= 3 ? 'zs-high' : 'zs-med');
-      const tip = `${d.cluster} · ${d.recipe}\nz=${d.z_score.toFixed(2)}`;
-      return `<circle cx="${cx.toFixed(1)}" cy="${yMid}" r="3.5" class="${cls}"><title>${escapeHtml(tip)}</title></circle>`;
+      return `<circle cx="${cx.toFixed(1)}" cy="${yMid}" r="4" class="${cls} zs-dot-circle"
+        data-cluster="${escapeAttr(d.cluster)}" data-recipe="${escapeAttr(d.recipe)}"
+        data-metric="${escapeAttr(d.metric)}" data-z="${d.z_score.toFixed(2)}"
+        data-ref="${d.reference != null ? d.reference : ''}" data-cur="${d.current != null ? d.current : ''}"
+        data-new="${d.is_new_entry ? '1' : '0'}"/>`;
     }).join('');
     return `<div class="z-strip-row">
       <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeAttr('z-score strip for ' + metric)}">
         <text x="${PAD - 6}" y="${yMid + 4}" text-anchor="end" class="zs-label">${escapeHtml(labelMetric(metric))}</text>
         <line x1="${PAD}" y1="${yMid}" x2="${W - 20}" y2="${yMid}" class="zs-axis"/>
-        <rect x="${PAD}" y="${yMid - 8}" width="${bandLeft - PAD}" height="16" class="zs-band-outlier"/>
-        <rect x="${bandRight}" y="${yMid - 8}" width="${(W - 20) - bandRight}" height="16" class="zs-band-outlier"/>
+        <rect x="${PAD}" y="${yMid - 8}" width="${Math.max(0, bandLeft - PAD)}" height="16" class="zs-band-outlier"/>
+        <rect x="${bandRight}" y="${yMid - 8}" width="${Math.max(0, (W - 20) - bandRight)}" height="16" class="zs-band-outlier"/>
         <line x1="${project(0)}" y1="${yMid - 8}" x2="${project(0)}" y2="${yMid + 8}" class="zs-zero"/>
         ${dots}
       </svg>
     </div>`;
   }).join('');
+}
 
+function renderZScoreStripPlot(view, clusterFilter) {
+  // Abort any previous document-level drag listeners to avoid stacking
+  if (_stripAbortCtrl) _stripAbortCtrl.abort();
+  _stripAbortCtrl = new AbortController();
+  const _signal = _stripAbortCtrl.signal;
+  const host = document.getElementById('z-strip-plot');
+  if (!host) return;
+  const { results } = pickDivergenceSet(view, clusterFilter);
+  const zMin = parseFloat(document.getElementById('z-min').value) || 0;
+  if (!results || results.length === 0) { host.innerHTML = ''; return; }
+
+  const rows = _buildStripSVGs(results, zMin);
+
+  const resetVisible = (_stripZoomLevel !== 0 || _stripPanOffset !== 0) ? 'visible' : '';
   host.innerHTML = `<div class="z-strip-legend">
     <span class="zs-legend-item"><span class="zs-dot zs-med"></span> 2 ≤ |z| &lt; 3</span>
     <span class="zs-legend-item"><span class="zs-dot zs-high"></span> |z| ≥ 3</span>
     <span class="zs-legend-item"><span class="zs-dot zs-new"></span> new job</span>
     <span class="zs-legend-item"><span class="zs-band-outlier-swatch"></span> outlier band (|z| ≥ ${zMin})</span>
-  </div>${rows}`;
+    <button class="zs-reset-btn ${resetVisible}" id="zs-reset-zoom">↻ Reset zoom</button>
+    <span class="zs-zoom-hint">⌘/Ctrl + wheel to zoom · drag to pan · hover for details · click dot → row</span>
+  </div><div class="z-strip-container" id="z-strip-container">${rows}</div>`;
+
+  // Wire interactions
+  const container = document.getElementById('z-strip-container');
+  if (!container) return;
+
+  // Keep a reference to results + zMin for fast SVG-only redraws during drag
+  const _cachedResults = results;
+  const _cachedZMin = zMin;
+
+  // Ctrl/⌘ + wheel zoom (data-level)
+  container.addEventListener('wheel', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    const prev = _stripZoomLevel;
+    _stripZoomLevel = Math.max(0, Math.min(_stripZoomMax, _stripZoomLevel + (e.deltaY < 0 ? 1 : -1)));
+    if (_stripZoomLevel !== prev) renderZScoreStripPlot(view, clusterFilter);
+  }, { passive: false });
+
+  // Drag-to-pan (data-level: translates the visible z-range)
+  let dragState = null;
+  const zRange = () => _stripBaseAbsMax * Math.pow(0.8, _stripZoomLevel) * 2;
+  container.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest('.zs-dot-circle')) return;
+    dragState = { startX: e.clientX, startOffset: _stripPanOffset };
+    container.classList.add('dragging');
+    e.preventDefault();
+  });
+  const onDragMove = (e) => {
+    if (!dragState) return;
+    const dx = e.clientX - dragState.startX;
+    const pxWidth = container.getBoundingClientRect().width || 1;
+    _stripPanOffset = dragState.startOffset - (dx / pxWidth) * zRange();
+    // Fast redraw: only replace the inner SVG rows, keep event listeners intact
+    container.innerHTML = _buildStripSVGs(_cachedResults, _cachedZMin);
+    // Update reset button visibility
+    const resetBtn = document.getElementById('zs-reset-zoom');
+    if (resetBtn) resetBtn.classList.toggle('visible', _stripZoomLevel !== 0 || _stripPanOffset !== 0);
+  };
+  const onDragEnd = () => {
+    if (dragState) { dragState = null; container.classList.remove('dragging'); }
+  };
+  document.addEventListener('mousemove', onDragMove, { signal: _signal });
+  document.addEventListener('mouseup', onDragEnd, { signal: _signal });
+
+  // Hover tooltip on dots
+  container.addEventListener('mouseover', (e) => {
+    const dot = e.target.closest('.zs-dot-circle');
+    if (!dot) return;
+    const cluster = dot.dataset.cluster;
+    const recipe = dot.dataset.recipe;
+    const z = dot.dataset.z;
+    const isNew = dot.dataset.new === '1';
+    tooltip.innerHTML = `<div style="font-weight:600;color:#f0f6fc;margin-bottom:4px">${escapeHtml(cluster)}</div>
+      <div style="color:#8b949e;font-size:11px">${escapeHtml(recipe)}${isNew ? ' <span class="new-pill">NEW</span>' : ''}</div>
+      <div style="margin-top:4px">z-score: <strong style="color:${Math.abs(parseFloat(z)) >= 3 ? '#f85149' : '#d29922'}">${z}</strong></div>`;
+    tooltip.style.display = 'block';
+    const r = dot.getBoundingClientRect();
+    tooltip.style.left = (r.left + r.width / 2 - tooltip.offsetWidth / 2) + 'px';
+    tooltip.style.top = (r.top - tooltip.offsetHeight - 8) + 'px';
+  });
+  container.addEventListener('mouseout', (e) => {
+    if (e.target.closest('.zs-dot-circle')) tooltip.style.display = 'none';
+  });
+
+  // Click dot → highlight and scroll to matching table row
+  container.addEventListener('click', (e) => {
+    const dot = e.target.closest('.zs-dot-circle');
+    if (!dot) return;
+    const cluster = dot.dataset.cluster;
+    const recipe = dot.dataset.recipe;
+    // Find matching row in divergence table
+    const rows = document.querySelectorAll('#divergence-table tbody tr');
+    rows.forEach(row => {
+      row.classList.remove('z-strip-highlight');
+      const cells = row.querySelectorAll('td');
+      if (cells.length >= 2 && cells[0].textContent.includes(cluster) && cells[1].textContent.includes(recipe)) {
+        row.classList.add('z-strip-highlight');
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => row.classList.remove('z-strip-highlight'), 3000);
+      }
+    });
+  });
+
+  // Middle-click dot → open cluster/recipe in new tab
+  container.addEventListener('auxclick', (e) => {
+    if (e.button !== 1) return;
+    const dot = e.target.closest('.zs-dot-circle');
+    if (!dot) return;
+    e.preventDefault();
+    const cluster = dot.dataset.cluster;
+    const recipe = dot.dataset.recipe;
+    const url = buildUrl(Object.assign({}, parseRoute(), { cluster, recipe }));
+    window.open(url, '_blank');
+  });
+
+  // Reset zoom button
+  const resetBtn = document.getElementById('zs-reset-zoom');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      _stripZoomLevel = 0;
+      _stripPanOffset = 0;
+      _stripBaseAbsMax = null;
+      renderZScoreStripPlot(view, clusterFilter);
+    });
+  }
 }
 
 // ── Utilities ───────────────────────────────────────────────────────────────
@@ -2069,11 +2242,21 @@ function renderBoostOverview() {
       ev.stopPropagation();
       navigate({ cluster: b.dataset.cluster, recipe: null });
     });
+    b.addEventListener('auxclick', (ev) => {
+      if (ev.button !== 1) return;
+      ev.preventDefault(); ev.stopPropagation();
+      window.open(buildUrl(Object.assign({}, parseRoute(), { cluster: b.dataset.cluster, recipe: null })), '_blank');
+    });
   });
   host.querySelectorAll('.boost-recipe-link').forEach(b => {
     b.addEventListener('click', (ev) => {
       ev.stopPropagation();
       navigate({ cluster: b.dataset.cluster, recipe: b.dataset.recipe });
+    });
+    b.addEventListener('auxclick', (ev) => {
+      if (ev.button !== 1) return;
+      ev.preventDefault(); ev.stopPropagation();
+      window.open(buildUrl(Object.assign({}, parseRoute(), { cluster: b.dataset.cluster, recipe: b.dataset.recipe })), '_blank');
     });
   });
 }
@@ -2146,6 +2329,11 @@ function renderClustersSummarySection() {
     `</div>`;
   host.querySelectorAll('.cs-tile').forEach(t => {
     t.addEventListener('click', () => navigate({ summary: t.dataset.file }));
+    t.addEventListener('auxclick', (e) => {
+      if (e.button !== 1) return;
+      e.preventDefault();
+      window.open(buildUrl(Object.assign({}, parseRoute(), { summary: t.dataset.file })), '_blank');
+    });
   });
 }
 
@@ -2210,26 +2398,98 @@ async function renderClusterSummaryGraphs() {
 
   body.innerHTML = `
     <div class="cs-kpi-strip" id="cs-kpi-strip"></div>
+    <div class="cs-zoom-hint">Ctrl/⌘ + scroll to zoom charts · click points to jump to cluster · ⤢ expand for detail</div>
     <div class="cs-chart-grid">
-      <div class="cs-chart-cell"><h4>Estimated cost (€) over time</h4><div class="cs-chart-canvas"><canvas id="cs-line-cost"></canvas></div></div>
-      <div class="cs-chart-cell"><h4>Workers over time</h4><div class="cs-chart-canvas"><canvas id="cs-line-workers"></canvas></div></div>
-      <div class="cs-chart-cell"><h4>Total active minutes over time</h4><div class="cs-chart-canvas"><canvas id="cs-line-minutes"></canvas></div></div>
-      <div class="cs-chart-cell"><h4>Number of jobs over time</h4><div class="cs-chart-canvas"><canvas id="cs-line-jobs"></canvas></div></div>
-      <div class="cs-chart-cell cs-chart-wide"><h4>Total fleet cost over time (stacked by cluster)</h4><div class="cs-chart-canvas"><canvas id="cs-area-cost"></canvas></div></div>
-      <div class="cs-chart-cell"><h4>Cost vs jobs <span class="cs-current-marker-legend">● current run</span></h4><div class="cs-chart-canvas"><canvas id="cs-scatter-jobs"></canvas></div></div>
-      <div class="cs-chart-cell"><h4>Cost vs workers</h4><div class="cs-chart-canvas"><canvas id="cs-scatter-workers"></canvas></div></div>
-      <div class="cs-chart-cell"><h4>Cost vs active minutes</h4><div class="cs-chart-canvas"><canvas id="cs-scatter-minutes"></canvas></div></div>
-      <div class="cs-chart-cell"><h4>Per-cluster cost distribution</h4><div id="cs-distribution"></div></div>
-      <div class="cs-chart-cell"><h4>Cost share by worker machine type (current run)</h4><div class="cs-chart-canvas"><canvas id="cs-pie-machine"></canvas></div></div>
+      ${csChartCell('Estimated cost (€) over time', 'cs-line-cost')}
+      ${csChartCell('Workers over time', 'cs-line-workers')}
+      ${csChartCell('Total active minutes over time', 'cs-line-minutes')}
+      ${csChartCell('Number of jobs over time', 'cs-line-jobs')}
+      ${csChartCell('Total fleet cost over time (stacked by cluster)', 'cs-area-cost')}
+      ${csChartCell('Cost vs jobs <span class="cs-current-marker-legend">● current run</span>', 'cs-scatter-jobs')}
+      ${csChartCell('Cost vs workers', 'cs-scatter-workers')}
+      ${csChartCell('Cost vs active minutes', 'cs-scatter-minutes')}
+      ${csChartCell('Per-cluster cost distribution', 'cs-distribution', true)}
+      ${csChartCell('Cost share by worker machine type (current run)', 'cs-pie-machine')}
     </div>
   `;
 
   renderCsKpis(history, currentEntryHist);
+  wireCsExpandButtons();
   renderCsLineCharts(history, currentDate);
   renderCsAreaChart(history, currentDate);
   renderCsScatters(history, currentDate);
   renderCsDistribution(history, currentDate);
   renderCsPie(currentEntryHist);
+}
+
+// Helper: generate a chart cell with header bar (title + reset + expand buttons)
+// wide=true means permanently full-width (e.g. distribution); others expand/collapse.
+function csChartCell(title, canvasId, wide) {
+  const wideClass = wide ? ' cs-chart-wide' : '';
+  return `<div class="cs-chart-cell${wideClass}" data-canvas-id="${canvasId}"${wide ? ' data-permanent-wide="1"' : ''}>
+    <div class="cs-chart-cell-header">
+      <h4>${title}</h4>
+      <button class="cs-reset-btn" title="Reset zoom">↻</button>
+      <button class="cs-expand-btn" title="Expand / collapse">⤢</button>
+    </div>
+    <div class="cs-chart-canvas"><canvas id="${canvasId}"></canvas></div>
+  </div>`;
+}
+
+function wireCsExpandButtons() {
+  document.querySelectorAll('.cs-expand-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cell = btn.closest('.cs-chart-cell');
+      // For permanently-wide cells (distribution), only toggle expanded height
+      const isPermanentWide = cell.dataset.permanentWide === '1';
+      if (isPermanentWide) {
+        const isExpanded = cell.classList.toggle('cs-chart-expanded');
+        btn.textContent = isExpanded ? '⤡' : '⤢';
+      } else {
+        // Toggle expanded: adds full-width + taller canvas
+        const isExpanded = cell.classList.toggle('cs-chart-expanded');
+        btn.textContent = isExpanded ? '⤡' : '⤢';
+      }
+      // Resize charts in the cell
+      const canvas = cell.querySelector('canvas');
+      if (canvas && canvas._chartInstance) {
+        setTimeout(() => canvas._chartInstance.resize(), 50);
+      }
+    });
+  });
+  document.querySelectorAll('.cs-reset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cell = btn.closest('.cs-chart-cell');
+      const canvas = cell.querySelector('canvas');
+      if (canvas && canvas._chartInstance) {
+        canvas._chartInstance.resetZoom();
+        btn.classList.remove('visible');
+      }
+    });
+  });
+}
+
+// Shared zoom plugin config for Chart.js charts
+function csZoomPluginConfig(canvas) {
+  return {
+    zoom: {
+      wheel: { enabled: true, modifierKey: 'ctrl' },
+      pinch: { enabled: true },
+      mode: 'xy',
+      onZoom: () => {
+        const cell = canvas.closest('.cs-chart-cell');
+        if (cell) { const rb = cell.querySelector('.cs-reset-btn'); if (rb) rb.classList.add('visible'); }
+      }
+    },
+    pan: {
+      enabled: true,
+      mode: 'xy',
+      onPan: () => {
+        const cell = canvas.closest('.cs-chart-cell');
+        if (cell) { const rb = cell.querySelector('.cs-reset-btn'); if (rb) rb.classList.add('visible'); }
+      }
+    }
+  };
 }
 
 // Compute and render the saved-€ KPI strip. "Saved" is defined as the gap from
@@ -2309,7 +2569,7 @@ function renderCsLineChart(canvasId, history, currentDate, valueKey, label, form
     };
   });
 
-  new Chart(canvas, {
+  const chart = new Chart(canvas, {
     type: 'line',
     data: { labels: dates, datasets },
     options: {
@@ -2320,12 +2580,36 @@ function renderCsLineChart(canvasId, history, currentDate, valueKey, label, form
           callbacks: {
             label: (ctx) => `${ctx.dataset.label}: ${formatter(ctx.parsed.y)}`
           }
-        }
+        },
+        zoom: csZoomPluginConfig(canvas)
       },
       scales: {
-        x: { ticks: { color: '#8b949e', maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        x: { ticks: { color: '#8b949e', maxRotation: 45, autoSkip: true }, grid: { color: 'rgba(255,255,255,0.04)' } },
         y: { ticks: { color: '#8b949e', callback: (v) => formatter(v) }, grid: { color: 'rgba(255,255,255,0.04)' }, title: { display: true, text: label, color: '#8b949e' } }
+      },
+      onClick: (evt, elements) => {
+        if (elements.length > 0) {
+          const el = elements[0];
+          const clusterName = datasets[el.datasetIndex].label;
+          if (evt.native && evt.native.button === 1) {
+            window.open(buildUrl(Object.assign({}, parseRoute(), { cluster: clusterName, recipe: null })), '_blank');
+          } else {
+            navigate({ cluster: clusterName, recipe: null });
+          }
+        }
       }
+    }
+  });
+  canvas._chartInstance = chart;
+
+  // Middle-click support
+  canvas.addEventListener('auxclick', (e) => {
+    if (e.button !== 1) return;
+    const elements = chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, false);
+    if (elements.length > 0) {
+      e.preventDefault();
+      const clusterName = datasets[elements[0].datasetIndex].label;
+      window.open(buildUrl(Object.assign({}, parseRoute(), { cluster: clusterName, recipe: null })), '_blank');
     }
   });
 }
@@ -2364,18 +2648,28 @@ function renderCsAreaChart(history, currentDate) {
       pointRadius: 0
     };
   });
-  new Chart(canvas, {
+  const chart = new Chart(canvas, {
     type: 'line',
     data: { labels: dates, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: {
+        legend: { display: false },
+        zoom: csZoomPluginConfig(canvas)
+      },
       scales: {
-        x: { stacked: true, ticks: { color: '#8b949e', maxRotation: 0 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        x: { stacked: true, ticks: { color: '#8b949e', maxRotation: 45, autoSkip: true }, grid: { color: 'rgba(255,255,255,0.04)' } },
         y: { stacked: true, ticks: { color: '#8b949e', callback: (v) => `${formatNum(v)} €` }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      },
+      onClick: (evt, elements) => {
+        if (elements.length > 0) {
+          const clusterName = datasets[elements[0].datasetIndex].label;
+          navigate({ cluster: clusterName, recipe: null });
+        }
       }
     }
   });
+  canvas._chartInstance = chart;
 }
 
 // Cost vs (jobs / workers / minutes) scatters. Every (cluster, date) is a point;
@@ -2392,7 +2686,7 @@ function renderCsScatter(canvasId, history, currentDate, xKey, xLabel) {
       else points.push(pt);
     });
   });
-  new Chart(canvas, {
+  const chart = new Chart(canvas, {
     type: 'scatter',
     data: {
       datasets: [
@@ -2407,12 +2701,32 @@ function renderCsScatter(canvasId, history, currentDate, xKey, xLabel) {
         tooltip: { callbacks: { label: (ctx) => {
           const p = ctx.raw;
           return `${p.cluster} (${p.date}): ${formatNum(p.x)} ${xLabel} → ${formatNum(p.y)} €`;
-        } } }
+        } } },
+        zoom: csZoomPluginConfig(canvas)
       },
       scales: {
         x: { ticks: { color: '#8b949e' }, grid: { color: 'rgba(255,255,255,0.04)' }, title: { display: true, text: xLabel, color: '#8b949e' } },
         y: { ticks: { color: '#8b949e', callback: (v) => `${formatNum(v)} €` }, grid: { color: 'rgba(255,255,255,0.04)' }, title: { display: true, text: '€', color: '#8b949e' } }
+      },
+      onClick: (evt, elements) => {
+        if (elements.length > 0) {
+          const allDs = [points, currentPoints];
+          const pt = allDs[elements[0].datasetIndex][elements[0].index];
+          if (pt) navigate({ cluster: pt.cluster, recipe: null });
+        }
       }
+    }
+  });
+  canvas._chartInstance = chart;
+
+  canvas.addEventListener('auxclick', (e) => {
+    if (e.button !== 1) return;
+    const elements = chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, false);
+    if (elements.length > 0) {
+      e.preventDefault();
+      const allDs = [points, currentPoints];
+      const pt = allDs[elements[0].datasetIndex][elements[0].index];
+      if (pt) window.open(buildUrl(Object.assign({}, parseRoute(), { cluster: pt.cluster, recipe: null })), '_blank');
     }
   });
 }
@@ -2423,57 +2737,99 @@ function renderCsScatters(history, currentDate) {
   renderCsScatter('cs-scatter-minutes', history, currentDate, 'total_active_minutes', 'minutes');
 }
 
-// One column per cluster, one dot per historical run on the y-axis (cost).
-// Current-date dot is gold and slightly larger.
+// Per-cluster cost distribution — now rendered as a Chart.js scatter chart so
+// it supports zoom, pan, hover tooltips, clicking, and the expand button works.
 function renderCsDistribution(history, currentDate) {
-  const host = document.getElementById('cs-distribution');
-  if (!host) return;
+  const canvas = document.getElementById('cs-distribution');
+  if (!canvas) return;
   const allClusters = Array.from(new Set(history.flatMap(h => h.rows.map(r => r.cluster_name)))).sort();
-  if (allClusters.length === 0) { host.innerHTML = '<div class="empty-msg">No clusters.</div>'; return; }
+  if (allClusters.length === 0) return;
 
-  const W = Math.max(360, allClusters.length * 22);
-  const H = 220;
-  const PAD_L = 50, PAD_R = 10, PAD_T = 10, PAD_B = 36;
-  const innerW = W - PAD_L - PAD_R;
-  const innerH = H - PAD_T - PAD_B;
+  const clusterIdx = {};
+  allClusters.forEach((c, i) => { clusterIdx[c] = i; });
 
-  const allCosts = history.flatMap(h => h.rows.map(r => r.estimated_cost_eur));
-  const yMax = Math.max(1, ...allCosts);
-  const projectY = (v) => PAD_T + innerH - (v / yMax) * innerH;
-  const colWidth = innerW / allClusters.length;
-  const projectX = (i) => PAD_L + colWidth * (i + 0.5);
+  const histPts = [];
+  const curPts = [];
+  history.forEach(h => {
+    h.rows.forEach(r => {
+      const pt = { x: clusterIdx[r.cluster_name], y: r.estimated_cost_eur, cluster: r.cluster_name, date: h.date };
+      if (h.date === currentDate) curPts.push(pt);
+      else histPts.push(pt);
+    });
+  });
 
-  const dots = allClusters.map((c, i) => {
-    const cx = projectX(i);
-    return history.map(h => {
-      const row = h.rows.find(r => r.cluster_name === c);
-      if (!row) return '';
-      const cy = projectY(row.estimated_cost_eur);
-      const isCurrent = h.date === currentDate;
-      const cls = isCurrent ? 'cs-dist-current' : 'cs-dist-prior';
-      const r = isCurrent ? 4 : 2.5;
-      const tip = `${c} (${h.date})\n${formatNum(row.estimated_cost_eur)} €`;
-      return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r}" class="${cls}"><title>${escapeHtml(tip)}</title></circle>`;
-    }).join('');
-  }).join('');
+  const chart = new Chart(canvas, {
+    type: 'scatter',
+    data: {
+      datasets: [
+        { label: 'Historical run', data: histPts, backgroundColor: 'rgba(88,166,255,0.55)', borderColor: 'rgba(88,166,255,0.8)', pointRadius: 3.5 },
+        { label: 'Current run', data: curPts, backgroundColor: 'rgba(210,153,34,0.85)', borderColor: 'rgba(210,153,34,1)', pointRadius: 5, pointStyle: 'rectRot' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#c9d1d9' } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const p = ctx.raw;
+              return `${p.cluster} (${p.date}): ${formatNum(p.y)} €`;
+            }
+          }
+        },
+        zoom: csZoomPluginConfig(canvas)
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          ticks: {
+            color: '#8b949e',
+            stepSize: 1,
+            maxRotation: 45,
+            minRotation: 35,
+            autoSkip: false,
+            callback: (v) => {
+              const idx = Math.round(v);
+              if (idx >= 0 && idx < allClusters.length) {
+                const name = allClusters[idx];
+                return name.length > 18 ? name.slice(0, 18) + '…' : name;
+              }
+              return '';
+            }
+          },
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          title: { display: true, text: 'Cluster', color: '#8b949e' },
+          min: -0.5,
+          max: allClusters.length - 0.5
+        },
+        y: {
+          ticks: { color: '#8b949e', callback: (v) => `${formatNum(v)} €` },
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          title: { display: true, text: 'Estimated cost (€)', color: '#8b949e' }
+        }
+      },
+      onClick: (evt, elements) => {
+        if (elements.length > 0) {
+          const allDs = [histPts, curPts];
+          const pt = allDs[elements[0].datasetIndex][elements[0].index];
+          if (pt) navigate({ cluster: pt.cluster, recipe: null });
+        }
+      }
+    }
+  });
+  canvas._chartInstance = chart;
 
-  const labels = allClusters.map((c, i) => {
-    const x = projectX(i);
-    const short = c.replace(/^cluster-/, '').slice(0, 20);
-    return `<text x="${x.toFixed(1)}" y="${(H - 8).toFixed(1)}" class="cs-dist-label" transform="rotate(-35 ${x.toFixed(1)} ${(H - 8).toFixed(1)})">${escapeHtml(short)}</text>`;
-  }).join('');
-
-  // y-axis: 4 ticks
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map(t => {
-    const v = yMax * t;
-    const y = projectY(v);
-    return `<line x1="${PAD_L}" y1="${y}" x2="${W - PAD_R}" y2="${y}" class="cs-dist-grid"/>
-            <text x="${PAD_L - 6}" y="${y + 4}" text-anchor="end" class="cs-dist-axis">${formatNum(v)} €</text>`;
-  }).join('');
-
-  host.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="cluster cost distribution">
-    ${ticks}${dots}${labels}
-  </svg>`;
+  canvas.addEventListener('auxclick', (e) => {
+    if (e.button !== 1) return;
+    const elements = chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, false);
+    if (elements.length > 0) {
+      e.preventDefault();
+      const allDs = [histPts, curPts];
+      const pt = allDs[elements[0].datasetIndex][elements[0].index];
+      if (pt) window.open(buildUrl(Object.assign({}, parseRoute(), { cluster: pt.cluster, recipe: null })), '_blank');
+    }
+  });
 }
 
 // Pie chart of current-run cost share by worker_machine_type.
@@ -2488,7 +2844,7 @@ function renderCsPie(currentEntry) {
   const labels = Object.keys(byType);
   const values = labels.map(l => byType[l]);
   const colors = labels.map((_, i) => `hsla(${(i * 47) % 360}, 50%, 55%, 0.75)`);
-  new Chart(canvas, {
+  const chart = new Chart(canvas, {
     type: 'pie',
     data: { labels, datasets: [{ data: values, backgroundColor: colors }] },
     options: {
@@ -2499,6 +2855,7 @@ function renderCsPie(currentEntry) {
       }
     }
   });
+  canvas._chartInstance = chart;
 }
 
 async function openSummaryModalRaw(fileName) {
@@ -2563,6 +2920,11 @@ function renderSummaryCsv(parsed, fileName, opts) {
     b.addEventListener('click', (e) => {
       e.stopPropagation();
       navigate({ cluster: b.dataset.cluster, recipe: null, summary: null });
+    });
+    b.addEventListener('auxclick', (e) => {
+      if (e.button !== 1) return;
+      e.preventDefault(); e.stopPropagation();
+      window.open(buildUrl(Object.assign({}, parseRoute(), { cluster: b.dataset.cluster, recipe: null, summary: null })), '_blank');
     });
   });
 
