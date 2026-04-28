@@ -79,11 +79,17 @@ object MachineCatalog {
   def byName(name: String): Option[MachineType] = defaults.find(_.name == name)
 }
 
-// Approximate hourly prices for europe-west3 (EUR). Validate for your billing account.
+// Approximate hourly prices for europe-west3 (Frankfurt), in EUR. Loaded from
+// src/main/resources/composer/dwh/config/cluster_tuning/price_catalog_europe_west3.csv;
+// hardcoded values below are used as a fallback when the CSV is missing or
+// unreadable. Swap the CSV (or point at a different one) to model another
+// region. Validate against your billing account before relying on absolutes.
 object PriceCatalog {
+  private val logger = LoggerFactory.getLogger(getClass)
+
   private final case class Rate(vCpu: Double, memGb: Double)
 
-  private val familyRates: Map[String, Rate] = Map(
+  private val fallbackFamilyRates: Map[String, Rate] = Map(
     "e2" -> Rate(vCpu = 0.0336, memGb = 0.0042),
     "n2" -> Rate(vCpu = 0.0470, memGb = 0.0065),
     "n2d" -> Rate(vCpu = 0.0430, memGb = 0.0060),
@@ -94,12 +100,38 @@ object PriceCatalog {
     "n4d" -> Rate(vCpu = 0.0460, memGb = 0.0061)
   )
 
+  private val DefaultRatesCsv: File =
+    new File("src/main/resources/composer/dwh/config/cluster_tuning/price_catalog_europe_west3.csv")
+
+  private def loadFromCsv(file: File): Option[Map[String, Rate]] = {
+    if (!file.exists()) return None
+    Try {
+      val parsed = Csv.parse(file).flatMap { row =>
+        for {
+          fam   <- row.get("family").map(_.trim).filter(_.nonEmpty)
+          vCpu  <- row.get("vCpu_eur_per_hour").flatMap(Csv.toDouble)
+          memGb <- row.get("memGb_eur_per_hour").flatMap(Csv.toDouble)
+        } yield fam.toLowerCase -> Rate(vCpu, memGb)
+      }.toMap
+      if (parsed.isEmpty) None else Some(parsed)
+    }.toOption.flatten
+  }
+
+  private val familyRates: Map[String, Rate] = loadFromCsv(DefaultRatesCsv) match {
+    case Some(rates) =>
+      logger.info(s"PriceCatalog: loaded ${rates.size} family rates from ${DefaultRatesCsv.getPath}")
+      rates
+    case None =>
+      logger.warn(s"PriceCatalog: ${DefaultRatesCsv.getPath} missing or unreadable; using hardcoded fallback rates.")
+      fallbackFamilyRates
+  }
+
   private def familyOf(name: String): String =
     name.takeWhile(_ != '-')
 
   private def priceFor(mt: MachineType): Double = {
     val fam = familyOf(mt.name)
-    val rate = familyRates.getOrElse(fam, familyRates("e2"))
+    val rate = familyRates.getOrElse(fam, familyRates.getOrElse("e2", fallbackFamilyRates("e2")))
     rate.vCpu * mt.cores + rate.memGb * mt.memoryGb
   }
 
