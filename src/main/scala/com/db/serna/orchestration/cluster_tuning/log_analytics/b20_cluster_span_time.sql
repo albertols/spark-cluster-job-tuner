@@ -1,82 +1,159 @@
 -- b20_cluster_span_time.sql
 --
--- Purpose: emit one row per Dataproc cluster with the wall-clock span
--- (creation → destruction) so the autoscale-cost calc (b22/b23) can integrate
--- worker counts × time over a real interval, not over summed job durations.
+-- Purpose: emit ONE ROW PER CLUSTER INCARNATION (Create -> Delete cycle)
+-- so the autoscale-cost calc (b22/b23) can integrate worker counts x time
+-- over a real billing interval. Same `cluster_name` recreated multiple times
+-- in the window produces multiple rows — uniqueness is (cluster_name, span_start_ts).
 --
 -- Output columns:
 --   cluster_name             STRING
---   span_start_ts            TIMESTAMP   -- earliest signal we have for this cluster
---   span_end_ts              TIMESTAMP   -- latest signal we have for this cluster
---   span_minutes             FLOAT64     -- (span_end_ts − span_start_ts) in minutes
---   create_event_ts          TIMESTAMP   -- best-effort timestamp of the explicit Create marker (NULL if not seen)
---   delete_event_ts          TIMESTAMP   -- best-effort timestamp of the explicit Delete marker (NULL if not seen)
+--   incarnation_idx          INT64       -- 1..N within the window for this cluster_name (chronological)
+--   span_start_ts            TIMESTAMP   -- explicit CreateCluster ts when seen, else first observed event
+--   span_end_ts              TIMESTAMP   -- explicit DeleteCluster ts when seen, else last observed event
+--   span_minutes             FLOAT64
+--   create_event_ts          TIMESTAMP   -- explicit CreateCluster (NULL = created before window start)
+--   delete_event_ts          TIMESTAMP   -- explicit DeleteCluster (NULL = still alive at window end)
 --   has_explicit_create      BOOL
 --   has_explicit_delete      BOOL
---   total_events             INT64       -- diagnostic: how many cluster-scoped events contributed to the span
+--   total_events             INT64       -- diagnostic across all incarnations of this cluster_name
 --
--- Validation gate (please run this and report back):
---   1) Row count vs. expected number of clusters in the window.
---   2) For 2–3 known clusters: do span_start_ts / span_end_ts look right?
---   3) Are has_explicit_create / has_explicit_delete usually true? If a cluster
---      has neither, span_start_ts/span_end_ts will fall back to first/last
---      cluster-scoped log line — confirm that's an acceptable fallback.
---   4) The two CREATE/DELETE regexes (in `markers` CTE) are guesses based on
---      common Dataproc operation messages. Replace them with the actual log
---      patterns you see, then we can tighten this query.
+-- Row taxonomy:
+--   * Both flags TRUE  -> short-lived cluster fully observed in window.
+--   * Create only      -> cluster still alive at window end (delete_event_ts=NULL).
+--   * Delete only      -> cluster created before window start (create_event_ts=NULL).
+--   * Both flags FALSE -> long-lived cluster spanning the whole 24h window.
 --
--- Source project matches b1–b13/b15/b16 (per project decision: `db-prd-rn63-pwcclake-es`).
+-- Notes:
+--   * proto_payload is a STRUCT in this Log Analytics view, so we access
+--     proto_payload.audit_log.method_name directly (no JSON_VALUE).
+--   * Pairing rule: for each CreateCluster ts c on a given cluster_name, pair
+--     with the smallest DeleteCluster ts d such that d > c. Deletes with no
+--     preceding Create in the window are emitted as orphan rows (older
+--     incarnation, created before window start).
 
 WITH base AS (
   SELECT
     timestamp,
-    -- resource.labels.* is JSON-typed in Log Analytics views. CAST(... AS STRING)
-    -- preserves the JSON type and is rejected by GROUP BY; JSON_VALUE extracts
-    -- the scalar as a true STRING. (Same fix applies if you see the
-    -- "Grouping by expressions of type JSON is not allowed" error elsewhere.)
+    -- resource.labels.* is JSON-typed; JSON_VALUE returns a true STRING.
     JSON_VALUE(resource.labels.cluster_name) AS cluster_name,
-    CAST(COALESCE(text_payload, TO_JSON_STRING(json_payload), '') AS STRING) AS msg
+    log_name,
+    proto_payload
   FROM `db-prd-rn63-pwcclake-es.global._Default._Default`
   WHERE resource.type = 'cloud_dataproc_cluster'
     AND JSON_VALUE(resource.labels.cluster_name) IS NOT NULL
 ),
-markers AS (
+audit AS (
+  -- Admin-activity audit log: Dataproc CreateCluster / DeleteCluster operations.
   SELECT
-    cluster_name,
     timestamp,
-    -- TODO(validate): refine these regexes once we see real log payloads.
-    -- These match common Dataproc operation messages.
-    REGEXP_CONTAINS(msg, r'(?i)(creating cluster|cluster\s+created|CreateCluster\s+completed)') AS is_create,
-    REGEXP_CONTAINS(msg, r'(?i)(deleting cluster|cluster\s+deleted|DeleteCluster\s+completed)') AS is_delete
+    cluster_name,
+    proto_payload.audit_log.method_name AS method_name
   FROM base
+  WHERE log_name LIKE '%cloudaudit.googleapis.com%2Factivity'
+    AND proto_payload.audit_log.method_name IS NOT NULL
 ),
-spans AS (
+creates AS (
+  SELECT cluster_name, timestamp AS create_ts
+  FROM audit
+  WHERE method_name LIKE '%.CreateCluster'
+),
+deletes AS (
+  SELECT cluster_name, timestamp AS delete_ts
+  FROM audit
+  WHERE method_name LIKE '%.DeleteCluster'
+),
+-- Pair each Create with the soonest Delete after it on the same cluster_name.
+paired AS (
+  SELECT
+    c.cluster_name,
+    c.create_ts,
+    (SELECT MIN(d.delete_ts)
+       FROM deletes d
+      WHERE d.cluster_name = c.cluster_name
+        AND d.delete_ts > c.create_ts) AS delete_ts
+  FROM creates c
+),
+-- Orphan deletes: a Delete with no preceding Create in the window
+-- (the cluster was created before window start).
+orphan_deletes AS (
+  SELECT
+    d.cluster_name,
+    CAST(NULL AS TIMESTAMP) AS create_ts,
+    d.delete_ts
+  FROM deletes d
+  WHERE NOT EXISTS (
+    SELECT 1 FROM creates c
+    WHERE c.cluster_name = d.cluster_name
+      AND c.create_ts    < d.delete_ts
+  )
+),
+incarnations AS (
+  SELECT * FROM paired
+  UNION ALL
+  SELECT * FROM orphan_deletes
+),
+fallback AS (
+  -- First/last event timestamps across all logs for this cluster_name (any incarnation).
+  -- Used to fill missing endpoints; total_events is purely diagnostic.
   SELECT
     cluster_name,
-    MIN(timestamp)                                                     AS span_start_ts,
-    MAX(timestamp)                                                     AS span_end_ts,
-    MIN(IF(is_create, timestamp, NULL))                                AS create_event_ts,
-    MAX(IF(is_delete, timestamp, NULL))                                AS delete_event_ts,
-    LOGICAL_OR(is_create)                                              AS has_explicit_create,
-    LOGICAL_OR(is_delete)                                              AS has_explicit_delete,
-    COUNT(*)                                                           AS total_events
-  FROM markers
+    MIN(timestamp) AS first_event_ts,
+    MAX(timestamp) AS last_event_ts,
+    COUNT(*)       AS total_events
+  FROM base
   GROUP BY cluster_name
+),
+explicit_rows AS (
+  SELECT
+    i.cluster_name,
+    i.create_ts AS create_event_ts,
+    i.delete_ts AS delete_event_ts,
+    -- Order incarnations by whatever endpoint we know about.
+    ROW_NUMBER() OVER (
+      PARTITION BY i.cluster_name
+      ORDER BY COALESCE(i.create_ts, i.delete_ts)
+    ) AS incarnation_idx,
+    f.first_event_ts,
+    f.last_event_ts,
+    f.total_events
+  FROM incarnations i
+  LEFT JOIN fallback f USING (cluster_name)
+),
+-- Clusters that appear in `base` but have neither Create nor Delete in the
+-- window (long-lived clusters that span the entire 24h retention).
+windowed_only AS (
+  SELECT
+    f.cluster_name,
+    CAST(NULL AS TIMESTAMP) AS create_event_ts,
+    CAST(NULL AS TIMESTAMP) AS delete_event_ts,
+    1                       AS incarnation_idx,
+    f.first_event_ts,
+    f.last_event_ts,
+    f.total_events
+  FROM fallback f
+  WHERE NOT EXISTS (
+    SELECT 1 FROM incarnations i WHERE i.cluster_name = f.cluster_name
+  )
+),
+all_rows AS (
+  SELECT * FROM explicit_rows
+  UNION ALL
+  SELECT * FROM windowed_only
 )
 SELECT
   cluster_name,
-  -- Prefer explicit markers when present; otherwise fall back to first/last event.
-  COALESCE(create_event_ts, span_start_ts) AS span_start_ts,
-  COALESCE(delete_event_ts, span_end_ts)   AS span_end_ts,
+  incarnation_idx,
+  COALESCE(create_event_ts, first_event_ts) AS span_start_ts,
+  COALESCE(delete_event_ts, last_event_ts)  AS span_end_ts,
   TIMESTAMP_DIFF(
-    COALESCE(delete_event_ts, span_end_ts),
-    COALESCE(create_event_ts, span_start_ts),
+    COALESCE(delete_event_ts, last_event_ts),
+    COALESCE(create_event_ts, first_event_ts),
     SECOND
-  ) / 60.0                                  AS span_minutes,
+  ) / 60.0                                    AS span_minutes,
   create_event_ts,
   delete_event_ts,
-  has_explicit_create,
-  has_explicit_delete,
+  (create_event_ts IS NOT NULL) AS has_explicit_create,
+  (delete_event_ts IS NOT NULL) AS has_explicit_delete,
   total_events
-FROM spans
-ORDER BY span_minutes DESC;
+FROM all_rows
+ORDER BY cluster_name, incarnation_idx;
