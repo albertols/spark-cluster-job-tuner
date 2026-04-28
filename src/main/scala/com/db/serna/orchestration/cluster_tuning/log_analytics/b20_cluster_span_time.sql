@@ -52,17 +52,47 @@ audit AS (
   WHERE log_name LIKE '%cloudaudit.googleapis.com%2Factivity'
     AND proto_payload.audit_log.method_name IS NOT NULL
 ),
-creates AS (
+creates_raw AS (
   SELECT cluster_name, timestamp AS create_ts
   FROM audit
   WHERE method_name LIKE '%.CreateCluster'
 ),
-deletes AS (
+deletes_raw AS (
   SELECT cluster_name, timestamp AS delete_ts
   FROM audit
   WHERE method_name LIKE '%.DeleteCluster'
 ),
--- Pair each Create with the soonest Delete after it on the same cluster_name.
+-- Audit logs emit multiple entries per long-running operation (request + completion,
+-- separated by cluster-provisioning time). Collapse consecutive same-type events
+-- (with no opposite-type event between them) into ONE canonical event, taking the
+-- earliest timestamp = when the API call was made = when billing started/stopped.
+creates AS (
+  SELECT cluster_name, MIN(create_ts) AS create_ts
+  FROM (
+    SELECT
+      c.cluster_name,
+      c.create_ts,
+      (SELECT MAX(d.delete_ts) FROM deletes_raw d
+        WHERE d.cluster_name = c.cluster_name
+          AND d.delete_ts    < c.create_ts) AS prev_delete_ts
+    FROM creates_raw c
+  )
+  GROUP BY cluster_name, prev_delete_ts
+),
+deletes AS (
+  SELECT cluster_name, MIN(delete_ts) AS delete_ts
+  FROM (
+    SELECT
+      d.cluster_name,
+      d.delete_ts,
+      (SELECT MAX(c.create_ts) FROM creates_raw c
+        WHERE c.cluster_name = d.cluster_name
+          AND c.create_ts    < d.delete_ts) AS prev_create_ts
+    FROM deletes_raw d
+  )
+  GROUP BY cluster_name, prev_create_ts
+),
+-- Pair each canonical Create with the soonest canonical Delete after it.
 paired AS (
   SELECT
     c.cluster_name,
