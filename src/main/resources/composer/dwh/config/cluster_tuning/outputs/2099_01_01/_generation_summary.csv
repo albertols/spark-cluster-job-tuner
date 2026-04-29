@@ -1,0 +1,5 @@
+cluster_name,worker_machine_type,worker_family,num_workers,max_workers_from_policy,total_cores,max_total_cores,strategy,bias_mode,topology_preset,diagnostic_signals
+mock-cluster-003,n2d-highcpu-48,n2d,12,12,576,576,default,cost_performance_balance,8cx1GBpc,""
+mock-cluster-001,n2-highcpu-48,n2,10,10,480,480,default,cost_performance_balance,8cx1GBpc,"Non-zero exit code 1 occurred 1 time(s)"
+mock-cluster-002,n2d-highcpu-48,n2d,10,10,480,480,default,cost_performance_balance,8cx1GBpc,""
+mock-cluster-004,n2-highcpu-48,n2,10,10,480,480,default,cost_performance_balance,8cx1GBpc,""

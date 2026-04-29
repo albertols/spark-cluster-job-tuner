@@ -1,0 +1,8 @@
+cluster_name,recipe_filename,p95_run_max_executors,avg_run_max_executors,runs
+mock-cluster-001,mock-recipe-load-orders.json,12,6,20
+mock-cluster-001,mock-recipe-aggregate-daily.json,4,2,50
+mock-cluster-002,mock-recipe-cleanup.json,4,2,50
+mock-cluster-002,mock-recipe-export-csv.json,4,2,50
+mock-cluster-002,mock-recipe-warehouse-load.json,12,6,20
+mock-cluster-003,mock-recipe-ml-train.json,28,16,5
+mock-cluster-004,mock-recipe-feature-engineer.json,12,6,20

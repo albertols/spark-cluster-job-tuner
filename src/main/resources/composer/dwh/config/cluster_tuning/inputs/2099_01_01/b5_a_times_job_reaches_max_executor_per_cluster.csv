@@ -1,0 +1,8 @@
+cluster_name,recipe_filename,runs_reaching_cap,total_runs,fraction_reaching_cap
+mock-cluster-001,mock-recipe-load-orders.json,2,20,0.100000
+mock-cluster-001,mock-recipe-aggregate-daily.json,0,50,0
+mock-cluster-002,mock-recipe-cleanup.json,0,50,0
+mock-cluster-002,mock-recipe-export-csv.json,0,50,0
+mock-cluster-002,mock-recipe-warehouse-load.json,2,20,0.100000
+mock-cluster-003,mock-recipe-ml-train.json,3,5,0.600000
+mock-cluster-004,mock-recipe-feature-engineer.json,2,20,0.100000

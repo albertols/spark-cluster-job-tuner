@@ -93,11 +93,12 @@ Alternative (fine-grained):
 - Export individual CSVs for b1, b3, b5, b8, b11, b12.
   The [ClusterMachineAndRecipeTuner.scala](ClusterMachineAndRecipeTuner.scala) supports both modes.
 
-Optional (cluster wall-clock cost): export `b20_cluster_span_time.csv` (one row
-per Create→Delete incarnation) and `b21_cluster_autoscaler_values.csv` (one row
-per autoscaler decision) to enable the cluster-span cost path described in
-[Cost estimation](#cost-estimation). When absent, the tuner logs a warning and
-uses the legacy job-sum formula.
+Required for cost (cluster wall-clock):
+- `b20_cluster_span_time.csv` — one row per Create→Delete incarnation. **Required**:
+  without it `estimated_cost_eur` is forced to `0.0` per cluster (with a `WARN`).
+- `b21_cluster_autoscaler_values.csv` — one row per autoscaler decision. Strongly
+  recommended; spans without events fall back to the b23 avg path. See
+  [Cost estimation](#cost-estimation) for details.
 
 ### Flattened vs individual CSVs: parity
 
@@ -161,20 +162,25 @@ Optional (diagnostics):
 
 ## Cost estimation
 
-The `estimated_cost_eur` field in the cluster-summary CSVs is computed in this order:
+`b20_cluster_span_time.csv` is **required** to populate `estimated_cost_eur`.
+There is no legacy job-sum fallback: a sum of concurrent job durations both
+over-counts overlapping jobs and ignores idle cluster time, so it would lie
+quietly. Without b20 we'd rather emit `0.0` and log a `WARN` than print a
+misleading number.
 
-1. **Cluster wall-clock cost (preferred — b20 + b21)** — for each Dataproc cluster
-   incarnation in `b20_cluster_span_time.csv`, integrate worker count × time over
-   `(span_start_ts, span_end_ts]` using the autoscaler step function in
-   `b21_cluster_autoscaler_values.csv` (filtered to `RECOMMENDING` events with a
-   numeric `target_primary_workers`). Master is +1 node, priced separately and
-   pinned to the same family as workers. When a span has no autoscaler events, the
-   b23 fallback applies: `cost = (clusterPlan.workers × worker_hourly + master_hourly) × span_hours`.
-2. **Legacy job-sum (last-ditch fallback)** — when no `b20` row exists for a cluster
-   we fall back to `(workers × worker_hourly + master_hourly) × Σ(avg_job_duration_ms / 60_000) / 60`.
-   This sum-of-job-durations approach over-counts concurrent jobs and ignores idle
-   cluster time, so a `WARN` is logged whenever it kicks in. Drop `b20.csv` (and
-   ideally `b21.csv`) into the inputs directory to switch to the accurate path.
+`estimated_cost_eur` is computed per cluster incarnation as:
+
+- **b22 (exact, when b21 events fall inside the span)** — integrate worker count
+  × time over `(span_start_ts, span_end_ts]` using the autoscaler step function
+  in `b21_cluster_autoscaler_values.csv` (filtered to `RECOMMENDING` events with
+  a numeric `target_primary_workers`; SCALE_UP and SCALE_DOWN both move the step).
+  Initial workers (before the first event) come from the first event's
+  `current_primary_workers`. Master is +1 node, priced separately, pinned to the
+  same family as workers.
+- **b23 (avg fallback, when a span has no autoscaler events)** —
+  `cost = (clusterPlan.workers × worker_hourly + master_hourly) × span_hours`.
+
+A cluster's total cost is the sum across all its incarnations in the window.
 
 Pricing comes from `PriceCatalog` (in `ClusterMachineAndRecipeTuner.scala`), which
 loads `src/main/resources/composer/dwh/config/cluster_tuning/price_catalog_europe_west3.csv`

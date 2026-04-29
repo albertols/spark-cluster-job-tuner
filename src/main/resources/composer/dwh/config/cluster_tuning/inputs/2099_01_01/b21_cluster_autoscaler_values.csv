@@ -1,0 +1,10 @@
+cluster_name,event_ts,state,decision,decision_metric,current_primary_workers,target_primary_workers,min_primary_workers,max_primary_workers,current_secondary_workers,target_secondary_workers,min_secondary_workers,max_secondary_workers,recommendation_id,status_details
+mock-cluster-001,2099-01-01 01:10:00.000000 UTC,RECOMMENDING,SCALE_UP,YARN_MEMORY,2,4,2,6,,,,,mock-rec-mock-cluster-001-0001,synthetic mock recommendation
+mock-cluster-001,2099-01-01 01:50:00.000000 UTC,RECOMMENDING,SCALE_UP,YARN_MEMORY,4,6,2,6,,,,,mock-rec-mock-cluster-001-0002,synthetic mock recommendation
+mock-cluster-001,2099-01-01 04:00:00.000000 UTC,RECOMMENDING,SCALE_DOWN,YARN_MEMORY,6,4,2,6,,,,,mock-rec-mock-cluster-001-0003,synthetic mock recommendation
+mock-cluster-001,2099-01-01 06:00:00.000000 UTC,RECOMMENDING,SCALE_DOWN,YARN_MEMORY,4,2,2,6,,,,,mock-rec-mock-cluster-001-0004,synthetic mock recommendation
+mock-cluster-003,2099-01-01 05:15:00.000000 UTC,RECOMMENDING,SCALE_UP,YARN_MEMORY,4,8,4,16,,,,,mock-rec-mock-cluster-003-0001,synthetic mock recommendation
+mock-cluster-003,2099-01-01 05:30:00.000000 UTC,RECOMMENDING,SCALE_UP,YARN_MEMORY,8,12,4,16,,,,,mock-rec-mock-cluster-003-0002,synthetic mock recommendation
+mock-cluster-003,2099-01-01 06:30:00.000000 UTC,RECOMMENDING,SCALE_UP,YARN_MEMORY,12,16,4,16,,,,,mock-rec-mock-cluster-003-0003,synthetic mock recommendation
+mock-cluster-003,2099-01-01 13:00:00.000000 UTC,RECOMMENDING,SCALE_DOWN,YARN_MEMORY,16,8,4,16,,,,,mock-rec-mock-cluster-003-0004,synthetic mock recommendation
+mock-cluster-003,2099-01-01 16:00:00.000000 UTC,RECOMMENDING,SCALE_DOWN,YARN_MEMORY,8,4,4,16,,,,,mock-rec-mock-cluster-003-0005,synthetic mock recommendation

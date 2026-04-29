@@ -1,0 +1,3 @@
+cluster_name,dag_id,no_of_jobs,num_of_workers,worker_machine_type,master_machine_type,total_active_minutes,estimated_cost_eur,TIMER_NAME,TIMER_TIME
+mock-cluster-001,UNKNOWN_DAG_ID,2,10,n2d-highcpu-48,n2d-highcpu-48,7.80,3.7752,ZERO_TIMER,00:00
+mock-cluster-new,UNKNOWN_DAG_ID,1,2,n2-highcpu-48,n2-highcpu-48,1.00,0.1440,ZERO_TIMER,00:00

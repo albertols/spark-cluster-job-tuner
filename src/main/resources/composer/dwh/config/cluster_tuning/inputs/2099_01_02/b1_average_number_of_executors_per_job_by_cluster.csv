@@ -1,0 +1,8 @@
+cluster_name,recipe_filename,avg_executors_per_job
+mock-cluster-001,mock-recipe-load-orders.json,6
+mock-cluster-001,mock-recipe-aggregate-daily.json,2
+mock-cluster-002,mock-recipe-cleanup.json,2
+mock-cluster-002,mock-recipe-export-csv.json,2
+mock-cluster-002,mock-recipe-warehouse-load.json,6
+mock-cluster-003,mock-recipe-ml-train.json,16
+mock-cluster-new,mock-recipe-newcomer.json,2

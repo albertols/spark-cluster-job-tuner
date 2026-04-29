@@ -658,7 +658,7 @@ object ClusterMachineAndRecipeTuner {
   private[cluster_tuning] def loadClusterSpans(cfg: Config): Map[String, Seq[ClusterSpan]] = {
     val f = new File(cfg.inputDir, "b20_cluster_span_time.csv")
     if (!f.exists()) {
-      logger.warn(s"b20 CSV not found: ${f.getPath}. Cluster-span cost will fall back to legacy job-sum formula.")
+      logger.warn(s"b20 CSV not found: ${f.getPath}. estimated_cost_eur will be 0 for every cluster — produce this CSV from b20_cluster_span_time.sql to enable cluster-wall-clock cost.")
       return Map.empty
     }
     val rows = Csv.parse(f)
@@ -699,7 +699,7 @@ object ClusterMachineAndRecipeTuner {
   private[cluster_tuning] def loadAutoscalerEvents(cfg: Config): Map[String, Seq[AutoscalerEvent]] = {
     val f = new File(cfg.inputDir, "b21_cluster_autoscaler_values.csv")
     if (!f.exists()) {
-      logger.warn(s"b21 CSV not found: ${f.getPath}. Autoscaler-aware cost will use the avg-fallback path (b23) where b20 is present.")
+      logger.warn(s"b21 CSV not found: ${f.getPath}. Autoscaler step-function cost (b22) is unavailable; spans without events will use the avg-fallback path (b23) which prices `clusterPlan.workers` flat across the span.")
       return Map.empty
     }
     val rows = Csv.parse(f)
@@ -1305,9 +1305,9 @@ object ClusterMachineAndRecipeTuner {
     val driverOverrides: Map[String, DriverResourceOverride] =
       ClusterDiagnosticsProcessor.computeOverrides(allDiagnosticSignals)
 
-    // Cluster-span (b20) + autoscaler-events (b21) drive the new wall-clock cost
-    // calc. Both are optional inputs: if b20 is missing for a cluster, the legacy
-    // job-sum formula is used as a last-ditch fallback (with a warning).
+    // Cluster-span (b20) is REQUIRED to populate estimated_cost_eur; autoscaler
+    // events (b21) refine that cost into a step function but are recommended,
+    // not strictly required (spans without events take the b23 avg path).
     val clusterSpansByName: Map[String, Seq[ClusterSpan]] = loadClusterSpans(cfg)
     val autoscalerEventsByName: Map[String, Seq[AutoscalerEvent]] = loadAutoscalerEvents(cfg)
 
@@ -1340,9 +1340,11 @@ object ClusterMachineAndRecipeTuner {
 
       val totalMinutes: Double = clusterActiveMinutes(recMetrics)
       // Cluster wall-clock cost over each b20 incarnation, integrated against
-      // b21's autoscaler step function. When neither b20 nor b21 is available
-      // for this cluster we fall back to the legacy job-sum formula and log it,
-      // so missing inputs don't silently zero the cost.
+      // b21's autoscaler step function. b20.csv (and ideally b21.csv) are
+      // REQUIRED to estimate cluster pricing — when no b20 span exists for a
+      // cluster we emit estimated_cost_eur=0.0 and log a WARN. No legacy
+      // job-sum fallback: the old formula sums concurrent job durations and
+      // ignores idle cluster time, so its number is misleading.
       val estimatedCost: Double = clusterSpansByName.get(clusterName) match {
         case Some(spans) if spans.nonEmpty =>
           val allEvents: Seq[AutoscalerEvent] = autoscalerEventsByName.getOrElse(clusterName, Seq.empty)
@@ -1357,9 +1359,8 @@ object ClusterMachineAndRecipeTuner {
             )
           }.sum
         case _ =>
-          logger.warn(s"No b20 cluster span for $clusterName; falling back to legacy job-sum cost (active_minutes-based, may over- or under-estimate cluster wall-clock cost).")
-          val hourlyCost: Double = hourlyPrice(clusterPlan.workerMachineType) * clusterPlan.workers + hourlyPrice(clusterPlan.masterMachineType)
-          hourlyCost * (totalMinutes / 60.0)
+          logger.warn(s"No b20 cluster span for $clusterName; estimated_cost_eur=0.0. Provide b20_cluster_span_time.csv covering this cluster's active window to compute cost.")
+          0.0
       }
 
       val resolvedDagId: String = dagByCluster.getOrElse(clusterName, "UNKNOWN_DAG_ID")
