@@ -1,5 +1,2 @@
 cluster_name,total_jobs
-mock-cluster-001,70
-mock-cluster-002,120
-mock-cluster-003,5
-mock-cluster-new,50
+mock-cluster-mixed,70

@@ -131,4 +131,52 @@ class ScenarioSpec extends AnyFunSuite with Matchers {
       inc.spanEnd.isAfter(e2)    shouldBe false
     }
   }
+
+  // ── mixedDropAndDegrade ───────────────────────────────────────────────────
+
+  test("mixedDropAndDegrade emits two dates with one cluster, mixing degraded + dropped recipes") {
+    val multi = MockScenarios.mixedDropAndDegrade(refDate, curDate)
+    multi.perDate.keySet shouldBe Set(refDate, curDate)
+
+    val refCluster = multi.perDate(refDate).clusters
+    val curCluster = multi.perDate(curDate).clusters
+    refCluster.map(_.name) should contain only "mock-cluster-mixed"
+    curCluster.map(_.name) should contain only "mock-cluster-mixed"
+
+    val refRecipes = refCluster.head.recipes.map(_.name).toSet
+    val curRecipes = curCluster.head.recipes.map(_.name).toSet
+
+    // Stable recipe present on both dates; must-boost present on both; was-here only ref.
+    refRecipes should contain ("mock-recipe-keep-stable.json")
+    curRecipes should contain ("mock-recipe-keep-stable.json")
+    refRecipes should contain ("mock-recipe-must-boost.json")
+    curRecipes should contain ("mock-recipe-must-boost.json")
+    (refRecipes -- curRecipes) shouldBe Set("mock-recipe-was-here.json")
+  }
+
+  test("mixedDropAndDegrade degrades must-boost durations from reference to current") {
+    val multi = MockScenarios.mixedDropAndDegrade(refDate, curDate)
+    val refMustBoost = multi.perDate(refDate).clusters.head.recipes
+      .find(_.name == "mock-recipe-must-boost.json").get
+    val curMustBoost = multi.perDate(curDate).clusters.head.recipes
+      .find(_.name == "mock-recipe-must-boost.json").get
+    curMustBoost.avgJobDurationMs should be > refMustBoost.avgJobDurationMs
+    curMustBoost.p95JobDurationMs should be > refMustBoost.p95JobDurationMs
+  }
+
+  test("mixedDropAndDegrade incarnations sit inside their respective date windows") {
+    val multi  = MockScenarios.mixedDropAndDegrade(refDate, curDate)
+    val refScn = multi.perDate(refDate)
+    val curScn = multi.perDate(curDate)
+    val (s1, e1) = refScn.window
+    val (s2, e2) = curScn.window
+    refScn.clusters.flatMap(_.incarnations).foreach { inc =>
+      inc.spanStart.isBefore(s1) shouldBe false
+      inc.spanEnd.isAfter(e1)    shouldBe false
+    }
+    curScn.clusters.flatMap(_.incarnations).foreach { inc =>
+      inc.spanStart.isBefore(s2) shouldBe false
+      inc.spanEnd.isAfter(e2)    shouldBe false
+    }
+  }
 }

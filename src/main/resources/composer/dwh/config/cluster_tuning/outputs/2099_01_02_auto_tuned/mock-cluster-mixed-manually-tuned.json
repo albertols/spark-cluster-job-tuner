@@ -1,0 +1,117 @@
+{
+  
+  "clusterConf": {
+    
+    "mock-cluster-mixed": {
+      
+      "num_workers": 10,
+      
+      "master_machine_type": "n2d-highcpu-48",
+      
+      "worker_machine_type": "n2d-highcpu-48",
+      
+      "autoscaling_policy": "extra-large-workload-autoscaling",
+      
+      "tuner_version": "2099_02_01",
+      
+      "total_no_of_jobs": 2,
+      
+      "cluster_max_total_memory_gb": 960,
+      
+      "cluster_max_total_cores": 480,
+      
+      "accumulated_max_total_memory_per_jobs_gb": 128
+    
+    }
+  
+  },
+  
+  "recipeSparkConf": {
+    
+    "mock-recipe-must-boost.json": {
+      
+      "parallelizationFactor": 5,
+      
+      "sparkOptsMap": {
+        
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        
+        "spark.executor.instances": "12",
+        
+        "spark.executor.cores": "8",
+        
+        "spark.executor.memory": "8g"
+      
+      },
+      
+      "total_executor_minimum_allocated_memory_gb": 96,
+      
+      "total_executor_maximum_allocated_memory_gb": 96
+    
+    },
+    
+    "mock-recipe-keep-stable.json": {
+      
+      "parallelizationFactor": 5,
+      
+      "sparkOptsMap": {
+        
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        
+        "spark.executor.instances": "4",
+        
+        "spark.executor.cores": "8",
+        
+        "spark.executor.memory": "8g"
+      
+      },
+      
+      "total_executor_minimum_allocated_memory_gb": 32,
+      
+      "total_executor_maximum_allocated_memory_gb": 32
+    
+    }
+  ,
+    "mock-recipe-was-here.json": {
+      
+      "lastTunedDate": "2099_01_01",
+      
+      "keptWithoutCurrentDate": true,
+      
+      "parallelizationFactor": 5,
+      
+      
+      "sparkOptsMap": {
+        
+        
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        
+        
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        
+        
+        "spark.executor.instances": "12",
+        
+        
+        "spark.executor.cores": "8",
+        
+        
+        "spark.executor.memory": "8g"
+      
+      
+      },
+      
+      
+      "total_executor_minimum_allocated_memory_gb": 96,
+      
+      
+      "total_executor_maximum_allocated_memory_gb": 96
+    
+    }
+  }
+
+}

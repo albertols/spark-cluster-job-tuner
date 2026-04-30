@@ -1,4 +1,4 @@
-package com.db.serna.orchestration.cluster_tuning.refinement
+package com.db.serna.orchestration.cluster_tuning.single.refinement
 
 import com.db.serna.orchestration.cluster_tuning.single.refinement.SimpleJsonParser
 import org.scalatest.funsuite.AnyFunSuite

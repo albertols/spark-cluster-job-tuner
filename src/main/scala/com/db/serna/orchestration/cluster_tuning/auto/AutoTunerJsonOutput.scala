@@ -35,6 +35,7 @@ object AutoTunerJsonOutput {
     scatterDataDelta: Map[String, Seq[ScatterPoint]],
     scatterDataCurrentSnapshot: Map[String, Seq[ScatterPoint]],
     newEntryCurrentMetrics: Map[(String, String), RecipeMetrics],
+    droppedEntryReferenceMetrics: Map[(String, String), RecipeMetrics],
     decisions: Seq[EvolutionDecision]
   ): String = {
 
@@ -73,7 +74,9 @@ object AutoTunerJsonOutput {
           )
         }
         // For NewEntry recipes, include the raw current metrics so the frontend
-        // can draw a current-only bar (no reference exists yet).
+        // can draw a current-only bar (no reference exists yet). For DroppedEntry
+        // recipes, include the raw reference metrics so the frontend can draw a
+        // reference-only "kept" bar (no current exists).
         val baseFields: Seq[(String, String)] = Seq(
           "recipe" -> str(t.recipe),
           "trend" -> str(t.trend.label),
@@ -82,13 +85,20 @@ object AutoTunerJsonOutput {
           "reason" -> str(decision.map(_.reason).getOrElse("")),
           "deltas" -> arr(deltasJson: _*)
         )
-        val withCurrent = if (t.trend == NewEntry) {
-          newEntryCurrentMetrics.get((clusterName, t.recipe)) match {
-            case Some(m) => baseFields :+ ("current_metrics" -> currentMetricsJson(m))
-            case None => baseFields
-          }
-        } else baseFields
-        obj(withCurrent: _*)
+        val withSyntheticMetrics = t.trend match {
+          case NewEntry =>
+            newEntryCurrentMetrics.get((clusterName, t.recipe)) match {
+              case Some(m) => baseFields :+ ("current_metrics" -> recipeMetricsJson(m))
+              case None    => baseFields
+            }
+          case DroppedEntry =>
+            droppedEntryReferenceMetrics.get((clusterName, t.recipe)) match {
+              case Some(m) => baseFields :+ ("reference_metrics" -> recipeMetricsJson(m))
+              case None    => baseFields
+            }
+          case _ => baseFields
+        }
+        obj(withSyntheticMetrics: _*)
       }
       obj(
         "cluster" -> str(clusterName),
@@ -165,7 +175,7 @@ object AutoTunerJsonOutput {
     "is_new" -> bool(p.isNew)
   )
 
-  private def currentMetricsJson(m: RecipeMetrics): String = obj(
+  private def recipeMetricsJson(m: RecipeMetrics): String = obj(
     "avg_executors_per_job" -> num(formatValue(m.avgExecutorsPerJob)),
     "p95_run_max_executors" -> num(formatValue(m.p95RunMaxExecutors)),
     "avg_job_duration_ms" -> num(formatValue(m.avgJobDurationMs)),

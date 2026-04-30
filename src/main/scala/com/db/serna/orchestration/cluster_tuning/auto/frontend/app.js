@@ -1010,6 +1010,7 @@ async function showClusterDetailRaw(clusterName) {
 
   loadClusterJsonsForDates(clusterName).then(({ ref, cur, refDate, curDate }) => {
     renderClusterConfComparison(clusterName, ref, cur, refDate, curDate);
+    annotateKeptRecipeCards(cur);
   });
 
   // Recipe cards with delta tables
@@ -1058,6 +1059,36 @@ async function showClusterDetailRaw(clusterName) {
   renderDetailCharts(cluster, clusterName);
   renderClusterDetailCorrelations(clusterName);
   renderClusterDetailOutliers(clusterName);
+}
+
+// Append a KEPT pill to recipe cards whose entry in the freshly tuned JSON
+// carries `keptWithoutCurrentDate: true`. Called after the cluster JSON is
+// loaded asynchronously, so the cards already exist when this runs.
+function annotateKeptRecipeCards(curJson) {
+  if (!curJson || !curJson.recipeSparkConf) return;
+  const conf = curJson.recipeSparkConf;
+  document.querySelectorAll('.detail-recipe-card').forEach(card => {
+    const recipe = card.dataset.recipe;
+    const entry = conf[recipe];
+    if (!entry || entry.keptWithoutCurrentDate !== true) return;
+    const heading = card.querySelector('h4');
+    if (!heading) return;
+    if (heading.querySelector('.kept-pill')) return; // idempotent
+    const pill = document.createElement('span');
+    pill.className = 'kept-pill';
+    pill.textContent = 'KEPT';
+    if (typeof entry.lastTunedDate === 'string' && entry.lastTunedDate.length > 0) {
+      pill.title = `Last tuned on ${entry.lastTunedDate} — config carried over (recipe absent from current date)`;
+    } else {
+      pill.title = 'Config carried from a previous date — recipe absent from current date';
+    }
+    const nameSpan = heading.querySelector('.recipe-name-text');
+    if (nameSpan && nameSpan.parentNode) {
+      nameSpan.parentNode.insertBefore(pill, nameSpan.nextSibling);
+    } else {
+      heading.appendChild(pill);
+    }
+  });
 }
 
 // Per-cluster correlation cards (delta view) shown in the cluster-detail page.
@@ -1181,8 +1212,11 @@ function renderDetailCharts(cluster, clusterName) {
   chartsDiv.innerHTML = '';
 
   // Include all recipes — new entries (no deltas) are rendered as a single
-  // "New (current only)" bar so users can see them alongside existing recipes.
-  const recipes = cluster.recipes.filter(r => r.deltas.length > 0 || r.current_metrics);
+  // "New (current only)" bar; kept recipes (present only on the reference date,
+  // carried over by the auto-tuner) are rendered as a single greyish reference
+  // bar so users can see them alongside existing recipes.
+  const recipes = cluster.recipes.filter(r =>
+    r.deltas.length > 0 || r.current_metrics || r.reference_metrics);
 
   // Use horizontal bars when there are many recipes — labels stay readable.
   const horizontal = recipes.length > 8;
@@ -1212,10 +1246,13 @@ function renderDetailCharts(cluster, clusterName) {
   const execCanvas = execContainer.querySelector('#exec-chart');
   execCanvas.parentElement.style.height = computedHeight + 'px';
 
-  const isNew = recipes.map(isNewEntryRecipe);
-  const fullLabels = recipes.map((r, i) => isNew[i]
-    ? `${recipeShortName(r.recipe)} 🆕`
-    : recipeShortName(r.recipe));
+  const isNew  = recipes.map(isNewEntryRecipe);
+  const isKept = recipes.map(isKeptEntryRecipe);
+  const fullLabels = recipes.map((r, i) => {
+    if (isNew[i])  return `${recipeShortName(r.recipe)} 🆕`;
+    if (isKept[i]) return `${recipeShortName(r.recipe)} [KEPT]`;
+    return recipeShortName(r.recipe);
+  });
   const tooltipFullNames = recipes.map(r => r.recipe);
 
   const durRefRaw = recipes.map(r => recipeMetricValue(r, 'p95_job_duration_ms', 'reference'));
@@ -1224,19 +1261,27 @@ function renderDetailCharts(cluster, clusterName) {
   const execCurRaw = recipes.map(r => recipeMetricValue(r, 'p95_run_max_executors', 'current'));
 
   // Mask values so reference/current bars are blank for new entries (and the
-  // gold "New (current only)" bar is blank for existing entries).
+  // gold "New (current only)" bar is blank for existing entries). Kept recipes
+  // also get a current/new mask of NaN — only their grey reference bar is shown.
   const durRef = durRefRaw.map((v, i) => isNew[i] ? NaN : v);
-  const durCur = durCurRaw.map((v, i) => isNew[i] ? NaN : v);
+  const durCur = durCurRaw.map((v, i) => (isNew[i] || isKept[i]) ? NaN : v);
   const durNew = durCurRaw.map((v, i) => isNew[i] ? v : NaN);
   const execRef = execRefRaw.map((v, i) => isNew[i] ? NaN : v);
-  const execCur = execCurRaw.map((v, i) => isNew[i] ? NaN : v);
+  const execCur = execCurRaw.map((v, i) => (isNew[i] || isKept[i]) ? NaN : v);
   const execNew = execCurRaw.map((v, i) => isNew[i] ? v : NaN);
 
-  const baseDataset = (label, values, color) => ({
+  // The Reference dataset is recoloured greyish for kept recipes so they're
+  // visually distinct from paired (still-current) recipes.
+  const KEPT_BG = 'rgba(139, 148, 158, 0.5)';
+  const KEPT_BORDER = 'rgba(139, 148, 158, 1)';
+  const refBgScriptable    = ctx => isKept[ctx.dataIndex] ? KEPT_BG : 'rgba(88, 166, 255, 0.5)';
+  const refBorderScriptable = ctx => isKept[ctx.dataIndex] ? KEPT_BORDER : 'rgba(88, 166, 255, 1)';
+
+  const baseDataset = (label, values, color, perBarColor) => ({
     label,
     data: values,
-    backgroundColor: color.replace('1)', '0.5)'),
-    borderColor: color.replace('0.5)', '1)'),
+    backgroundColor: perBarColor ? perBarColor.bg : color.replace('1)', '0.5)'),
+    borderColor: perBarColor ? perBarColor.border : color.replace('0.5)', '1)'),
     borderWidth: 1,
     barThickness,
     maxBarThickness: barThickness + 4,
@@ -1252,7 +1297,8 @@ function renderDetailCharts(cluster, clusterName) {
     data: {
       labels: fullLabels,
       datasets: [
-        baseDataset('Reference', durRef, 'rgba(88,166,255,1)'),
+        baseDataset('Reference', durRef, 'rgba(88,166,255,1)',
+          { bg: refBgScriptable, border: refBorderScriptable }),
         baseDataset('Current', durCur, 'rgba(248,81,73,1)'),
         baseDataset('New (current only)', durNew, 'rgba(210,153,34,1)')
       ]
@@ -1270,7 +1316,8 @@ function renderDetailCharts(cluster, clusterName) {
     data: {
       labels: fullLabels,
       datasets: [
-        baseDataset('Reference', execRef, 'rgba(88,166,255,1)'),
+        baseDataset('Reference', execRef, 'rgba(88,166,255,1)',
+          { bg: refBgScriptable, border: refBorderScriptable }),
         baseDataset('Current', execCur, 'rgba(248,81,73,1)'),
         baseDataset('New (current only)', execNew, 'rgba(210,153,34,1)')
       ]
@@ -1288,6 +1335,13 @@ function isNewEntryRecipe(r) {
   return (!r.deltas || r.deltas.length === 0) && !!r.current_metrics;
 }
 
+// "Kept" recipes are present only on the reference date — their config was
+// carried forward by the auto-tuner. The analysis JSON ships their reference
+// metrics under `reference_metrics` so the chart can still draw a bar.
+function isKeptEntryRecipe(r) {
+  return (!r.deltas || r.deltas.length === 0) && !!r.reference_metrics;
+}
+
 function recipeMetricValue(recipe, metric, field) {
   if (recipe.deltas && recipe.deltas.length > 0) {
     const d = recipe.deltas.find(x => x.metric === metric);
@@ -1295,6 +1349,10 @@ function recipeMetricValue(recipe, metric, field) {
   }
   if (field === 'current' && recipe.current_metrics) {
     const v = recipe.current_metrics[metric];
+    return v == null ? 0 : v;
+  }
+  if (field === 'reference' && recipe.reference_metrics) {
+    const v = recipe.reference_metrics[metric];
     return v == null ? 0 : v;
   }
   return 0;

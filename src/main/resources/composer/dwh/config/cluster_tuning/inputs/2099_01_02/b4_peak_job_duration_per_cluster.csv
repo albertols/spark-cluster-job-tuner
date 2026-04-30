@@ -1,8 +1,3 @@
 cluster_name,recipe_filename,peak_job_duration_ms
-mock-cluster-001,mock-recipe-load-orders.json,624000
-mock-cluster-001,mock-recipe-aggregate-daily.json,117000
-mock-cluster-002,mock-recipe-cleanup.json,90000
-mock-cluster-002,mock-recipe-export-csv.json,90000
-mock-cluster-002,mock-recipe-warehouse-load.json,480000
-mock-cluster-003,mock-recipe-ml-train.json,2400000
-mock-cluster-new,mock-recipe-newcomer.json,90000
+mock-cluster-mixed,mock-recipe-keep-stable.json,90000
+mock-cluster-mixed,mock-recipe-must-boost.json,672000

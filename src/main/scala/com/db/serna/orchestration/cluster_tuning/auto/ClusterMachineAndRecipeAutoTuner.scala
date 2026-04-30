@@ -215,11 +215,16 @@ object ClusterMachineAndRecipeAutoTuner {
         else a
       }
 
+      val preservedRecipes: Set[String] = clusterDecisions.collect {
+        case d if d.action == PreserveHistorical => d.recipe
+      }.toSet
+
       primaryAction match {
         case KeepAsIs | PreserveHistorical =>
-          // Re-emit reference configs verbatim
+          // Re-emit reference configs verbatim, tagging any preserve_historical
+          // recipes with lastTunedDate + keptWithoutCurrentDate.
           if (primaryAction == PreserveHistorical) preservedClusters += 1 else keptClusters += 1
-          emitReferenceConfigs(clusterName, refOutputDir, curOutputDir)
+          emitReferenceConfigs(clusterName, refOutputDir, curOutputDir, preservedRecipes, refDate)
 
           // Apply b16 reboosting even for kept/preserved clusters: OOM signals
           // from reference_date must persist to prevent regression into OOM.
@@ -297,6 +302,14 @@ object ClusterMachineAndRecipeAutoTuner {
             ClusterMachineAndRecipeTuner.writeFile(curOutputDir, s"$clusterName-manually-tuned.json", manualJsonStr)
             ClusterMachineAndRecipeTuner.writeFile(curOutputDir, s"$clusterName-auto-scale-tuned.json", daJsonStr)
 
+            // Carry over any preserve_historical recipes that were dropped in the
+            // current date. The fresh plan was built only from current-date metrics,
+            // so reference-only recipes would otherwise be lost. Merge their reference
+            // blocks into the freshly written JSON, tagged with kept flags.
+            if (preservedRecipes.nonEmpty) {
+              mergePreservedRecipesIntoOutputs(clusterName, preservedRecipes, refOutputDir, curOutputDir, refDate)
+            }
+
             // Apply b16 reboosting: check both reference and current input dirs.
             // OOM signals from either date must persist to prevent regression.
             if (b16Factor > 1.0) {
@@ -350,6 +363,8 @@ object ClusterMachineAndRecipeAutoTuner {
     // 9. Write analysis outputs
     val newEntryCurrentMetrics: Map[(String, String), RecipeMetrics] =
       newKeys.toSeq.flatMap(k => curSnapshot.metrics.get(k).map(k -> _)).toMap
+    val droppedEntryReferenceMetrics: Map[(String, String), RecipeMetrics] =
+      droppedKeys.toSeq.flatMap(k => refSnapshot.metrics.get(k).map(k -> _)).toMap
 
     val analysisJson = AutoTunerJsonOutput.analysisOutputJson(
       referenceDate = refDate,
@@ -365,6 +380,7 @@ object ClusterMachineAndRecipeAutoTuner {
       scatterDataDelta = scatterDataDelta,
       scatterDataCurrentSnapshot = scatterDataCurrent,
       newEntryCurrentMetrics = newEntryCurrentMetrics,
+      droppedEntryReferenceMetrics = droppedEntryReferenceMetrics,
       decisions = decisions
     )
     ClusterMachineAndRecipeTuner.writeFile(curOutputDir, "_auto_tuner_analysis.json", analysisJson)
@@ -455,12 +471,84 @@ object ClusterMachineAndRecipeAutoTuner {
     }.toMap
   }
 
-  private def emitReferenceConfigs(clusterName: String, refOutputDir: File, curOutputDir: File): Unit = {
+  /**
+   * Re-emit the cluster's reference JSONs into the current output dir.
+   *
+   * Recipes named in `preservedRecipes` (those whose evolution decision was
+   * `PreserveHistorical`) are tagged with `lastTunedDate` and
+   * `keptWithoutCurrentDate: true`. If the reference recipe already carries a
+   * `lastTunedDate`, that older value is preserved (recursive carry across
+   * multiple consecutive auto-tuner runs). Recipes not in `preservedRecipes`
+   * are passed through unchanged — they are still in current data, just not
+   * re-planned.
+   */
+  private def emitReferenceConfigs(
+      clusterName: String,
+      refOutputDir: File,
+      curOutputDir: File,
+      preservedRecipes: Set[String],
+      refDate: String
+  ): Unit = {
     Seq("-auto-scale-tuned.json", "-manually-tuned.json").foreach { suffix =>
       val refFile = new File(refOutputDir, s"$clusterName$suffix")
       if (refFile.exists()) {
         val content = scala.io.Source.fromFile(refFile).mkString
-        ClusterMachineAndRecipeTuner.writeFile(curOutputDir, s"$clusterName$suffix", content)
+        val tagged =
+          if (preservedRecipes.nonEmpty)
+            KeptRecipeCarrier.tagPreservedRecipes(content, preservedRecipes, refDate)
+          else content
+        ClusterMachineAndRecipeTuner.writeFile(curOutputDir, s"$clusterName$suffix", tagged)
+      }
+    }
+  }
+
+  /**
+   * Merge preserve_historical recipes from the reference output JSON into the
+   * freshly written current-date JSON. Used in the BoostResources / GenerateFresh
+   * branch where the cluster was re-planned from current-date metrics only — any
+   * reference-only recipes would otherwise be silently dropped.
+   *
+   * Each carried recipe block is read verbatim from the reference, tagged with
+   * the kept flags, and inserted into the fresh JSON's `recipeSparkConf`. If the
+   * fresh plan happens to also contain the same recipe name (would only happen
+   * if metrics flickered back), the existing fresh entry is kept and the
+   * carry-over is skipped.
+   */
+  private def mergePreservedRecipesIntoOutputs(
+      clusterName: String,
+      preservedRecipes: Set[String],
+      refOutputDir: File,
+      curOutputDir: File,
+      refDate: String
+  ): Unit = {
+    Seq("-auto-scale-tuned.json", "-manually-tuned.json").foreach { suffix =>
+      val refFile = new File(refOutputDir, s"$clusterName$suffix")
+      val curFile = new File(curOutputDir, s"$clusterName$suffix")
+      if (!refFile.exists() || !curFile.exists()) {
+        if (!refFile.exists()) logger.warn(s"Cannot carry over recipes: reference $refFile not found")
+        // If curFile is missing, the fresh plan didn't produce this variant; nothing to merge into.
+      } else {
+        val refContent = scala.io.Source.fromFile(refFile).mkString
+        val curContent = scala.io.Source.fromFile(curFile).mkString
+
+        // Extract each preserved recipe's reference block and tag it.
+        val taggedBlocks: Seq[(String, String)] = preservedRecipes.toSeq.flatMap { name =>
+          KeptRecipeCarrier.extractRecipeBlock(refContent, name) match {
+            case Some(block) =>
+              val wrapper = s"""{"recipeSparkConf":{"$name":$block}}"""
+              val tagged = KeptRecipeCarrier.tagPreservedRecipes(wrapper, Set(name), refDate)
+              KeptRecipeCarrier.extractRecipeBlock(tagged, name).map(name -> _)
+            case None =>
+              logger.warn(s"Preserved recipe $name not found in $refFile; skipping carry-over.")
+              None
+          }
+        }
+
+        if (taggedBlocks.nonEmpty) {
+          val merged = KeptRecipeCarrier.mergeRecipeBlocks(curContent, taggedBlocks)
+          ClusterMachineAndRecipeTuner.writeFile(curOutputDir, s"$clusterName$suffix", merged)
+          logger.info(s"Carried over ${taggedBlocks.size} preserve_historical recipe(s) into $clusterName$suffix")
+        }
       }
     }
   }

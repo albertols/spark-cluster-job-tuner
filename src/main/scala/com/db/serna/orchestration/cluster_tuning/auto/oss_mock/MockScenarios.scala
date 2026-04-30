@@ -368,6 +368,79 @@ object MockScenarios {
     MultiDateScenario(name = "multiDateBaseline", perDate = Map(refDate -> ref, curDate -> cur))
   }
 
+  // ── mixedDropAndDegrade — single cluster mixing degraded + dropped recipes ─
+  //
+  // Designed to exercise the carry-over path in the AutoTuner's
+  // BoostResources / GenerateFresh branch: when a cluster's primary action
+  // reduces to BoostResources because of a degraded recipe, sibling recipes
+  // whose action is PreserveHistorical (absent from the current date) must
+  // still be carried into the freshly planned JSON, tagged with
+  // `lastTunedDate` and `keptWithoutCurrentDate: true`.
+  //
+  //   Reference (refDate): 3 recipes
+  //     - mock-recipe-keep-stable.json  (light, unchanged in current)
+  //     - mock-recipe-must-boost.json   (medium; durations × 1.40 in current → degraded)
+  //     - mock-recipe-was-here.json     (medium; absent from current → dropped_entry)
+  //
+  //   Current   (curDate):  2 recipes
+  //     - mock-recipe-keep-stable.json
+  //     - mock-recipe-must-boost.json   (degraded copy)
+
+  def mixedDropAndDegrade(refDate: String, curDate: String, seed: Long = 1234L): MultiDateScenario = {
+    val (s1, e1) = windowFor(refDate)
+    val (s2, e2) = windowFor(curDate)
+
+    val refCluster = MockCluster(
+      name = "mock-cluster-mixed",
+      recipes = Seq(
+        recipeLight("mock-recipe-keep-stable.json"),
+        recipeMedium("mock-recipe-must-boost.json"),
+        recipeMedium("mock-recipe-was-here.json")
+      ),
+      incarnations = Seq(
+        MockIncarnation(
+          spanStart = s1.plus(2, ChronoUnit.HOURS),
+          spanEnd   = s1.plus(10, ChronoUnit.HOURS)
+        )
+      )
+    )
+    val ref = MockScenario(
+      name     = "mixedDropAndDegrade-reference",
+      seed     = seed,
+      window   = (s1, e1),
+      clusters = Seq(refCluster)
+    )
+
+    val mustBoostBase = recipeMedium("mock-recipe-must-boost.json")
+    val curCluster = MockCluster(
+      name = "mock-cluster-mixed",
+      recipes = Seq(
+        recipeLight("mock-recipe-keep-stable.json"),
+        // Degrade the medium recipe so the trend detector reports `degraded`
+        // and PerformanceEvolver picks BoostResources.
+        mustBoostBase.copy(
+          avgJobDurationMs = mustBoostBase.avgJobDurationMs * 1.40,
+          p95JobDurationMs = mustBoostBase.p95JobDurationMs * 1.40
+        )
+        // mock-recipe-was-here.json deliberately absent → dropped_entry → preserve_historical.
+      ),
+      incarnations = Seq(
+        MockIncarnation(
+          spanStart = s2.plus(2, ChronoUnit.HOURS),
+          spanEnd   = s2.plus(10, ChronoUnit.HOURS)
+        )
+      )
+    )
+    val cur = MockScenario(
+      name     = "mixedDropAndDegrade-current",
+      seed     = seed,
+      window   = (s2, e2),
+      clusters = Seq(curCluster)
+    )
+
+    MultiDateScenario(name = "mixedDropAndDegrade", perDate = Map(refDate -> ref, curDate -> cur))
+  }
+
   /** Shift an incarnation's span by `(newWindowStart - oldWindowStart)`. */
   private def rebaseIncarnation(inc: MockIncarnation, oldWindowStart: Instant, newWindowStart: Instant): MockIncarnation = {
     val deltaMs = newWindowStart.toEpochMilli - oldWindowStart.toEpochMilli
@@ -396,7 +469,8 @@ object MockScenarios {
 
   /** Multi-date scenarios callable by name from the CLI. */
   val multiDate: Map[String, (String, String, Long) => MultiDateScenario] = Map(
-    "multiDateBaseline" -> (multiDateBaseline _)
+    "multiDateBaseline"   -> (multiDateBaseline _),
+    "mixedDropAndDegrade" -> (mixedDropAndDegrade _)
   )
 
   val multiDateNames: Seq[String] = multiDate.keys.toSeq.sorted

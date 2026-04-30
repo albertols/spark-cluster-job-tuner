@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-04-29T10:03:25.885530Z",
+  "generated_at": "2026-04-30T00:39:41.752192Z",
   "date": "2099_01_01",
   "strategy": "default",
   "bias_mode": "cost_performance_balance",
   "topology_preset": "8cx1GBpc",
-  "total_clusters": 4,
-  "total_predicted_nodes": 46,
-  "total_max_nodes": 46,
+  "total_clusters": 1,
+  "total_predicted_nodes": 11,
+  "total_max_nodes": 11,
   "clusters_with_diagnostic_overrides": 0,
   "quota_usage_by_family": {
     "c3": {
@@ -25,14 +25,14 @@
       "pct_used": "0.0"
     },
     "n2": {
-      "used_cores": 960,
+      "used_cores": 0,
       "quota_cores": 5000,
-      "pct_used": "19.2"
+      "pct_used": "0.0"
     },
     "n2d": {
-      "used_cores": 1056,
+      "used_cores": 480,
       "quota_cores": 3000,
-      "pct_used": "35.2"
+      "pct_used": "16.0"
     },
     "n4": {
       "used_cores": 0,
@@ -47,54 +47,9 @@
   },
   "clusters": [
     {
-      "cluster_name": "mock-cluster-003",
+      "cluster_name": "mock-cluster-mixed",
       "worker_machine_type": "n2d-highcpu-48",
       "worker_family": "n2d",
-      "num_workers": 12,
-      "max_workers_from_policy": 12,
-      "total_cores": 576,
-      "max_total_cores": 576,
-      "strategy": "default",
-      "bias_mode": "cost_performance_balance",
-      "topology_preset": "8cx1GBpc",
-      "diagnostic_signals": [
-        
-      ]
-    },
-    {
-      "cluster_name": "mock-cluster-001",
-      "worker_machine_type": "n2-highcpu-48",
-      "worker_family": "n2",
-      "num_workers": 10,
-      "max_workers_from_policy": 10,
-      "total_cores": 480,
-      "max_total_cores": 480,
-      "strategy": "default",
-      "bias_mode": "cost_performance_balance",
-      "topology_preset": "8cx1GBpc",
-      "diagnostic_signals": [
-        "Non-zero exit code 1 occurred 1 time(s)"
-      ]
-    },
-    {
-      "cluster_name": "mock-cluster-002",
-      "worker_machine_type": "n2d-highcpu-48",
-      "worker_family": "n2d",
-      "num_workers": 10,
-      "max_workers_from_policy": 10,
-      "total_cores": 480,
-      "max_total_cores": 480,
-      "strategy": "default",
-      "bias_mode": "cost_performance_balance",
-      "topology_preset": "8cx1GBpc",
-      "diagnostic_signals": [
-        
-      ]
-    },
-    {
-      "cluster_name": "mock-cluster-004",
-      "worker_machine_type": "n2-highcpu-48",
-      "worker_family": "n2",
       "num_workers": 10,
       "max_workers_from_policy": 10,
       "total_cores": 480,

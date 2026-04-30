@@ -1,5 +1,2 @@
 cluster_name,total_runtime_ms,total_runtime_minutes,total_runtime_hours
-mock-cluster-001,11700000,195,3.250000
-mock-cluster-002,12000000,200,3.333333
-mock-cluster-003,7200000,120,2
-mock-cluster-new,3000000,50,0.833333
+mock-cluster-mixed,11400000,190,3.166667

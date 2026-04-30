@@ -3,7 +3,7 @@
     <option name="INCLUDE_PROVIDED_SCOPE" value="true" />
     <option name="MAIN_CLASS_NAME" value="com.db.serna.orchestration.cluster_tuning.auto.oss_mock.OssMockMain" />
     <module name="dataproc-tuner" />
-    <option name="PROGRAM_PARAMETERS" value="--reference-date=2099_01_01 --current-date=2099_01_02 --scenario=multiDateBaseline --full" />
+    <option name="PROGRAM_PARAMETERS" value="--reference-date=2099_01_01 --current-date=2099_01_02 --scenario=mixedDropAndDegrade --full" />
     <extension name="coverage">
       <pattern>
         <option name="PATTERN" value="com.db.serna.orchestration.cluster_tuning.auto.oss_mock.*" />

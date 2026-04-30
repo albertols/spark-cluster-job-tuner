@@ -1,8 +1,4 @@
 cluster_name,recipe_filename,avg_executors_per_job,p95_run_max_executors,avg_job_duration_ms,p95_job_duration_ms,runs,seconds_at_cap,runs_reaching_cap,total_runs,fraction_reaching_cap,max_concurrent_jobs
-mock-cluster-001,mock-recipe-load-orders.json,6,12,300000,480000,20,120,2,20,0.100000,4
-mock-cluster-001,mock-recipe-aggregate-daily.json,2,4,60000,90000,50,0,0,50,0,2
-mock-cluster-002,mock-recipe-cleanup.json,2,4,60000,90000,50,0,0,50,0,2
-mock-cluster-002,mock-recipe-export-csv.json,2,4,60000,90000,50,0,0,50,0,2
-mock-cluster-002,mock-recipe-warehouse-load.json,6,12,300000,480000,20,120,2,20,0.100000,4
-mock-cluster-003,mock-recipe-ml-train.json,16,28,1800000,3000000,5,600,3,5,0.600000,2
-mock-cluster-004,mock-recipe-feature-engineer.json,6,12,300000,480000,20,120,2,20,0.100000,4
+mock-cluster-mixed,mock-recipe-keep-stable.json,2,4,60000,90000,50,0,0,50,0,2
+mock-cluster-mixed,mock-recipe-must-boost.json,6,12,300000,480000,20,120,2,20,0.100000,4
+mock-cluster-mixed,mock-recipe-was-here.json,6,12,300000,480000,20,120,2,20,0.100000,4

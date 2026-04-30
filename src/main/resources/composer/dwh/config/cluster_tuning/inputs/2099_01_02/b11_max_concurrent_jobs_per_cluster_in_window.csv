@@ -1,5 +1,2 @@
 cluster_name,max_concurrent_jobs
-mock-cluster-001,4
-mock-cluster-002,4
-mock-cluster-003,2
-mock-cluster-new,2
+mock-cluster-mixed,4

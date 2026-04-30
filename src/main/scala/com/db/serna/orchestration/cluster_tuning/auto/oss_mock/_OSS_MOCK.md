@@ -49,6 +49,7 @@ OssMockMain
 | `oomHeavy`    | 3 | mixed | several b14 exits + b16 OOM events | none | Driver-promotion / diagnostics UI |
 | `autoscaling` | 3 | mixed | none | All clusters have rich SCALE_UP/DOWN schedules | Cost / b22 step-function UI |
 | `multiDateBaseline` (multi-date) | derived from `baseline` | drift: cluster-001 ↑duration, cluster-003 ↓duration, cluster-004 dropped, mock-cluster-new added | inherits | inherits | AutoTuner trends / correlations / divergences |
+| `mixedDropAndDegrade` (multi-date) | 1 (`mock-cluster-mixed`) | 3 in ref → 2 in cur: keep-stable (unchanged), must-boost (×1.40 → degraded), was-here (dropped) | none | none | AutoTuner mixed-cluster carry-over: BoostResources path that must still preserve a `dropped_entry` recipe (with `lastTunedDate` + `keptWithoutCurrentDate`) |
 
 ## Output schemas
 

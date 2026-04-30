@@ -1,4 +1,4 @@
-package com.db.serna.orchestration.cluster_tuning.refinement
+package com.db.serna.orchestration.cluster_tuning.single.refinement
 
 import com.db.serna.orchestration.cluster_tuning.single.refinement.{MemoryHeapBoost, MemoryHeapBoostVitamin, MemoryHeapOomSignal, RecipeConfig, RecipeResolver, VitaminSignal}
 import org.scalatest.funsuite.AnyFunSuite

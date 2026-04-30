@@ -1326,6 +1326,22 @@ h3.section-heading {
   margin-left: 4px;
 }
 
+/* ── KEPT pill (recipes carried from a reference date — absent in current) ── */
+.kept-pill {
+  display: inline-block;
+  background: rgba(139, 148, 158, 0.18);
+  color: #b1bac4;
+  border: 1px solid rgba(139, 148, 158, 0.5);
+  border-radius: 9px;
+  padding: 0 6px;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  margin-left: 4px;
+  cursor: help;
+}
+
 /* ── Z-score strip plot ──────────────────────────────────────────────────── */
 #z-strip-plot { margin: 12px 0 16px; }
 .z-strip-row { margin-bottom: 4px; }

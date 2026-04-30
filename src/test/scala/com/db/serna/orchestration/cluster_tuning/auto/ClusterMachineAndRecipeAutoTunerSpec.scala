@@ -1,6 +1,7 @@
 package com.db.serna.orchestration.cluster_tuning.auto
 
 import com.db.serna.orchestration.cluster_tuning._
+import com.db.serna.orchestration.cluster_tuning.single.{ClusterDiagnosticsProcessor, MachineCatalog, RecipeMetrics}
 import com.db.serna.orchestration.cluster_tuning.single.refinement.{MemoryHeapBoost, MemoryHeapBoostVitamin, MemoryHeapOomSignal, RefinementPipeline, SimpleJsonParser}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
@@ -213,6 +214,7 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
       scatterDataDelta = Map.empty,
       scatterDataCurrentSnapshot = Map.empty,
       newEntryCurrentMetrics = Map.empty,
+      droppedEntryReferenceMetrics = Map.empty,
       decisions = Seq(decision)
     )
 
@@ -249,6 +251,7 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
       scatterDataDelta = Map.empty,
       scatterDataCurrentSnapshot = Map.empty,
       newEntryCurrentMetrics = Map.empty,
+      droppedEntryReferenceMetrics = Map.empty,
       decisions = Seq.empty
     )
 

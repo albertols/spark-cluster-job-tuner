@@ -1,32 +1,63 @@
 {
+  
   "clusterConf": {
+    
     "mock-cluster-004": {
+      
       "num_workers": 10,
+      
       "master_machine_type": "n2-highcpu-48",
+      
       "worker_machine_type": "n2-highcpu-48",
+      
       "autoscaling_policy": "extra-large-workload-autoscaling",
+      
       "tuner_version": "2099_01_01",
+      
       "total_no_of_jobs": 1,
+      
       "cluster_max_total_memory_gb": 960,
+      
       "cluster_max_total_cores": 480,
+      
       "accumulated_max_total_memory_per_jobs_gb": 96
+    
     }
+  
   },
+  
   "recipeSparkConf": {
+    
     "mock-recipe-feature-engineer.json": {
+      "lastTunedDate": "2099_01_01",
+      "keptWithoutCurrentDate": true,
       "parallelizationFactor": 5,
+      
       "sparkOptsMap": {
+        
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        
         "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        
         "spark.dynamicAllocation.enabled": "true",
+        
         "spark.dynamicAllocation.minExecutors": "6",
+        
         "spark.dynamicAllocation.maxExecutors": "12",
+        
         "spark.dynamicAllocation.initialExecutors": "6",
+        
         "spark.executor.cores": "8",
+        
         "spark.executor.memory": "8g"
+      
       },
+      
       "total_executor_minimum_allocated_memory_gb": 48,
+      
       "total_executor_maximum_allocated_memory_gb": 96
     }
+  
   }
+
 }
