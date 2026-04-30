@@ -341,6 +341,9 @@ object Json {
           sb.append(" " * (indent * indentSize)).append(c)
         case ',' if !inString =>
           sb.append(c).append('\n').append(" " * (indent * indentSize))
+        case ':' if !inString =>
+          sb.append(": ")
+        case c if !inString && c <= ' ' => // skip insignificant whitespace
         case _ =>
           sb.append(c)
       }
