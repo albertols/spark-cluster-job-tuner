@@ -759,6 +759,13 @@ function renderDashboard() {
     csGraphs.removeAttribute('open');
     delete csGraphs.dataset.loaded;
   }
+  // Same lazy-load reset for the IPC section: navigating to a different run
+  // must fetch fresh data, not reuse the previous run's cached render.
+  const ipcSec = document.getElementById('cluster-ip-count-section');
+  if (ipcSec) {
+    ipcSec.removeAttribute('open');
+    delete ipcSec.dataset.rendered;
+  }
   renderClusterIpCountSectionInit();
 }
 
@@ -1698,6 +1705,13 @@ function _ipcRenderSide(sideEl, sideData, ipQuota, dateLabel) {
   const sideName = sideEl.dataset.side; // 'reference' | 'current'
   const headerLabel = sideName === 'reference' ? 'Reference' : 'Current';
 
+  // Destroy any prior chart before innerHTML detaches its canvas, otherwise
+  // the old Chart.js instance keeps its event listeners and animation handles.
+  if (sideEl._ipcChart) {
+    try { sideEl._ipcChart.destroy(); } catch (e) {}
+    sideEl._ipcChart = null;
+  }
+
   // Empty-state path (I.2).
   if (!sideData || sideData.segments.length === 0) {
     sideEl.innerHTML = `
@@ -2115,13 +2129,16 @@ function _ipcReadModeFromHash() {
 }
 function _ipcWriteModeToHash(mode) {
   try {
-    const h = (window.location.hash || '').replace(/(^#|^|&)ipc=(reference|current|both)\b&?/, '');
-    let next = h;
-    if (next && !next.startsWith('#')) next = '#' + next;
-    if (!next) next = '#';
-    if (next === '#') next = `#ipc=${mode}`;
-    else next = `${next}${next.endsWith('&') ? '' : '&'}ipc=${mode}`;
-    window.history.replaceState(null, '', next);
+    // Strip any existing ipc= param. Two passes so a `&ipc=foo` in the middle
+    // doesn't smash its neighbors together (e.g. `#x=1&ipc=foo&y=2` → `#x=1&y=2`,
+    // not `#x=1y=2`). Leading `#ipc=foo&?` collapses to `#`.
+    let h = (window.location.hash || '')
+      .replace(/^#ipc=(reference|current|both)(?:&|$)/, '#')
+      .replace(/&ipc=(reference|current|both)\b/, '');
+    if (h && !h.startsWith('#')) h = '#' + h;
+    if (!h || h === '#') h = `#ipc=${mode}`;
+    else h = `${h}${h.endsWith('&') ? '' : '&'}ipc=${mode}`;
+    window.history.replaceState(null, '', h);
   } catch (e) {}
 }
 
