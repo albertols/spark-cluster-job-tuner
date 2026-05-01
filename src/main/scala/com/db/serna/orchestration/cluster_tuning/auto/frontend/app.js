@@ -2056,6 +2056,26 @@ function _ipcRefreshSide(sideEl) {
           <td>€${r.segCostEur.toFixed(2)}</td>
           <td>${r.idx}</td>
         </tr>`).join('');
+      tbody.querySelectorAll('tr[data-cluster]').forEach(tr => {
+        tr.addEventListener('click', () => {
+          const name = tr.dataset.cluster;
+          const wasActive = tr.classList.contains('ipc-row-active');
+          // Clear active state on all rows + all dataset borders.
+          tbody.querySelectorAll('tr.ipc-row-active').forEach(r => r.classList.remove('ipc-row-active'));
+          if (sideEl._ipcChart) {
+            sideEl._ipcChart.data.datasets.forEach(ds => { ds.borderWidth = 0; });
+          }
+          // Toggle: if it WAS active, leave all cleared; otherwise activate this one.
+          if (!wasActive) {
+            tr.classList.add('ipc-row-active');
+            if (sideEl._ipcChart) {
+              const ds = sideEl._ipcChart.data.datasets.find(d => d.label === name);
+              if (ds) ds.borderWidth = 2;
+            }
+          }
+          if (sideEl._ipcChart) sideEl._ipcChart.update('none');
+        });
+      });
     }
   }
   const tfTotal = sideEl.querySelector('.ipc-tfoot-total');
