@@ -25,5 +25,108 @@
       "total_executor_minimum_allocated_memory_gb": 96,
       "total_executor_maximum_allocated_memory_gb": 96
     }
+  },
+  "cost_timeline": {
+    "worker_machine_type": "n2-highcpu-48",
+    "master_machine_type": "n2-highcpu-48",
+    "worker_hourly_eur": 2.8800,
+    "master_hourly_eur": 2.8800,
+    "real_used_avg_num_of_workers": 5.61,
+    "real_used_min_workers": 2,
+    "real_used_max_workers": 8,
+    "total_cost_eur": 228.4800,
+    "incarnations": [
+      {
+        "idx": 1,
+        "span_start_ts": "2099-01-01T02:00:00Z",
+        "span_end_ts": "2099-01-01T06:00:00Z",
+        "span_minutes": 240.00,
+        "avg_workers": 5.21,
+        "min_workers": 2,
+        "max_workers": 6,
+        "worker_cost_eur": 60.0000,
+        "master_cost_eur": 11.5200,
+        "total_cost_eur": 71.5200,
+        "intervals": [
+          {
+            "from_ts": "2099-01-01T02:00:00Z",
+            "to_ts": "2099-01-01T02:05:00Z",
+            "workers": 2.0,
+            "seg_seconds": 300,
+            "seg_cost_eur": 0.7200
+          },
+          {
+            "from_ts": "2099-01-01T02:05:00Z",
+            "to_ts": "2099-01-01T02:30:00Z",
+            "workers": 4.0,
+            "seg_seconds": 1500,
+            "seg_cost_eur": 6.0000
+          },
+          {
+            "from_ts": "2099-01-01T02:30:00Z",
+            "to_ts": "2099-01-01T05:00:00Z",
+            "workers": 6.0,
+            "seg_seconds": 9000,
+            "seg_cost_eur": 50.4000
+          },
+          {
+            "from_ts": "2099-01-01T05:00:00Z",
+            "to_ts": "2099-01-01T06:00:00Z",
+            "workers": 4.0,
+            "seg_seconds": 3600,
+            "seg_cost_eur": 14.4000
+          }
+        ]
+      },
+      {
+        "idx": 2,
+        "span_start_ts": "2099-01-01T14:00:00Z",
+        "span_end_ts": "2099-01-01T22:00:00Z",
+        "span_minutes": 480.00,
+        "avg_workers": 5.81,
+        "min_workers": 2,
+        "max_workers": 8,
+        "worker_cost_eur": 133.9200,
+        "master_cost_eur": 23.0400,
+        "total_cost_eur": 156.9600,
+        "intervals": [
+          {
+            "from_ts": "2099-01-01T14:00:00Z",
+            "to_ts": "2099-01-01T14:10:00Z",
+            "workers": 2.0,
+            "seg_seconds": 600,
+            "seg_cost_eur": 1.4400
+          },
+          {
+            "from_ts": "2099-01-01T14:10:00Z",
+            "to_ts": "2099-01-01T15:00:00Z",
+            "workers": 5.0,
+            "seg_seconds": 3000,
+            "seg_cost_eur": 14.4000
+          },
+          {
+            "from_ts": "2099-01-01T15:00:00Z",
+            "to_ts": "2099-01-01T19:00:00Z",
+            "workers": 8.0,
+            "seg_seconds": 14400,
+            "seg_cost_eur": 103.6800
+          },
+          {
+            "from_ts": "2099-01-01T19:00:00Z",
+            "to_ts": "2099-01-01T21:00:00Z",
+            "workers": 4.0,
+            "seg_seconds": 7200,
+            "seg_cost_eur": 28.8000
+          },
+          {
+            "from_ts": "2099-01-01T21:00:00Z",
+            "to_ts": "2099-01-01T22:00:00Z",
+            "workers": 2.0,
+            "seg_seconds": 3600,
+            "seg_cost_eur": 8.6400
+          }
+        ]
+      }
+    ]
   }
 }

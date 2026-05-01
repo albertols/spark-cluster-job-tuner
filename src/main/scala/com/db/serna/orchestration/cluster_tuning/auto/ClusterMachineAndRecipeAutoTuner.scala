@@ -296,8 +296,24 @@ object ClusterMachineAndRecipeAutoTuner {
               b14BoostedClusters += ((clusterName, driverOverride.get.diagnosticReason))
             }
 
-            val manualJsonStr = ClusterMachineAndRecipeTuner.manualJson(clusterPlan, manualPlans, tunerVersion, driverOverride)
-            val daJsonStr = ClusterMachineAndRecipeTuner.daJson(clusterPlan, daPlans, tunerVersion, driverOverride)
+            // Compute current-date interval cost / wall-clock minutes / worker stats /
+            // cost_timeline JSON in one pass. Empty spans yield zeros and None for
+            // cost_timeline (frontend will render the empty-state notice on this side).
+            val curSpans = curSnapshot.clusterSpans.getOrElse(clusterName, Seq.empty)
+            val curEvents = curSnapshot.autoscalerEvents.getOrElse(clusterName, Seq.empty)
+            if (curSpans.isEmpty) {
+              logger.warn(s"No b20 cluster span for $clusterName in current date; estimated_cost_eur=0.0 and total_active_minutes=0.0 in summaries.")
+            }
+            val breakdown = ClusterMachineAndRecipeTuner.computeClusterCost(
+              spans           = curSpans,
+              events          = curEvents,
+              worker          = clusterPlan.workerMachineType,
+              master          = clusterPlan.masterMachineType,
+              fallbackWorkers = clusterPlan.workers
+            )
+
+            val manualJsonStr = ClusterMachineAndRecipeTuner.manualJson(clusterPlan, manualPlans, tunerVersion, driverOverride, breakdown.costTimelineJson)
+            val daJsonStr = ClusterMachineAndRecipeTuner.daJson(clusterPlan, daPlans, tunerVersion, driverOverride, breakdown.costTimelineJson)
 
             ClusterMachineAndRecipeTuner.writeFile(curOutputDir, s"$clusterName-manually-tuned.json", manualJsonStr)
             ClusterMachineAndRecipeTuner.writeFile(curOutputDir, s"$clusterName-auto-scale-tuned.json", daJsonStr)
@@ -323,12 +339,8 @@ object ClusterMachineAndRecipeAutoTuner {
               }
             }
 
-            // Build summary entry
-            val totalMinutes = ClusterMachineAndRecipeTuner.clusterActiveMinutes(recMetrics)
-            val hourlyCost = ClusterMachineAndRecipeTuner.hourlyPrice(clusterPlan.workerMachineType) * clusterPlan.workers +
-              ClusterMachineAndRecipeTuner.hourlyPrice(clusterPlan.masterMachineType)
-            val estimatedCost = hourlyCost * (totalMinutes / 60.0)
-
+            // Use the same interval-based wall-clock minutes + interval cost +
+            // time-weighted worker stats already computed above (breakdown).
             summaries += ClusterSummary(
               clusterName = clusterName,
               dagId = dagByCluster.getOrElse(clusterName, "UNKNOWN_DAG_ID"),
@@ -336,8 +348,11 @@ object ClusterMachineAndRecipeAutoTuner {
               numOfWorkers = clusterPlan.workers,
               workerMachineType = clusterPlan.workerMachineType.name,
               masterMachineType = clusterPlan.masterMachineType.name,
-              totalActiveMinutes = totalMinutes,
-              estimatedCostEur = estimatedCost,
+              realUsedAvgNumOfWorkers = breakdown.workerStats.avgWorkers,
+              realUsedMinWorkers = breakdown.workerStats.minWorkers,
+              realUsedMaxWorkers = breakdown.workerStats.maxWorkers,
+              totalActiveMinutes = breakdown.totalActiveMinutes,
+              estimatedCostEur = breakdown.estimatedCostEur,
               timerName = timerByCluster.getOrElse(clusterName, ("ZERO_TIMER", "00:00"))._1,
               timerTime = timerByCluster.getOrElse(clusterName, ("ZERO_TIMER", "00:00"))._2
             )
@@ -449,7 +464,25 @@ object ClusterMachineAndRecipeAutoTuner {
     )
     val driverOverrides = ClusterDiagnosticsProcessor.computeOverrides(b14Signals)
 
-    DateSnapshot(date, metrics, b14Signals, driverOverrides)
+    // b20/b21 power the per-date interval cost. Both are optional — when absent
+    // the tuner emits estimated_cost_eur=0 with WARN and the frontend hides the
+    // detail-cluster-cost section for that side.
+    val clusterSpans = try {
+      ClusterMachineAndRecipeTuner.loadClusterSpans(cfg)
+    } catch {
+      case e: Exception =>
+        logger.warn(s"Failed to load cluster spans for $date: ${e.getMessage}")
+        Map.empty[String, Seq[com.db.serna.orchestration.cluster_tuning.single.ClusterSpan]]
+    }
+    val autoscalerEvents = try {
+      ClusterMachineAndRecipeTuner.loadAutoscalerEvents(cfg)
+    } catch {
+      case e: Exception =>
+        logger.warn(s"Failed to load autoscaler events for $date: ${e.getMessage}")
+        Map.empty[String, Seq[com.db.serna.orchestration.cluster_tuning.single.AutoscalerEvent]]
+    }
+
+    DateSnapshot(date, metrics, b14Signals, driverOverrides, clusterSpans, autoscalerEvents)
   }
 
   private def loadReferenceConfigs(refOutputDir: File): Map[String, TunedClusterConfig] = {

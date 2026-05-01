@@ -1,5 +1,10 @@
 {
   "gcpProjectId": "db-prd-rn63-pwcclake-es",
   "inputsPath":  "../../../../../../../../resources/composer/dwh/config/cluster_tuning/inputs",
-  "outputsPath": "../../../../../../../../resources/composer/dwh/config/cluster_tuning/outputs"
+  "outputsPath": "../../../../../../../../resources/composer/dwh/config/cluster_tuning/outputs",
+  "ipQuota": {
+    "max_ip_count": 256,
+    "warn_pct": 70,
+    "crit_pct": 90
+  }
 }

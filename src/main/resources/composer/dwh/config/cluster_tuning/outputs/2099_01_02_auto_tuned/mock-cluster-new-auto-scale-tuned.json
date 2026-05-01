@@ -28,5 +28,38 @@
       "total_executor_minimum_allocated_memory_gb": 16,
       "total_executor_maximum_allocated_memory_gb": 32
     }
+  },
+  "cost_timeline": {
+    "worker_machine_type": "n2-highcpu-48",
+    "master_machine_type": "n2-highcpu-48",
+    "worker_hourly_eur": 2.8800,
+    "master_hourly_eur": 2.8800,
+    "real_used_avg_num_of_workers": 2.00,
+    "real_used_min_workers": 2,
+    "real_used_max_workers": 2,
+    "total_cost_eur": 51.8400,
+    "incarnations": [
+      {
+        "idx": 1,
+        "span_start_ts": "2099-01-02T04:00:00Z",
+        "span_end_ts": "2099-01-02T10:00:00Z",
+        "span_minutes": 360.00,
+        "avg_workers": 2.00,
+        "min_workers": 2,
+        "max_workers": 2,
+        "worker_cost_eur": 34.5600,
+        "master_cost_eur": 17.2800,
+        "total_cost_eur": 51.8400,
+        "intervals": [
+          {
+            "from_ts": "2099-01-02T04:00:00Z",
+            "to_ts": "2099-01-02T10:00:00Z",
+            "workers": 2.0,
+            "seg_seconds": 21600,
+            "seg_cost_eur": 51.8400
+          }
+        ]
+      }
+    ]
   }
 }

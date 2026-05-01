@@ -1,26 +1,122 @@
 {
   "metadata": {
-    "generated_at": "2026-04-30T00:39:42.410047Z",
+    "generated_at": "2026-04-30T19:29:54.119521Z",
     "reference_date": "2099_01_01",
     "current_date": "2099_01_02",
-    "total_clusters": 1,
-    "total_recipes": 3,
+    "total_clusters": 5,
+    "total_recipes": 8,
     "strategy": "default"
   },
   "trends_summary": {
-    "improved": 0,
-    "degraded": 1,
-    "stable": 1,
-    "new_entries": 0,
+    "improved": 1,
+    "degraded": 2,
+    "stable": 3,
+    "new_entries": 1,
     "dropped_entries": 1
   },
   "cluster_trends": [
     {
-      "cluster": "mock-cluster-mixed",
+      "cluster": "mock-cluster-001",
       "overall_trend": "degraded",
       "recipes": [
         {
-          "recipe": "mock-recipe-keep-stable.json",
+          "recipe": "mock-recipe-aggregate-daily.json",
+          "trend": "degraded",
+          "confidence": 1,
+          "action": "boost_resources",
+          "reason": "Performance degraded: p95_job_duration_ms changed 30.0%. Re-planning with current metrics.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 2,
+              "current": 2,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 4,
+              "current": 4,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 60000,
+              "current": 78000,
+              "pct_change": 30
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 90000,
+              "current": 117000,
+              "pct_change": 30
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0,
+              "current": 0,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 50,
+              "current": 50,
+              "pct_change": 0
+            }
+          ]
+        },
+        {
+          "recipe": "mock-recipe-load-orders.json",
+          "trend": "degraded",
+          "confidence": 1,
+          "action": "boost_resources",
+          "reason": "Performance degraded: p95_job_duration_ms changed 30.0%. Re-planning with current metrics.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 6,
+              "current": 6,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 12,
+              "current": 12,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 300000,
+              "current": 390000,
+              "pct_change": 30
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 480000,
+              "current": 624000,
+              "pct_change": 30
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0.1000,
+              "current": 0.1000,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 20,
+              "current": 20,
+              "pct_change": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "cluster": "mock-cluster-002",
+      "overall_trend": "stable",
+      "recipes": [
+        {
+          "recipe": "mock-recipe-cleanup.json",
           "trend": "stable",
           "confidence": 1,
           "action": "keep_as_is",
@@ -65,11 +161,56 @@
           ]
         },
         {
-          "recipe": "mock-recipe-must-boost.json",
-          "trend": "degraded",
+          "recipe": "mock-recipe-export-csv.json",
+          "trend": "stable",
           "confidence": 1,
-          "action": "boost_resources",
-          "reason": "Performance degraded: p95_job_duration_ms changed 40.0%. Re-planning with current metrics.",
+          "action": "keep_as_is",
+          "reason": "Performance stable (confidence=1.0). Keeping reference config.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 2,
+              "current": 2,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 4,
+              "current": 4,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 60000,
+              "current": 60000,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 90000,
+              "current": 90000,
+              "pct_change": 0
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0,
+              "current": 0,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 50,
+              "current": 50,
+              "pct_change": 0
+            }
+          ]
+        },
+        {
+          "recipe": "mock-recipe-warehouse-load.json",
+          "trend": "stable",
+          "confidence": 1,
+          "action": "keep_as_is",
+          "reason": "Performance stable (confidence=1.0). Keeping reference config.",
           "deltas": [
             {
               "metric": "avg_executors_per_job",
@@ -86,14 +227,14 @@
             {
               "metric": "avg_job_duration_ms",
               "reference": 300000,
-              "current": 420000,
-              "pct_change": 40
+              "current": 300000,
+              "pct_change": 0
             },
             {
               "metric": "p95_job_duration_ms",
               "reference": 480000,
-              "current": 672000,
-              "pct_change": 40
+              "current": 480000,
+              "pct_change": 0
             },
             {
               "metric": "fraction_reaching_cap",
@@ -108,9 +249,66 @@
               "pct_change": 0
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "cluster": "mock-cluster-003",
+      "overall_trend": "improved",
+      "recipes": [
         {
-          "recipe": "mock-recipe-was-here.json",
+          "recipe": "mock-recipe-ml-train.json",
+          "trend": "improved",
+          "confidence": 0.5000,
+          "action": "keep_as_is",
+          "reason": "Performance improved (confidence=0.5). Keeping reference config.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 16,
+              "current": 16,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 28,
+              "current": 28,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 1800000,
+              "current": 1440000,
+              "pct_change": -20
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 3000000,
+              "current": 2400000,
+              "pct_change": -20
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0.6000,
+              "current": 0.6000,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 5,
+              "current": 5,
+              "pct_change": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "cluster": "mock-cluster-004",
+      "overall_trend": "stable",
+      "recipes": [
+        {
+          "recipe": "mock-recipe-feature-engineer.json",
           "trend": "dropped_entry",
           "confidence": 0,
           "action": "preserve_historical",
@@ -128,6 +326,30 @@
           }
         }
       ]
+    },
+    {
+      "cluster": "mock-cluster-new",
+      "overall_trend": "stable",
+      "recipes": [
+        {
+          "recipe": "mock-recipe-newcomer.json",
+          "trend": "new_entry",
+          "confidence": 0,
+          "action": "generate_fresh",
+          "reason": "New recipe not present in reference date. Generating fresh config.",
+          "deltas": [
+            
+          ],
+          "current_metrics": {
+            "avg_executors_per_job": 2,
+            "p95_run_max_executors": 4,
+            "avg_job_duration_ms": 60000,
+            "p95_job_duration_ms": 90000,
+            "fraction_reaching_cap": 0,
+            "runs": 50
+          }
+        }
+      ]
     }
   ],
   "correlations": [
@@ -136,7 +358,7 @@
       "metric_b": "delta_p95_job_duration_ms",
       "pearson": 0,
       "covariance": 0,
-      "n": 2,
+      "n": 6,
       "view": "delta"
     },
     {
@@ -144,7 +366,7 @@
       "metric_b": "delta_avg_job_duration_ms",
       "pearson": 0,
       "covariance": 0,
-      "n": 2,
+      "n": 6,
       "view": "delta"
     },
     {
@@ -152,7 +374,7 @@
       "metric_b": "delta_p95_job_duration_ms",
       "pearson": 0,
       "covariance": 0,
-      "n": 2,
+      "n": 6,
       "view": "delta"
     },
     {
@@ -160,7 +382,7 @@
       "metric_b": "delta_avg_job_duration_ms",
       "pearson": 0,
       "covariance": 0,
-      "n": 2,
+      "n": 6,
       "view": "delta"
     }
   ],
@@ -168,33 +390,33 @@
     {
       "metric_a": "p95_run_max_executors",
       "metric_b": "p95_job_duration_ms",
-      "pearson": 1,
-      "covariance": 1164000,
-      "n": 2,
+      "pearson": 0.9827,
+      "covariance": 6313959.1837,
+      "n": 7,
       "view": "current_snapshot"
     },
     {
       "metric_a": "avg_executors_per_job",
       "metric_b": "avg_job_duration_ms",
-      "pearson": 1,
-      "covariance": 360000,
-      "n": 2,
+      "pearson": 0.9927,
+      "covariance": 2202122.4490,
+      "n": 7,
       "view": "current_snapshot"
     },
     {
       "metric_a": "fraction_reaching_cap",
       "metric_b": "p95_job_duration_ms",
-      "pearson": 1,
-      "covariance": 14550,
-      "n": 2,
+      "pearson": 0.9979,
+      "covariance": 157959.1837,
+      "n": 7,
       "view": "current_snapshot"
     },
     {
       "metric_a": "runs",
       "metric_b": "avg_job_duration_ms",
-      "pearson": -1,
-      "covariance": -2700000,
-      "n": 2,
+      "pearson": -0.8501,
+      "covariance": -7097142.8571,
+      "n": 7,
       "view": "current_snapshot"
     }
   ],
@@ -202,10 +424,85 @@
     
   },
   "divergences": [
-    
+    {
+      "cluster": "mock-cluster-003",
+      "recipe": "mock-recipe-ml-train.json",
+      "metric": "delta_avg_job_duration_ms",
+      "reference": 1800000,
+      "current": 1440000,
+      "z_score": -2.1820,
+      "is_outlier": true,
+      "view": "delta",
+      "is_new_entry": false
+    },
+    {
+      "cluster": "mock-cluster-003",
+      "recipe": "mock-recipe-ml-train.json",
+      "metric": "delta_p95_job_duration_ms",
+      "reference": 3000000,
+      "current": 2400000,
+      "z_score": -2.1857,
+      "is_outlier": true,
+      "view": "delta",
+      "is_new_entry": false
+    }
   ],
   "divergences_current_snapshot": [
-    
+    {
+      "cluster": "mock-cluster-003",
+      "recipe": "mock-recipe-ml-train.json",
+      "metric": "fraction_reaching_cap",
+      "reference": 0,
+      "current": 0.6000,
+      "z_score": 2.3922,
+      "is_outlier": true,
+      "view": "current_snapshot",
+      "is_new_entry": false
+    },
+    {
+      "cluster": "mock-cluster-003",
+      "recipe": "mock-recipe-ml-train.json",
+      "metric": "p95_job_duration_ms",
+      "reference": 0,
+      "current": 2400000,
+      "z_score": 2.3654,
+      "is_outlier": true,
+      "view": "current_snapshot",
+      "is_new_entry": false
+    },
+    {
+      "cluster": "mock-cluster-003",
+      "recipe": "mock-recipe-ml-train.json",
+      "metric": "avg_job_duration_ms",
+      "reference": 0,
+      "current": 1440000,
+      "z_score": 2.3597,
+      "is_outlier": true,
+      "view": "current_snapshot",
+      "is_new_entry": false
+    },
+    {
+      "cluster": "mock-cluster-003",
+      "recipe": "mock-recipe-ml-train.json",
+      "metric": "avg_executors_per_job",
+      "reference": 0,
+      "current": 16,
+      "z_score": 2.2791,
+      "is_outlier": true,
+      "view": "current_snapshot",
+      "is_new_entry": false
+    },
+    {
+      "cluster": "mock-cluster-003",
+      "recipe": "mock-recipe-ml-train.json",
+      "metric": "p95_run_max_executors",
+      "reference": 0,
+      "current": 28,
+      "z_score": 2.2188,
+      "is_outlier": true,
+      "view": "current_snapshot",
+      "is_new_entry": false
+    }
   ],
   "divergences_per_cluster": {
     
@@ -214,65 +511,177 @@
     "delta": {
       "delta_avg_executors_per_job__delta_avg_job_duration_ms": [
         {
-          "cluster": "mock-cluster-mixed",
-          "recipe": "mock-recipe-keep-stable.json",
+          "cluster": "mock-cluster-001",
+          "recipe": "mock-recipe-aggregate-daily.json",
+          "x": 0,
+          "y": 18000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-001",
+          "recipe": "mock-recipe-load-orders.json",
+          "x": 0,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-003",
+          "recipe": "mock-recipe-ml-train.json",
+          "x": 0,
+          "y": -360000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-warehouse-load.json",
           "x": 0,
           "y": 0,
           "is_new": false
         },
         {
-          "cluster": "mock-cluster-mixed",
-          "recipe": "mock-recipe-must-boost.json",
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-export-csv.json",
           "x": 0,
-          "y": 120000,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-cleanup.json",
+          "x": 0,
+          "y": 0,
           "is_new": false
         }
       ],
       "delta_fraction_reaching_cap__delta_p95_job_duration_ms": [
         {
-          "cluster": "mock-cluster-mixed",
-          "recipe": "mock-recipe-keep-stable.json",
+          "cluster": "mock-cluster-001",
+          "recipe": "mock-recipe-aggregate-daily.json",
+          "x": 0,
+          "y": 27000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-001",
+          "recipe": "mock-recipe-load-orders.json",
+          "x": 0,
+          "y": 144000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-003",
+          "recipe": "mock-recipe-ml-train.json",
+          "x": 0,
+          "y": -600000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-warehouse-load.json",
           "x": 0,
           "y": 0,
           "is_new": false
         },
         {
-          "cluster": "mock-cluster-mixed",
-          "recipe": "mock-recipe-must-boost.json",
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-export-csv.json",
           "x": 0,
-          "y": 192000,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-cleanup.json",
+          "x": 0,
+          "y": 0,
           "is_new": false
         }
       ],
       "delta_p95_run_max_executors__delta_p95_job_duration_ms": [
         {
-          "cluster": "mock-cluster-mixed",
-          "recipe": "mock-recipe-keep-stable.json",
+          "cluster": "mock-cluster-001",
+          "recipe": "mock-recipe-aggregate-daily.json",
+          "x": 0,
+          "y": 27000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-001",
+          "recipe": "mock-recipe-load-orders.json",
+          "x": 0,
+          "y": 144000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-003",
+          "recipe": "mock-recipe-ml-train.json",
+          "x": 0,
+          "y": -600000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-warehouse-load.json",
           "x": 0,
           "y": 0,
           "is_new": false
         },
         {
-          "cluster": "mock-cluster-mixed",
-          "recipe": "mock-recipe-must-boost.json",
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-export-csv.json",
           "x": 0,
-          "y": 192000,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-cleanup.json",
+          "x": 0,
+          "y": 0,
           "is_new": false
         }
       ],
       "delta_runs__delta_avg_job_duration_ms": [
         {
-          "cluster": "mock-cluster-mixed",
-          "recipe": "mock-recipe-keep-stable.json",
+          "cluster": "mock-cluster-001",
+          "recipe": "mock-recipe-aggregate-daily.json",
+          "x": 0,
+          "y": 18000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-001",
+          "recipe": "mock-recipe-load-orders.json",
+          "x": 0,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-003",
+          "recipe": "mock-recipe-ml-train.json",
+          "x": 0,
+          "y": -360000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-warehouse-load.json",
           "x": 0,
           "y": 0,
           "is_new": false
         },
         {
-          "cluster": "mock-cluster-mixed",
-          "recipe": "mock-recipe-must-boost.json",
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-export-csv.json",
           "x": 0,
-          "y": 120000,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-cleanup.json",
+          "x": 0,
+          "y": 0,
           "is_new": false
         }
       ]
@@ -280,65 +689,205 @@
     "current_snapshot": {
       "avg_executors_per_job__avg_job_duration_ms": [
         {
-          "cluster": "mock-cluster-mixed",
-          "recipe": "mock-recipe-keep-stable.json",
+          "cluster": "mock-cluster-001",
+          "recipe": "mock-recipe-aggregate-daily.json",
+          "x": 2,
+          "y": 78000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-001",
+          "recipe": "mock-recipe-load-orders.json",
+          "x": 6,
+          "y": 390000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-003",
+          "recipe": "mock-recipe-ml-train.json",
+          "x": 16,
+          "y": 1440000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-warehouse-load.json",
+          "x": 6,
+          "y": 300000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-export-csv.json",
           "x": 2,
           "y": 60000,
           "is_new": false
         },
         {
-          "cluster": "mock-cluster-mixed",
-          "recipe": "mock-recipe-must-boost.json",
-          "x": 6,
-          "y": 420000,
+          "cluster": "mock-cluster-new",
+          "recipe": "mock-recipe-newcomer.json",
+          "x": 2,
+          "y": 60000,
+          "is_new": true
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-cleanup.json",
+          "x": 2,
+          "y": 60000,
           "is_new": false
         }
       ],
       "fraction_reaching_cap__p95_job_duration_ms": [
         {
-          "cluster": "mock-cluster-mixed",
-          "recipe": "mock-recipe-keep-stable.json",
+          "cluster": "mock-cluster-001",
+          "recipe": "mock-recipe-aggregate-daily.json",
+          "x": 0,
+          "y": 117000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-001",
+          "recipe": "mock-recipe-load-orders.json",
+          "x": 0.1000,
+          "y": 624000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-003",
+          "recipe": "mock-recipe-ml-train.json",
+          "x": 0.6000,
+          "y": 2400000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-warehouse-load.json",
+          "x": 0.1000,
+          "y": 480000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-export-csv.json",
           "x": 0,
           "y": 90000,
           "is_new": false
         },
         {
-          "cluster": "mock-cluster-mixed",
-          "recipe": "mock-recipe-must-boost.json",
-          "x": 0.1000,
-          "y": 672000,
+          "cluster": "mock-cluster-new",
+          "recipe": "mock-recipe-newcomer.json",
+          "x": 0,
+          "y": 90000,
+          "is_new": true
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-cleanup.json",
+          "x": 0,
+          "y": 90000,
           "is_new": false
         }
       ],
       "p95_run_max_executors__p95_job_duration_ms": [
         {
-          "cluster": "mock-cluster-mixed",
-          "recipe": "mock-recipe-keep-stable.json",
+          "cluster": "mock-cluster-001",
+          "recipe": "mock-recipe-aggregate-daily.json",
+          "x": 4,
+          "y": 117000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-001",
+          "recipe": "mock-recipe-load-orders.json",
+          "x": 12,
+          "y": 624000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-003",
+          "recipe": "mock-recipe-ml-train.json",
+          "x": 28,
+          "y": 2400000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-warehouse-load.json",
+          "x": 12,
+          "y": 480000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-export-csv.json",
           "x": 4,
           "y": 90000,
           "is_new": false
         },
         {
-          "cluster": "mock-cluster-mixed",
-          "recipe": "mock-recipe-must-boost.json",
-          "x": 12,
-          "y": 672000,
+          "cluster": "mock-cluster-new",
+          "recipe": "mock-recipe-newcomer.json",
+          "x": 4,
+          "y": 90000,
+          "is_new": true
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-cleanup.json",
+          "x": 4,
+          "y": 90000,
           "is_new": false
         }
       ],
       "runs__avg_job_duration_ms": [
         {
-          "cluster": "mock-cluster-mixed",
-          "recipe": "mock-recipe-keep-stable.json",
+          "cluster": "mock-cluster-001",
+          "recipe": "mock-recipe-aggregate-daily.json",
+          "x": 50,
+          "y": 78000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-001",
+          "recipe": "mock-recipe-load-orders.json",
+          "x": 20,
+          "y": 390000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-003",
+          "recipe": "mock-recipe-ml-train.json",
+          "x": 5,
+          "y": 1440000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-warehouse-load.json",
+          "x": 20,
+          "y": 300000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-export-csv.json",
           "x": 50,
           "y": 60000,
           "is_new": false
         },
         {
-          "cluster": "mock-cluster-mixed",
-          "recipe": "mock-recipe-must-boost.json",
-          "x": 20,
-          "y": 420000,
+          "cluster": "mock-cluster-new",
+          "recipe": "mock-recipe-newcomer.json",
+          "x": 50,
+          "y": 60000,
+          "is_new": true
+        },
+        {
+          "cluster": "mock-cluster-002",
+          "recipe": "mock-recipe-cleanup.json",
+          "x": 50,
+          "y": 60000,
           "is_new": false
         }
       ]

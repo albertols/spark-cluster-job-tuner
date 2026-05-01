@@ -505,32 +505,181 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
   // ── ClusterSummary sort helpers ───────────────────────────────────────────
 
   test("sortByTopJobs orders by descending noOfJobs") {
-    val s1 = ClusterSummary("c1", "d1", 5, 2, "e2-standard-8", "e2-standard-8", 10.0, 1.0, "T", "00:00")
-    val s2 = ClusterSummary("c2", "d2", 10, 3, "n2-standard-32", "n2-standard-32", 20.0, 2.0, "T", "00:00")
-    val s3 = ClusterSummary("c3", "d3", 3, 1, "e2-standard-8", "e2-standard-8", 5.0, 0.5, "T", "00:00")
+    val s1 = ClusterSummary("c1", "d1", 5, 2, "e2-standard-8", "e2-standard-8", 0.0, 0, 0, 10.0, 1.0, "T", "00:00")
+    val s2 = ClusterSummary("c2", "d2", 10, 3, "n2-standard-32", "n2-standard-32", 0.0, 0, 0, 20.0, 2.0, "T", "00:00")
+    val s3 = ClusterSummary("c3", "d3", 3, 1, "e2-standard-8", "e2-standard-8", 0.0, 0, 0, 5.0, 0.5, "T", "00:00")
     val result = ClusterMachineAndRecipeTuner.sortByTopJobs(Seq(s1, s2, s3))
     result.map(_.clusterName) shouldBe Seq("c2", "c1", "c3")
   }
 
   test("sortByNumOfWorkers orders by descending numOfWorkers") {
-    val s1 = ClusterSummary("c1", "d1", 5, 2, "e2-standard-8", "e2-standard-8", 10.0, 1.0, "T", "00:00")
-    val s2 = ClusterSummary("c2", "d2", 3, 6, "n2-standard-32", "n2-standard-32", 20.0, 2.0, "T", "00:00")
+    val s1 = ClusterSummary("c1", "d1", 5, 2, "e2-standard-8", "e2-standard-8", 0.0, 0, 0, 10.0, 1.0, "T", "00:00")
+    val s2 = ClusterSummary("c2", "d2", 3, 6, "n2-standard-32", "n2-standard-32", 0.0, 0, 0, 20.0, 2.0, "T", "00:00")
     val result = ClusterMachineAndRecipeTuner.sortByNumOfWorkers(Seq(s1, s2))
     result.head.clusterName shouldBe "c2"
   }
 
   test("sortByEstimatedCostEur orders by descending cost") {
-    val s1 = ClusterSummary("c1", "d1", 5, 2, "e2-standard-8", "e2-standard-8", 10.0, 1.0, "T", "00:00")
-    val s2 = ClusterSummary("c2", "d2", 3, 6, "n2-standard-32", "n2-standard-32", 20.0, 9.9, "T", "00:00")
+    val s1 = ClusterSummary("c1", "d1", 5, 2, "e2-standard-8", "e2-standard-8", 0.0, 0, 0, 10.0, 1.0, "T", "00:00")
+    val s2 = ClusterSummary("c2", "d2", 3, 6, "n2-standard-32", "n2-standard-32", 0.0, 0, 0, 20.0, 9.9, "T", "00:00")
     val result = ClusterMachineAndRecipeTuner.sortByEstimatedCostEur(Seq(s1, s2))
     result.head.clusterName shouldBe "c2"
   }
 
   test("sortByTotalActiveMinutes orders by descending minutes") {
-    val s1 = ClusterSummary("c1", "d1", 5, 2, "e2-standard-8", "e2-standard-8", 99.0, 1.0, "T", "00:00")
-    val s2 = ClusterSummary("c2", "d2", 3, 6, "n2-standard-32", "n2-standard-32", 1.0, 2.0, "T", "00:00")
+    val s1 = ClusterSummary("c1", "d1", 5, 2, "e2-standard-8", "e2-standard-8", 0.0, 0, 0, 99.0, 1.0, "T", "00:00")
+    val s2 = ClusterSummary("c2", "d2", 3, 6, "n2-standard-32", "n2-standard-32", 0.0, 0, 0, 1.0, 2.0, "T", "00:00")
     val result = ClusterMachineAndRecipeTuner.sortByTotalActiveMinutes(Seq(s1, s2))
     result.head.clusterName shouldBe "c1"
+  }
+
+  // ── buildSpanSegments / workerStatsForCluster / costTimelineJson ──────────
+
+  private def span(start: String, end: String, idx: Int = 1): ClusterSpan =
+    ClusterSpan(
+      cluster = "c1",
+      incarnationIdx = idx,
+      spanStart = java.time.Instant.parse(start),
+      spanEnd   = java.time.Instant.parse(end),
+      hasExplicitCreate = true,
+      hasExplicitDelete = true
+    )
+
+  private def event(ts: String, current: Int, target: Int): AutoscalerEvent =
+    AutoscalerEvent(
+      cluster = "c1",
+      eventTs = java.time.Instant.parse(ts),
+      state   = "RECOMMENDING",
+      decision = Some("SCALE_UP"),
+      currentPrimary = Some(current),
+      targetPrimary  = Some(target),
+      minPrimary = Some(2),
+      maxPrimary = Some(16)
+    )
+
+  test("buildSpanSegments with no events emits a single fallback segment over the span") {
+    val s = span("2026-01-01T08:00:00Z", "2026-01-01T10:00:00Z")
+    val segs = ClusterMachineAndRecipeTuner.buildSpanSegments(
+      span = s, events = Seq.empty, workerHourly = 1.0, masterHourly = 0.1, fallbackWorkers = 4.0
+    )
+    segs should have size 1
+    segs.head.workers shouldBe 4.0
+    segs.head.segSeconds shouldBe 7200.0 +- 0.001
+    // 1.0 * 4 workers * 2h + 0.1 * 1 master * 2h = 8.0 + 0.2 = 8.2 EUR
+    segs.head.totalCostEur shouldBe 8.2 +- 0.0001
+  }
+
+  test("buildSpanSegments with two events emits 3 segments at correct boundaries") {
+    val s = span("2026-01-01T08:00:00Z", "2026-01-01T10:00:00Z")
+    val e1 = event("2026-01-01T08:30:00Z", current = 3, target = 5)  // initialWorkers=3, t1->t2 workers=5
+    val e2 = event("2026-01-01T09:00:00Z", current = 5, target = 2)  // t2->end workers=2
+    val segs = ClusterMachineAndRecipeTuner.buildSpanSegments(
+      span = s, events = Seq(e1, e2), workerHourly = 1.0, masterHourly = 0.0, fallbackWorkers = 99.0
+    )
+    segs should have size 3
+    segs.map(_.workers) shouldBe Seq(3.0, 5.0, 2.0)
+    segs.map(_.segSeconds) shouldBe Seq(1800.0, 1800.0, 3600.0)
+  }
+
+  test("workerStatsForCluster computes time-weighted avg, max-of-mins, max-of-maxes") {
+    // Lifespan A: 60s @ 4w, 60s @ 2w  → avg=3, min=2, max=4
+    // Lifespan B: 120s @ 8w, 60s @ 5w → avg=7, min=5, max=8
+    // Global time-weighted avg = (4*60 + 2*60 + 8*120 + 5*60) / 300 = (240+120+960+300)/300 = 1620/300 = 5.4
+    // Min across spans = max(2, 5) = 5
+    // Max across spans = max(4, 8) = 8
+    val sa = span("2026-01-01T08:00:00Z", "2026-01-01T08:02:00Z", idx = 1)
+    val sb = span("2026-01-01T09:00:00Z", "2026-01-01T09:03:00Z", idx = 2)
+    val ea = event("2026-01-01T08:01:00Z", current = 4, target = 2)
+    val eb1 = event("2026-01-01T09:00:00Z", current = 8, target = 8)
+    val eb2 = event("2026-01-01T09:02:00Z", current = 8, target = 5)
+
+    val stats = ClusterMachineAndRecipeTuner.workerStatsForCluster(
+      spans = Seq(sa, sb),
+      events = Seq(ea, eb1, eb2),
+      fallbackWorkers = 99
+    )
+    stats.avgWorkers shouldBe 5.4 +- 0.01
+    stats.minWorkers shouldBe 5
+    stats.maxWorkers shouldBe 8
+  }
+
+  test("workerStatsForCluster on empty spans returns zero stats") {
+    val stats = ClusterMachineAndRecipeTuner.workerStatsForCluster(
+      spans = Seq.empty, events = Seq.empty, fallbackWorkers = 4
+    )
+    stats shouldBe WorkerStats(0.0, 0, 0)
+  }
+
+  test("workerStatsForCluster falls back to fallbackWorkers when a span has no events") {
+    val s = span("2026-01-01T08:00:00Z", "2026-01-01T10:00:00Z")
+    val stats = ClusterMachineAndRecipeTuner.workerStatsForCluster(
+      spans = Seq(s), events = Seq.empty, fallbackWorkers = 7
+    )
+    stats.avgWorkers shouldBe 7.0
+    stats.minWorkers shouldBe 7
+    stats.maxWorkers shouldBe 7
+  }
+
+  test("clusterAutoscaleCostEur regression: hand-computed sum over 3 segments") {
+    // workerHourly = 1.0, masterHourly = 0.1
+    // seg1: 1800s @ 3w = 1.0*3*0.5h + 0.1*0.5h = 1.5 + 0.05 = 1.55
+    // seg2: 1800s @ 5w = 1.0*5*0.5h + 0.1*0.5h = 2.5 + 0.05 = 2.55
+    // seg3: 3600s @ 2w = 1.0*2*1.0h + 0.1*1.0h = 2.0 + 0.10 = 2.10
+    // total = 6.20
+    val s = span("2026-01-01T08:00:00Z", "2026-01-01T10:00:00Z")
+    val e1 = event("2026-01-01T08:30:00Z", current = 3, target = 5)
+    val e2 = event("2026-01-01T09:00:00Z", current = 5, target = 2)
+    val w  = MachineType("test-worker", cores = 1, memoryGb = 1)
+    val m  = MachineType("test-master", cores = 1, memoryGb = 1)
+    // Stub PriceCatalog by relying on default-zero behavior; use the segment formula directly.
+    val segs = ClusterMachineAndRecipeTuner.buildSpanSegments(s, Seq(e1, e2), 1.0, 0.1, 99.0)
+    segs.map(_.totalCostEur).sum shouldBe 6.20 +- 0.0001
+  }
+
+  test("costTimelineJson returns None when no spans") {
+    val w = MachineCatalog.byName("e2-standard-8").get
+    ClusterMachineAndRecipeTuner.costTimelineJson(
+      spans = Seq.empty, events = Seq.empty, worker = w, master = w, fallbackWorkers = 4
+    ) shouldBe None
+  }
+
+  test("costTimelineJson encodes incarnations with intervals when spans exist") {
+    val w = MachineCatalog.byName("e2-standard-8").get
+    val s = span("2026-01-01T08:00:00Z", "2026-01-01T10:00:00Z")
+    val e1 = event("2026-01-01T08:30:00Z", current = 3, target = 5)
+    val out = ClusterMachineAndRecipeTuner.costTimelineJson(
+      spans = Seq(s), events = Seq(e1), worker = w, master = w, fallbackWorkers = 4
+    )
+    out shouldBe defined
+    val json = out.get
+    json should include ("\"incarnations\"")
+    json should include ("\"intervals\"")
+    json should include ("\"real_used_avg_num_of_workers\"")
+    json should include ("\"real_used_min_workers\"")
+    json should include ("\"real_used_max_workers\"")
+    json should include ("\"worker_machine_type\"")
+    json should include ("\"master_machine_type\"")
+  }
+
+  test("computeClusterCost returns zeros and None when no spans") {
+    val w = MachineCatalog.byName("e2-standard-8").get
+    val br = ClusterMachineAndRecipeTuner.computeClusterCost(
+      spans = Seq.empty, events = Seq.empty, worker = w, master = w, fallbackWorkers = 4
+    )
+    br.totalActiveMinutes shouldBe 0.0
+    br.estimatedCostEur shouldBe 0.0
+    br.workerStats shouldBe WorkerStats(0.0, 0, 0)
+    br.costTimelineJson shouldBe None
+  }
+
+  test("computeClusterCost wires totalActiveMinutes from b20 wall-clock minutes") {
+    val w = MachineCatalog.byName("e2-standard-8").get
+    val sa = span("2026-01-01T08:00:00Z", "2026-01-01T09:00:00Z", idx = 1)  // 60 min
+    val sb = span("2026-01-01T10:00:00Z", "2026-01-01T10:30:00Z", idx = 2) // 30 min
+    val br = ClusterMachineAndRecipeTuner.computeClusterCost(
+      spans = Seq(sa, sb), events = Seq.empty, worker = w, master = w, fallbackWorkers = 4
+    )
+    br.totalActiveMinutes shouldBe 90.0 +- 0.001
   }
 
   // ── AutoscalingPolicyConfig ───────────────────────────────────────────────

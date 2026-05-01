@@ -1,1 +1,2 @@
 timestamp,job_id,cluster_name,driver_exit_code,msg
+2099-01-02T02:00:00Z,mock-job-001a,"""mock-cluster-001""",1,synthetic non-zero exit

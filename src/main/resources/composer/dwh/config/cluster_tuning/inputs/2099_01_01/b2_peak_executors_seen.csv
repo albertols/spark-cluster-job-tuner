@@ -1,2 +1,5 @@
 cluster_name,peak_executors_seen
-mock-cluster-mixed,12
+mock-cluster-001,12
+mock-cluster-002,12
+mock-cluster-003,28
+mock-cluster-004,12

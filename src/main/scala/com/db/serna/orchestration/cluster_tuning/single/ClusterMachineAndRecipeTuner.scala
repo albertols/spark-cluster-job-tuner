@@ -225,6 +225,9 @@ final case class ClusterSummary(
                                  numOfWorkers: Int,
                                  workerMachineType: String,
                                  masterMachineType: String,
+                                 realUsedAvgNumOfWorkers: Double,
+                                 realUsedMinWorkers: Int,
+                                 realUsedMaxWorkers: Int,
                                  totalActiveMinutes: Double,
                                  estimatedCostEur: Double,
                                  timerName: String,
@@ -267,6 +270,51 @@ final case class AutoscalerEvent(
                                   minPrimary: Option[Int],
                                   maxPrimary: Option[Int]
                                 )
+
+/**
+ * A single piecewise-constant segment of a cluster lifespan: between two
+ * adjacent autoscaler events (or the span boundaries), workers is fixed and
+ * cost accrues linearly. Produced by `buildSpanSegments`. Used both for cost
+ * integration and for time-weighted worker statistics.
+ */
+final case class CostSegment(
+                              fromTs: Instant,
+                              toTs: Instant,
+                              workers: Double,
+                              segSeconds: Double,
+                              workerCostEur: Double,
+                              masterCostEur: Double
+                            ) {
+  def totalCostEur: Double = workerCostEur + masterCostEur
+}
+
+/**
+ * Aggregated worker-count statistics across all incarnations of a cluster.
+ *
+ * - avgWorkers: global time-weighted average — Σ(workers × seg_seconds) / Σ(seg_seconds)
+ *   over all segments of all spans (treats every interval as one weighted dataset).
+ * - minWorkers: max-of-per-span-mins — for each lifespan compute min(workers); take the
+ *   max across lifespans (per requirement).
+ * - maxWorkers: max-of-per-span-maxes — for each lifespan compute max(workers); take the
+ *   max across lifespans.
+ */
+final case class WorkerStats(
+                              avgWorkers: Double,
+                              minWorkers: Int,
+                              maxWorkers: Int
+                            )
+
+/**
+ * Composite output of `computeClusterCost` so single tuner and AutoTuner share
+ * one entry point. `costTimelineJson` is `None` when no b20 spans exist (signals
+ * "no autoscaling data" to the frontend).
+ */
+final case class ClusterCostBreakdown(
+                                       totalActiveMinutes: Double,
+                                       estimatedCostEur: Double,
+                                       workerStats: WorkerStats,
+                                       costTimelineJson: Option[String]
+                                     )
 
 // Minimal CSV loader
 object Csv {
@@ -735,23 +783,73 @@ object ClusterMachineAndRecipeTuner {
   private[cluster_tuning] def clusterActiveMinutes(metrics: Iterable[RecipeMetrics]): Double =
     metrics.map(m => m.avgJobDurationMs / 60000.0).sum
 
+  /** Sum of b20 wall-clock minutes across all incarnations. */
+  private[cluster_tuning] def clusterWallClockMinutes(spans: Seq[ClusterSpan]): Double =
+    spans.iterator.map(_.spanMinutes).sum
+
   private[cluster_tuning] def hourlyPrice(machine: MachineType): Double = PriceCatalog.pricePerHourEUR.getOrElse(machine.name, 0.0)
 
   /**
-   * Cluster-wall-clock cost for ONE incarnation.
+   * Build the piecewise-constant segment list for ONE incarnation.
    *
-   * Step-function integration over (span.spanStart, span.spanEnd]:
+   * Step-function over (span.spanStart, span.spanEnd]:
    *   - segment [spanStart, events.head.eventTs):       workers = head.currentPrimary  (or fallbackWorkers)
    *   - segment [events(i).eventTs, events(i+1).eventTs): workers = events(i).targetPrimary
    *   - segment [events.last.eventTs, spanEnd]:          workers = events.last.targetPrimary
    * Master is always +1 node (priced separately, same family as worker by current sizing rules).
    *
    * If `events` is empty (no autoscaler signal in this span) we follow the b23
-   * "average fallback" path: cost = (fallbackWorkers × workerHourly + masterHourly) × spanHours.
+   * "average fallback" path: a single segment over the full span at `fallbackWorkers`.
    *
    * `events` MUST already be filtered to those falling within the span and sorted by eventTs ASC
    * (loadAutoscalerEvents enforces sort; caller filters by span via ClusterSpan.contains).
    */
+  private[cluster_tuning] def buildSpanSegments(
+    span: ClusterSpan,
+    events: Seq[AutoscalerEvent],
+    workerHourly: Double,
+    masterHourly: Double,
+    fallbackWorkers: Double
+  ): Seq[CostSegment] = {
+    val spanSeconds: Double = (span.spanEnd.toEpochMilli - span.spanStart.toEpochMilli) / 1000.0
+    if (spanSeconds <= 0.0) return Seq.empty
+
+    def mk(workers: Double, fromTs: Instant, toTs: Instant): Option[CostSegment] = {
+      val sec = (toTs.toEpochMilli - fromTs.toEpochMilli) / 1000.0
+      if (sec <= 0.0) None
+      else {
+        val workerCost = workerHourly * workers * (sec / 3600.0)
+        val masterCost = masterHourly * (sec / 3600.0)
+        Some(CostSegment(fromTs, toTs, workers, sec, workerCost, masterCost))
+      }
+    }
+
+    if (events.isEmpty) {
+      // b23 fallback: no autoscaler decisions in this span.
+      return mk(fallbackWorkers, span.spanStart, span.spanEnd).toSeq
+    }
+
+    // b22 exact path.
+    val out = ArrayBuffer.empty[CostSegment]
+    val initialWorkers: Double = events.head.currentPrimary.map(_.toDouble).getOrElse(fallbackWorkers)
+    mk(initialWorkers, span.spanStart, events.head.eventTs).foreach(out += _)
+
+    var i = 0
+    while (i < events.size - 1) {
+      val cur = events(i)
+      val nxt = events(i + 1)
+      val w   = cur.targetPrimary.map(_.toDouble).getOrElse(fallbackWorkers)
+      mk(w, cur.eventTs, nxt.eventTs).foreach(out += _)
+      i += 1
+    }
+
+    val last = events.last
+    val tailWorkers: Double = last.targetPrimary.map(_.toDouble).getOrElse(fallbackWorkers)
+    mk(tailWorkers, last.eventTs, span.spanEnd).foreach(out += _)
+    out.toSeq
+  }
+
+  /** Cluster-wall-clock cost for ONE incarnation. Thin wrapper over `buildSpanSegments`. */
   private[cluster_tuning] def clusterAutoscaleCostEur(
     span: ClusterSpan,
     events: Seq[AutoscalerEvent],
@@ -759,40 +857,155 @@ object ClusterMachineAndRecipeTuner {
     master: MachineType,
     fallbackWorkers: Double
   ): Double = {
-    val spanSeconds: Double = (span.spanEnd.toEpochMilli - span.spanStart.toEpochMilli) / 1000.0
-    if (spanSeconds <= 0.0) return 0.0
+    buildSpanSegments(span, events, hourlyPrice(worker), hourlyPrice(master), fallbackWorkers)
+      .iterator.map(_.totalCostEur).sum
+  }
 
-    val workerHourly: Double = hourlyPrice(worker)
-    val masterHourly: Double = hourlyPrice(master)
+  /**
+   * Time-weighted worker statistics across all incarnations of a cluster.
+   *
+   * Within a lifespan: walk segments and aggregate Σ(workers × seg_seconds) and
+   * Σ(seg_seconds); per-span min and max are simple over segment workers.
+   * Across lifespans: divide global Σ to get the global time-weighted average;
+   * minWorkers = max-of-per-span-mins and maxWorkers = max-of-per-span-maxes
+   * (per requirement — "max among the min" / "max among the max").
+   *
+   * Spans without events use `fallbackWorkers` for the entire span (mirrors the b23
+   * fallback path in cost integration).
+   *
+   * Returns a zero-filled `WorkerStats` when `spans` is empty (no b20 for cluster).
+   */
+  private[cluster_tuning] def workerStatsForCluster(
+    spans: Seq[ClusterSpan],
+    events: Seq[AutoscalerEvent],
+    fallbackWorkers: Int
+  ): WorkerStats = {
+    if (spans.isEmpty) return WorkerStats(0.0, 0, 0)
 
-    def segCost(workers: Double, fromTs: Instant, toTs: Instant): Double = {
-      val sec = (toTs.toEpochMilli - fromTs.toEpochMilli) / 1000.0
-      if (sec <= 0.0) 0.0
-      else (workerHourly * workers + masterHourly) * (sec / 3600.0)
+    var globalWeightedSum: Double = 0.0
+    var globalSeconds: Double     = 0.0
+    var maxOfMins: Int            = Int.MinValue
+    var maxOfMaxes: Int           = Int.MinValue
+
+    spans.foreach { span =>
+      val spanEvents = events.filter(e => span.contains(e.eventTs))
+      // workerHourly/masterHourly don't influence worker counts; use 0 to keep buildSpanSegments lean.
+      val segs = buildSpanSegments(span, spanEvents, 0.0, 0.0, fallbackWorkers.toDouble)
+      if (segs.nonEmpty) {
+        val perSegWorkers = segs.map(_.workers)
+        val spanMin = perSegWorkers.min
+        val spanMax = perSegWorkers.max
+        if (spanMin.toInt > maxOfMins)  maxOfMins  = spanMin.toInt
+        if (spanMax.toInt > maxOfMaxes) maxOfMaxes = spanMax.toInt
+        segs.foreach { s =>
+          globalWeightedSum += s.workers * s.segSeconds
+          globalSeconds     += s.segSeconds
+        }
+      }
     }
 
-    if (events.isEmpty) {
-      // b23 fallback: no autoscaler decisions in this span.
-      return segCost(fallbackWorkers, span.spanStart, span.spanEnd)
+    val avg: Double = if (globalSeconds > 0.0) globalWeightedSum / globalSeconds else 0.0
+    val minW = if (maxOfMins  == Int.MinValue) 0 else maxOfMins
+    val maxW = if (maxOfMaxes == Int.MinValue) 0 else maxOfMaxes
+    WorkerStats(avg, minW, maxW)
+  }
+
+  /**
+   * Build the JSON string embedded as `cost_timeline` in per-cluster JSON outputs.
+   * Returns `None` when no spans — frontend uses absence as the "no autoscaling
+   * data exported" signal and renders the empty-state notice.
+   */
+  private[cluster_tuning] def costTimelineJson(
+    spans: Seq[ClusterSpan],
+    events: Seq[AutoscalerEvent],
+    worker: MachineType,
+    master: MachineType,
+    fallbackWorkers: Int
+  ): Option[String] = {
+    if (spans.isEmpty) return None
+    import Json._
+
+    val workerHourly = hourlyPrice(worker)
+    val masterHourly = hourlyPrice(master)
+
+    val incarnationsJson: Seq[String] = spans.map { span =>
+      val spanEvents = events.filter(e => span.contains(e.eventTs))
+      val segs = buildSpanSegments(span, spanEvents, workerHourly, masterHourly, fallbackWorkers.toDouble)
+      val workerCost  = segs.iterator.map(_.workerCostEur).sum
+      val masterCost  = segs.iterator.map(_.masterCostEur).sum
+      val totalCost   = workerCost + masterCost
+      val totalSec    = segs.iterator.map(_.segSeconds).sum
+      val avgWorkers  = if (totalSec > 0.0) segs.iterator.map(s => s.workers * s.segSeconds).sum / totalSec else 0.0
+      val workersList = segs.map(_.workers)
+      val minWorkers  = if (workersList.isEmpty) 0 else workersList.min.toInt
+      val maxWorkers  = if (workersList.isEmpty) 0 else workersList.max.toInt
+
+      val intervalsJson: Seq[String] = segs.map { s =>
+        obj(
+          "from_ts"       -> str(s.fromTs.toString),
+          "to_ts"         -> str(s.toTs.toString),
+          "workers"       -> num(s.workers),
+          "seg_seconds"   -> num(f"${s.segSeconds}%.0f"),
+          "seg_cost_eur"  -> num(f"${s.totalCostEur}%.4f")
+        )
+      }
+
+      obj(
+        "idx"              -> num(span.incarnationIdx),
+        "span_start_ts"    -> str(span.spanStart.toString),
+        "span_end_ts"      -> str(span.spanEnd.toString),
+        "span_minutes"     -> num(f"${span.spanMinutes}%.2f"),
+        "avg_workers"      -> num(f"$avgWorkers%.2f"),
+        "min_workers"      -> num(minWorkers),
+        "max_workers"      -> num(maxWorkers),
+        "worker_cost_eur"  -> num(f"$workerCost%.4f"),
+        "master_cost_eur"  -> num(f"$masterCost%.4f"),
+        "total_cost_eur"   -> num(f"$totalCost%.4f"),
+        "intervals"        -> arr(intervalsJson: _*)
+      )
     }
 
-    // b22 exact path.
-    val initialWorkers: Double = events.head.currentPrimary.map(_.toDouble).getOrElse(fallbackWorkers)
-    var total: Double = segCost(initialWorkers, span.spanStart, events.head.eventTs)
+    val stats = workerStatsForCluster(spans, events, fallbackWorkers)
+    val grandTotal = spans.iterator.map { span =>
+      val spanEvents = events.filter(e => span.contains(e.eventTs))
+      buildSpanSegments(span, spanEvents, workerHourly, masterHourly, fallbackWorkers.toDouble)
+        .iterator.map(_.totalCostEur).sum
+    }.sum
 
-    var i = 0
-    while (i < events.size - 1) {
-      val cur = events(i)
-      val nxt = events(i + 1)
-      val w   = cur.targetPrimary.map(_.toDouble).getOrElse(fallbackWorkers)
-      total += segCost(w, cur.eventTs, nxt.eventTs)
-      i += 1
-    }
+    Some(obj(
+      "worker_machine_type"           -> str(worker.name),
+      "master_machine_type"           -> str(master.name),
+      "worker_hourly_eur"             -> num(f"$workerHourly%.4f"),
+      "master_hourly_eur"             -> num(f"$masterHourly%.4f"),
+      "real_used_avg_num_of_workers"  -> num(f"${stats.avgWorkers}%.2f"),
+      "real_used_min_workers"         -> num(stats.minWorkers),
+      "real_used_max_workers"         -> num(stats.maxWorkers),
+      "total_cost_eur"                -> num(f"$grandTotal%.4f"),
+      "incarnations"                  -> arr(incarnationsJson: _*)
+    ))
+  }
 
-    val last = events.last
-    val tailWorkers: Double = last.targetPrimary.map(_.toDouble).getOrElse(fallbackWorkers)
-    total += segCost(tailWorkers, last.eventTs, span.spanEnd)
-    total
+  /**
+   * Single entry point used by both single tuner and AutoTuner so both paths
+   * share identical wall-clock-minutes, cost integration, worker stats, and
+   * cost_timeline JSON. Spans/events that are empty produce zeros and `None`
+   * for the cost_timeline (signals "no autoscaling data" to the frontend).
+   */
+  private[cluster_tuning] def computeClusterCost(
+    spans: Seq[ClusterSpan],
+    events: Seq[AutoscalerEvent],
+    worker: MachineType,
+    master: MachineType,
+    fallbackWorkers: Int
+  ): ClusterCostBreakdown = {
+    val totalMinutes = clusterWallClockMinutes(spans)
+    val cost = spans.iterator.map { span =>
+      val spanEvents = events.filter(e => span.contains(e.eventTs))
+      clusterAutoscaleCostEur(span, spanEvents, worker, master, fallbackWorkers.toDouble)
+    }.sum
+    val stats = workerStatsForCluster(spans, events, fallbackWorkers)
+    val timeline = costTimelineJson(spans, events, worker, master, fallbackWorkers)
+    ClusterCostBreakdown(totalMinutes, cost, stats, timeline)
   }
 
   private def penalizedHourlyClusterCost(worker: MachineType, workers: Int, master: MachineType, policy: TuningPolicy): Double = {
@@ -1039,7 +1252,8 @@ object ClusterMachineAndRecipeTuner {
     cluster: ClusterPlan,
     plans: Seq[RecipePlanManual],
     tunerVersion: String,
-    driverOverride: Option[DriverResourceOverride]
+    driverOverride: Option[DriverResourceOverride],
+    costTimeline: Option[String] = None
   ): String = {
     import Json._
     // When a YARN eviction override is present, use the promoted master machine type.
@@ -1091,7 +1305,10 @@ object ClusterMachineAndRecipeTuner {
     }
 
     val recipeSparkConf: String = obj(recipes.map { case (k, v) => k -> v }: _*)
-    Json.pretty(obj("clusterConf" -> clusterConf, "recipeSparkConf" -> recipeSparkConf))
+    val baseFieldsJson: Seq[(String, String)] =
+      Seq("clusterConf" -> clusterConf, "recipeSparkConf" -> recipeSparkConf) ++
+        costTimeline.toSeq.map(ct => "cost_timeline" -> ct)
+    Json.pretty(obj(baseFieldsJson: _*))
   }
 
   /**
@@ -1101,7 +1318,8 @@ object ClusterMachineAndRecipeTuner {
     cluster: ClusterPlan,
     plans: Seq[RecipePlanDA],
     tunerVersion: String,
-    driverOverride: Option[DriverResourceOverride]
+    driverOverride: Option[DriverResourceOverride],
+    costTimeline: Option[String] = None
   ): String = {
     import Json._
     val effectiveMaster: MachineType =
@@ -1155,7 +1373,10 @@ object ClusterMachineAndRecipeTuner {
     }
 
     val recipeSparkConf: String = obj(recipes.map { case (k, v) => k -> v }: _*)
-    Json.pretty(obj("clusterConf" -> clusterConf, "recipeSparkConf" -> recipeSparkConf))
+    val baseFieldsJson: Seq[(String, String)] =
+      Seq("clusterConf" -> clusterConf, "recipeSparkConf" -> recipeSparkConf) ++
+        costTimeline.toSeq.map(ct => "cost_timeline" -> ct)
+    Json.pretty(obj(baseFieldsJson: _*))
   }
 
   private[cluster_tuning] def writeFile(outDir: File, fileName: String, content: String): Unit = {
@@ -1189,10 +1410,10 @@ object ClusterMachineAndRecipeTuner {
     val f = new File(outDir, fileName)
     val bw = new BufferedWriter(new FileWriter(f))
     try {
-      bw.write("cluster_name,dag_id,no_of_jobs,num_of_workers,worker_machine_type,master_machine_type,total_active_minutes,estimated_cost_eur,TIMER_NAME,TIMER_TIME\n")
+      bw.write("cluster_name,dag_id,no_of_jobs,num_of_workers,worker_machine_type,master_machine_type,real_used_avg_num_of_workers,real_used_min_workers,real_used_max_workers,total_active_minutes,estimated_cost_eur,TIMER_NAME,TIMER_TIME\n")
       rows.foreach { s =>
         bw.write(
-          s"${s.clusterName},${s.dagId},${s.noOfJobs},${s.numOfWorkers},${s.workerMachineType},${s.masterMachineType},${f"${s.totalActiveMinutes}%.2f"},${f"${s.estimatedCostEur}%.4f"},${s.timerName},${s.timerTime}\n"
+          s"${s.clusterName},${s.dagId},${s.noOfJobs},${s.numOfWorkers},${s.workerMachineType},${s.masterMachineType},${f"${s.realUsedAvgNumOfWorkers}%.2f"},${s.realUsedMinWorkers},${s.realUsedMaxWorkers},${f"${s.totalActiveMinutes}%.2f"},${f"${s.estimatedCostEur}%.4f"},${s.timerName},${s.timerTime}\n"
         )
       }
       logger.info(s"Wrote summary CSV: ${f.getPath} rows=${rows.size}")
@@ -1335,36 +1556,27 @@ object ClusterMachineAndRecipeTuner {
         o.copy(promotedMasterMachineType = Some(promoted))
       }
 
-      val manualJsonStr: String = manualJson(clusterPlan, manualPlans, tunerVersion, driverOverride)
-      val daJsonStr: String = daJson(clusterPlan, daPlans, tunerVersion, driverOverride)
+      // Compute wall-clock minutes, interval-integrated cost, time-weighted worker
+      // stats, and the cost_timeline JSON in one pass. Empty spans yield zeros and
+      // None for cost_timeline (frontend renders the "no autoscaling data" notice).
+      val spans: Seq[ClusterSpan] = clusterSpansByName.getOrElse(clusterName, Seq.empty)
+      val events: Seq[AutoscalerEvent] = autoscalerEventsByName.getOrElse(clusterName, Seq.empty)
+      if (spans.isEmpty) {
+        logger.warn(s"No b20 cluster span for $clusterName; estimated_cost_eur=0.0 and total_active_minutes=0.0. Provide b20_cluster_span_time.csv covering this cluster's active window to compute cost.")
+      }
+      val breakdown: ClusterCostBreakdown = computeClusterCost(
+        spans            = spans,
+        events           = events,
+        worker           = clusterPlan.workerMachineType,
+        master           = clusterPlan.masterMachineType,
+        fallbackWorkers  = clusterPlan.workers
+      )
+
+      val manualJsonStr: String = manualJson(clusterPlan, manualPlans, tunerVersion, driverOverride, breakdown.costTimelineJson)
+      val daJsonStr: String = daJson(clusterPlan, daPlans, tunerVersion, driverOverride, breakdown.costTimelineJson)
 
       writeFile(cfg.outputDir, s"$clusterName-manually-tuned.json", manualJsonStr)
       writeFile(cfg.outputDir, s"$clusterName-auto-scale-tuned.json", daJsonStr)
-
-      val totalMinutes: Double = clusterActiveMinutes(recMetrics)
-      // Cluster wall-clock cost over each b20 incarnation, integrated against
-      // b21's autoscaler step function. b20.csv (and ideally b21.csv) are
-      // REQUIRED to estimate cluster pricing — when no b20 span exists for a
-      // cluster we emit estimated_cost_eur=0.0 and log a WARN. No legacy
-      // job-sum fallback: the old formula sums concurrent job durations and
-      // ignores idle cluster time, so its number is misleading.
-      val estimatedCost: Double = clusterSpansByName.get(clusterName) match {
-        case Some(spans) if spans.nonEmpty =>
-          val allEvents: Seq[AutoscalerEvent] = autoscalerEventsByName.getOrElse(clusterName, Seq.empty)
-          spans.iterator.map { span =>
-            val spanEvents = allEvents.filter(e => span.contains(e.eventTs))
-            clusterAutoscaleCostEur(
-              span            = span,
-              events          = spanEvents,
-              worker          = clusterPlan.workerMachineType,
-              master          = clusterPlan.masterMachineType,
-              fallbackWorkers = clusterPlan.workers.toDouble
-            )
-          }.sum
-        case _ =>
-          logger.warn(s"No b20 cluster span for $clusterName; estimated_cost_eur=0.0. Provide b20_cluster_span_time.csv covering this cluster's active window to compute cost.")
-          0.0
-      }
 
       val resolvedDagId: String = dagByCluster.getOrElse(clusterName, "UNKNOWN_DAG_ID")
       val (resolvedTimerName, resolvedTimerTime) = timerByCluster.getOrElse(clusterName, ("ZERO_TIMER", "00:00"))
@@ -1376,8 +1588,11 @@ object ClusterMachineAndRecipeTuner {
         numOfWorkers = clusterPlan.workers,
         workerMachineType = clusterPlan.workerMachineType.name,
         masterMachineType = clusterPlan.masterMachineType.name,
-        totalActiveMinutes = totalMinutes,
-        estimatedCostEur = estimatedCost,
+        realUsedAvgNumOfWorkers = breakdown.workerStats.avgWorkers,
+        realUsedMinWorkers = breakdown.workerStats.minWorkers,
+        realUsedMaxWorkers = breakdown.workerStats.maxWorkers,
+        totalActiveMinutes = breakdown.totalActiveMinutes,
+        estimatedCostEur = breakdown.estimatedCostEur,
         timerName = resolvedTimerName,
         timerTime = resolvedTimerTime
       )

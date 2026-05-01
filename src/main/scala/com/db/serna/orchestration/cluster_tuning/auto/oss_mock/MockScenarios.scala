@@ -166,6 +166,9 @@ object MockScenarios {
           )
         ),
         // mock-cluster-004 has two incarnations within the window (recreated mid-day).
+        // Both incarnations carry autoscaler schedules so the dashboard's per-cluster
+        // cost timeline exercises both the gap-between-spans path and the b22 step
+        // function path simultaneously.
         MockCluster(
           name = "mock-cluster-004",
           recipes = Seq(
@@ -174,11 +177,19 @@ object MockScenarios {
           incarnations = Seq(
             MockIncarnation(
               spanStart = start.plus(2, ChronoUnit.HOURS),
-              spanEnd   = start.plus(6, ChronoUnit.HOURS)
+              spanEnd   = start.plus(6, ChronoUnit.HOURS),
+              autoscaler = Some(MockAutoscalerProfile(
+                minPrimary = 2, maxPrimary = 6, initialPrimary = 2,
+                schedule = Seq((300L, 4), (1800L, 6), (10800L, 4))
+              ))
             ),
             MockIncarnation(
               spanStart = start.plus(14, ChronoUnit.HOURS),
-              spanEnd   = start.plus(22, ChronoUnit.HOURS)
+              spanEnd   = start.plus(22, ChronoUnit.HOURS),
+              autoscaler = Some(MockAutoscalerProfile(
+                minPrimary = 2, maxPrimary = 8, initialPrimary = 2,
+                schedule = Seq((600L, 5), (3600L, 8), (18000L, 4), (25200L, 2))
+              ))
             )
           )
         )

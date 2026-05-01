@@ -1,6 +1,6 @@
 package com.db.serna.orchestration.cluster_tuning.auto
 
-import com.db.serna.orchestration.cluster_tuning.single.{DiagnosticSignal, DriverResourceOverride, RecipeMetrics}
+import com.db.serna.orchestration.cluster_tuning.single.{AutoscalerEvent, ClusterSpan, DiagnosticSignal, DriverResourceOverride, RecipeMetrics}
 
 /**
  * Domain models for multi-date auto-tuning analysis.
@@ -15,7 +15,9 @@ final case class DateSnapshot(
   date: String,
   metrics: Map[(String, String), RecipeMetrics],
   b14Signals: Map[String, Seq[DiagnosticSignal]],
-  driverOverrides: Map[String, DriverResourceOverride]
+  driverOverrides: Map[String, DriverResourceOverride],
+  clusterSpans: Map[String, Seq[ClusterSpan]] = Map.empty,
+  autoscalerEvents: Map[String, Seq[AutoscalerEvent]] = Map.empty
 )
 
 /** Paired metrics for one (cluster, recipe) across reference and current dates. */
