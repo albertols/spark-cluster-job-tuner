@@ -1745,6 +1745,161 @@ function _ipcRenderSide(sideEl, sideData, ipQuota, dateLabel) {
   sideEl._ipcCanvasId = canvasId;
   sideEl._ipcHoverMs = null;
   sideEl.dataset.anchorMs = '';
+
+  // Build chart now that the canvas is in the DOM.
+  const canvas = document.getElementById(canvasId);
+  if (canvas) {
+    canvas._ipcSideEl = sideEl;
+    sideEl._ipcChart = _ipcBuildChart(canvas, sideData, ipQuota, sideName);
+  }
+}
+
+// Plugin: dashed warn/crit/cap lines + tinted "over the cap" zone.
+// Reads sideEl._ipcQuota via chart.canvas._ipcSideEl.
+const ipcThresholdsPlugin = {
+  id: 'ipcThresholds',
+  beforeDatasetsDraw(chart) {
+    const sideEl = chart.canvas._ipcSideEl;
+    if (!sideEl || !sideEl._ipcQuota) return;
+    const cap    = +sideEl._ipcQuota.max_ip_count || 256;
+    const warnAt = cap * (+sideEl._ipcQuota.warn_pct || 70) / 100;
+    const critAt = cap * (+sideEl._ipcQuota.crit_pct || 90) / 100;
+    const { ctx, chartArea: { left, right, top, bottom }, scales: { y } } = chart;
+    if (!y) return;
+
+    // Tint the [cap, y.max] band when the chart range extends past cap.
+    const capPx = y.getPixelForValue(cap);
+    if (capPx > top) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(248,81,73,0.08)';
+      ctx.fillRect(left, top, right - left, Math.max(0, capPx - top));
+      ctx.restore();
+    }
+
+    // Dashed lines and right-flush labels.
+    const lines = [
+      { v: warnAt, color: '#d4a72c', label: `warn ${Math.round(warnAt)}` },
+      { v: critAt, color: '#f85149', label: `crit ${Math.round(critAt)}` },
+      { v: cap,    color: '#f85149', label: `cap ${cap}`,  bold: true }
+    ];
+    ctx.save();
+    ctx.setLineDash([4, 3]);
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    lines.forEach(line => {
+      const py = y.getPixelForValue(line.v);
+      if (!Number.isFinite(py) || py < top || py > bottom) return;
+      ctx.lineWidth = line.bold ? 1.5 : 1;
+      ctx.strokeStyle = line.color;
+      ctx.beginPath();
+      ctx.moveTo(left, py);
+      ctx.lineTo(right, py);
+      ctx.stroke();
+      ctx.fillStyle = line.color;
+      ctx.fillText(line.label, right - 4, py - 2);
+    });
+    ctx.restore();
+  }
+};
+
+// Convert flat segments into one stepped dataset per cluster, ready for
+// Chart.js with stacked y-axis. Adds explicit y=null gap points between
+// non-adjacent intervals so step lines break at lifespan boundaries.
+function _ipcBuildDatasets(segments) {
+  const byCluster = new Map();
+  for (const s of segments) {
+    if (!byCluster.has(s.cluster)) byCluster.set(s.cluster, []);
+    byCluster.get(s.cluster).push(s);
+  }
+  // Sort each cluster's segments by fromMs.
+  for (const segs of byCluster.values()) segs.sort((a, b) => a.fromMs - b.fromMs);
+
+  const datasets = [];
+  Array.from(byCluster.keys()).sort().forEach(cluster => {
+    const segs = byCluster.get(cluster);
+    const points = [];
+    segs.forEach((s, i) => {
+      // Insert gap point if there's a hole between previous segment's end
+      // and this segment's start.
+      if (i > 0 && segs[i - 1].toMs < s.fromMs) {
+        points.push({ x: segs[i - 1].toMs, y: null });
+      }
+      points.push({ x: s.fromMs, y: s.ips });
+      points.push({ x: s.toMs,   y: s.ips });
+    });
+    const color = _ipcHashHueForCluster(cluster);
+    datasets.push({
+      label: cluster,
+      data: points,
+      parsing: false,
+      spanGaps: false,
+      stepped: 'before',
+      pointRadius: 0,
+      pointHoverRadius: 3,
+      borderWidth: 0,
+      backgroundColor: color.fill,
+      borderColor: color.stroke,
+      fill: 'origin'
+    });
+  });
+  return datasets;
+}
+
+function _ipcBuildChart(canvas, sideData, ipQuota, sideName) {
+  if (canvas._chartInstance) {
+    try { canvas._chartInstance.destroy(); } catch (e) {}
+  }
+  const datasets = _ipcBuildDatasets(sideData.segments);
+  const cap = +ipQuota.max_ip_count || 256;
+  const yMax = Math.max(sideData.peakIps * 1.05, cap * 1.05);
+
+  const chart = new Chart(canvas, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      parsing: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: '#c9d1d9', boxWidth: 10, font: { size: 11 } }
+        },
+        tooltip: {
+          callbacks: {
+            title: (items) => items[0] ? _ipcFmtHmsUtc(items[0].parsed.x) + 'Z' : '',
+            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y == null ? '—' : ctx.parsed.y} IPs`
+          }
+        },
+        zoom: csZoomPluginConfig(canvas)
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          stacked: false,
+          ticks: {
+            color: '#8b949e', maxRotation: 0, autoSkip: true,
+            callback: (v) => _ipcFmtHmsUtc(+v)
+          },
+          grid: { color: 'rgba(139,148,158,0.1)' }
+        },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          suggestedMax: yMax,
+          title: { display: true, text: 'IPs (workers + master)', color: '#8b949e' },
+          ticks: { color: '#8b949e', precision: 0 },
+          grid: { color: 'rgba(139,148,158,0.1)' }
+        }
+      }
+    },
+    plugins: [ipcThresholdsPlugin]
+  });
+  canvas._chartInstance = chart;
+  return chart;
 }
 
 function orderConfKeys(keys) {
