@@ -1550,6 +1550,15 @@ async function _renderClusterIpCountSection() {
   _ipcSideCache.set('reference', refData);
   _ipcSideCache.set('current', curData);
 
+  const summary = document.querySelector('#cluster-ip-count-section > summary > h3');
+  if (summary) {
+    const noRef = !refData || refData.segments.length === 0;
+    const noCur = !curData || curData.segments.length === 0;
+    summary.textContent = noRef && noCur
+      ? 'Total estimated IP count (no data)'
+      : 'Total estimated IP count';
+  }
+
   const refSide = document.querySelector('.ipc-side[data-side="reference"]');
   const curSide = document.querySelector('.ipc-side[data-side="current"]');
   if (refSide) _ipcRenderSide(refSide, refData, ipQuota, refDate);
@@ -2046,16 +2055,25 @@ function _ipcRefreshSide(sideEl) {
     if (rows.length === 0) {
       tbody.innerHTML = `<tr><td colspan="7" class="empty-msg" style="padding:16px;">No clusters alive at this moment.</td></tr>`;
     } else {
-      tbody.innerHTML = rows.map(r => `
+      tbody.innerHTML = rows.map(r => {
+        // A row is on the b23 fallback path when ALL segments for this cluster
+        // share the same `workers` value — the b22 step function would have
+        // produced varying worker counts.
+        const ownSegs = sd.segments.filter(s => s.cluster === r.cluster);
+        const isB23 = ownSegs.length > 0 &&
+          ownSegs.every(s => s.workers === ownSegs[0].workers);
+        const tag = isB23 ? `<span class="ipc-tag-fallback" title="No autoscaler events; using recommended worker count">b23</span>` : '';
+        return `
         <tr data-cluster="${escapeAttr(r.cluster)}">
-          <td>${escapeHtml(r.cluster)}</td>
+          <td>${escapeHtml(r.cluster)}${tag}</td>
           <td>${r.workers}</td>
           <td>${r.master}</td>
           <td>${r.ips}</td>
           <td><code>${escapeHtml(r.machineType)}</code></td>
           <td>€${r.segCostEur.toFixed(2)}</td>
           <td>${r.idx}</td>
-        </tr>`).join('');
+        </tr>`;
+      }).join('');
       tbody.querySelectorAll('tr[data-cluster]').forEach(tr => {
         tr.addEventListener('click', () => {
           const name = tr.dataset.cluster;
