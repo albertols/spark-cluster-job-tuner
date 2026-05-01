@@ -1778,6 +1778,35 @@ function _ipcRenderSide(sideEl, sideData, ipQuota, dateLabel) {
       _ipcRefreshSide(sideEl);
     });
 
+    // MAX KPI click-to-jump (C.1).
+    const maxBox = sideEl.querySelector('.ipc-kpi-max');
+    if (maxBox && Number.isFinite(sideData.peakMs)) {
+      maxBox.addEventListener('click', () => {
+        sideEl.dataset.anchorMs = String(sideData.peakMs);
+        _ipcRefreshSide(sideEl);
+      });
+    }
+
+    // ↻ reset: clear zoom AND clear anchor.
+    const resetBtn = sideEl.querySelector('.ipc-side-reset');
+    if (resetBtn) resetBtn.addEventListener('click', () => {
+      try { sideEl._ipcChart.resetZoom(); } catch (e) {}
+      sideEl.dataset.anchorMs = '';
+      _ipcRefreshSide(sideEl);
+    });
+
+    // ⤢ side-expand: toggle .ipc-pair[data-expanded].
+    const expandBtn = sideEl.querySelector('.ipc-side-expand');
+    if (expandBtn) expandBtn.addEventListener('click', () => {
+      const pair = sideEl.parentElement;
+      const which = sideEl.dataset.side;
+      const cur = pair.dataset.expanded || '';
+      pair.dataset.expanded = (cur === which) ? '' : which;
+      expandBtn.textContent = pair.dataset.expanded === which ? '⤡' : '⤢';
+      // Resize chart after layout settles.
+      setTimeout(() => { try { sideEl._ipcChart.resize(); } catch (e) {} }, 50);
+    });
+
     // Initial paint at peak (anchorMs and hoverMs both null → fallback to peakMs).
     _ipcRefreshSide(sideEl);
   }
