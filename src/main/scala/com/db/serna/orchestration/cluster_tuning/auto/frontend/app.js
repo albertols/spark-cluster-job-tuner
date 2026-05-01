@@ -1545,6 +1545,126 @@ async function _renderClusterIpCountSection() {
   });
 }
 
+// Convert ISO timestamp to epoch ms; null on invalid input.
+function _ipcTsMs(s) { const t = new Date(s).getTime(); return Number.isFinite(t) ? t : null; }
+
+// Format epoch ms as "HH:MM:SS" UTC for axis ticks and chips.
+function _ipcFmtHmsUtc(ms) {
+  if (!Number.isFinite(ms)) return '';
+  return new Date(ms).toISOString().slice(11, 19);
+}
+
+// Walk per-cluster JSONs and produce a flat segments array. One row per
+// (cluster, incarnation, interval). Clusters without `cost_timeline` are
+// skipped (C.1). `cost_timeline.intervals[]` already encodes the b22/b23
+// step function — we don't reproduce that logic here.
+//
+// Returns: [{ cluster, fromMs, toMs, workers, master:1, ips, machineType,
+//             segCostEur, idx }]
+function _ipcBuildSegments(perClusterJsons) {
+  const out = [];
+  for (const [clusterName, json] of perClusterJsons) {
+    if (!json || !json.cost_timeline) continue;
+    const ct = json.cost_timeline;
+    const machineType = ct.worker_machine_type || '';
+    (ct.incarnations || []).forEach(inc => {
+      (inc.intervals || []).forEach(iv => {
+        const fromMs = _ipcTsMs(iv.from_ts);
+        const toMs   = _ipcTsMs(iv.to_ts);
+        if (fromMs == null || toMs == null || toMs <= fromMs) return;
+        const workers = +iv.workers || 0;
+        out.push({
+          cluster: clusterName,
+          fromMs, toMs,
+          workers,
+          master: 1,
+          ips: workers + 1,
+          machineType,
+          segCostEur: +iv.seg_cost_eur || 0,
+          idx: inc.idx
+        });
+      });
+    });
+  }
+  return out;
+}
+
+// Evaluate per-cluster IPs at time t. Returns rows for clusters alive at t,
+// sorted by ips desc. A cluster is "alive at t" when t lies in [fromMs, toMs).
+// O(N) over segments — fine for the expected scale (≤2000 segments).
+function _ipcEvalAt(segments, t) {
+  if (!Number.isFinite(t)) return [];
+  const byCluster = new Map();
+  for (const s of segments) {
+    if (t < s.fromMs || t >= s.toMs) continue;
+    // If multiple incarnations of the same cluster overlap (impossible in b20
+    // by design but guard anyway), prefer the higher-IPs one.
+    const prev = byCluster.get(s.cluster);
+    if (!prev || s.ips > prev.ips) byCluster.set(s.cluster, s);
+  }
+  return Array.from(byCluster.values()).sort((a, b) => b.ips - a.ips);
+}
+
+// Walk the chart x-axis at every event boundary and find the peak fleet sum.
+// Returns { peakMs, peakIps }. Empty input → { peakMs: null, peakIps: 0 }.
+function _ipcFindPeak(segments) {
+  if (segments.length === 0) return { peakMs: null, peakIps: 0 };
+  // Candidate timestamps: every fromMs (boundaries are where fleet sum changes).
+  const ts = Array.from(new Set(segments.map(s => s.fromMs))).sort((a, b) => a - b);
+  let peakMs = ts[0]; let peakIps = 0;
+  for (const t of ts) {
+    let sum = 0;
+    for (const s of segments) {
+      if (t >= s.fromMs && t < s.toMs) sum += s.ips;
+    }
+    if (sum > peakIps) { peakIps = sum; peakMs = t; }
+  }
+  return { peakMs, peakIps };
+}
+
+// Map an IP count to a threshold class for KPI box styling.
+// "" (default), "warn", "crit", "over".
+function _ipcThresholdLevel(ips, ipQuota) {
+  const cap = +ipQuota.max_ip_count || 256;
+  const warnAt = cap * (+ipQuota.warn_pct || 70) / 100;
+  const critAt = cap * (+ipQuota.crit_pct || 90) / 100;
+  if (ips >= cap) return 'over';
+  if (ips >= critAt) return 'crit';
+  if (ips >= warnAt) return 'warn';
+  return '';
+}
+
+// Deterministic HSL color from cluster name. Same cluster → same color
+// across reloads and across reference vs current sides.
+function _ipcHashHueForCluster(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) {
+    h = (h * 31 + name.charCodeAt(i)) | 0;
+  }
+  const hue = ((h % 360) + 360) % 360;
+  return { fill: `hsla(${hue}, 60%, 55%, 0.55)`, stroke: `hsl(${hue}, 60%, 55%)` };
+}
+
+// Cluster list for a date: union of `cluster_trends` cluster names. The same
+// list used by the cluster grid; falls back to empty if `data` not present.
+function _ipcClusterNamesForRun() {
+  if (!data || !Array.isArray(data.cluster_trends)) return [];
+  return data.cluster_trends.map(c => c.cluster).sort();
+}
+
+// Load per-cluster JSONs for a date in parallel via the existing cache.
+async function _ipcLoadDataForDate(date) {
+  const names = _ipcClusterNamesForRun();
+  const pairs = await Promise.all(
+    names.map(async n => [n, await loadClusterJson(date, n)])
+  );
+  const segments = _ipcBuildSegments(pairs);
+  const peak = _ipcFindPeak(segments);
+  // Skipped clusters (no cost_timeline) — surface in a footer chip.
+  const skipped = pairs.filter(([_n, j]) => !j || !j.cost_timeline).map(([n]) => n);
+  return { date, segments, peakMs: peak.peakMs, peakIps: peak.peakIps, skipped };
+}
+
 function orderConfKeys(keys) {
   const preferred = [
     'num_workers', 'worker_machine_type', 'master_machine_type',
