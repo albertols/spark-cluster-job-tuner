@@ -1554,6 +1554,9 @@ async function _renderClusterIpCountSection() {
   const curSide = document.querySelector('.ipc-side[data-side="current"]');
   if (refSide) _ipcRenderSide(refSide, refData, ipQuota, refDate);
   if (curSide) _ipcRenderSide(curSide, curData, ipQuota, curDate);
+  _ipcWireToggle();
+  const initialMode = _ipcReadModeFromHash() || 'current';
+  _ipcApplyMode(initialMode);
 }
 
 // Convert ISO timestamp to epoch ms; null on invalid input.
@@ -2062,6 +2065,57 @@ function _ipcRefreshSide(sideEl) {
 
   // Re-draw chart so crosshair plugin picks up new state.
   if (sideEl._ipcChart) sideEl._ipcChart.update('none');
+}
+
+// Date-selector mode persisted to URL hash as `ipc=<mode>` so reload keeps it.
+function _ipcReadModeFromHash() {
+  try {
+    const h = window.location.hash || '';
+    const m = h.match(/(?:^|[#&])ipc=(reference|current|both)\b/);
+    return m ? m[1] : null;
+  } catch (e) { return null; }
+}
+function _ipcWriteModeToHash(mode) {
+  try {
+    const h = (window.location.hash || '').replace(/(^#|^|&)ipc=(reference|current|both)\b&?/, '');
+    let next = h;
+    if (next && !next.startsWith('#')) next = '#' + next;
+    if (!next) next = '#';
+    if (next === '#') next = `#ipc=${mode}`;
+    else next = `${next}${next.endsWith('&') ? '' : '&'}ipc=${mode}`;
+    window.history.replaceState(null, '', next);
+  } catch (e) {}
+}
+
+function _ipcApplyMode(mode) {
+  const pair = document.querySelector('#ipc-body .ipc-pair');
+  if (!pair) return;
+  pair.dataset.mode = mode;
+  pair.removeAttribute('data-expanded'); // mode change resets any per-side expand
+  document.querySelectorAll('#ipc-date-toggle .seg').forEach(btn => {
+    const active = btn.dataset.side === mode;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  // Resize charts after layout settles (mode change can swap 1fr ↔ 1fr 1fr).
+  setTimeout(() => {
+    document.querySelectorAll('.ipc-side').forEach(s => {
+      try { s._ipcChart && s._ipcChart.resize(); } catch (e) {}
+    });
+  }, 50);
+}
+
+function _ipcWireToggle() {
+  const toggle = document.getElementById('ipc-date-toggle');
+  if (!toggle || toggle.dataset.wired === '1') return;
+  toggle.dataset.wired = '1';
+  toggle.addEventListener('click', (evt) => {
+    const btn = evt.target.closest('.seg[data-side]');
+    if (!btn) return;
+    const mode = btn.dataset.side;
+    _ipcApplyMode(mode);
+    _ipcWriteModeToHash(mode);
+  });
 }
 
 function orderConfKeys(keys) {
