@@ -1715,3 +1715,39 @@ h3.section-heading {
 @media (max-width: 720px) {
   .dcc-pair { grid-template-columns: 1fr; }
 }
+
+/* ── IP Count Timeline (TODO_3) ─────────────────────────────────────────── */
+#cluster-ip-count-section { margin: 16px 0; }
+#cluster-ip-count-section > summary { cursor: pointer; padding: 8px 0; user-select: none; }
+#cluster-ip-count-section > summary > h3 { margin: 0; }
+.ipc-controls {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 0; flex-wrap: wrap;
+}
+.ipc-cap-note { color: #8b949e; font-size: 12px; }
+.ipc-cap-note code { background: #161b22; padding: 1px 4px; border-radius: 3px; }
+
+.ipc-pair { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.ipc-pair[data-mode="both"] { grid-template-columns: 1fr 1fr; }
+.ipc-pair[data-mode="reference"] .ipc-side[data-side="current"] { display: none; }
+.ipc-pair[data-mode="current"]   .ipc-side[data-side="reference"] { display: none; }
+.ipc-pair[data-expanded="reference"] .ipc-side[data-side="current"] { display: none; }
+.ipc-pair[data-expanded="current"]   .ipc-side[data-side="reference"] { display: none; }
+
+.ipc-side {
+  border: 1px solid #30363d; border-radius: 6px; padding: 12px;
+  background: #0d1117;
+}
+.ipc-side .empty-msg { padding: 32px; text-align: center; color: #8b949e; }
+.ipc-side-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid #21262d;
+}
+.ipc-side-header h4 { margin: 0; font-size: 14px; }
+.ipc-side-date { color: #8b949e; font-weight: normal; margin-left: 6px; }
+.ipc-side-buttons { display: flex; gap: 6px; }
+.ipc-side-buttons button {
+  background: transparent; border: 1px solid #30363d; color: #c9d1d9;
+  border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 13px;
+}
+.ipc-side-buttons button:hover { background: #161b22; }

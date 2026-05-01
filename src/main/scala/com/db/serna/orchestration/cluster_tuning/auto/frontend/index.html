@@ -50,6 +50,26 @@
     <div id="summary-cards"></div>
     <div id="boost-overview"></div>
     <div id="clusters-summary-section"></div>
+    <details id="cluster-ip-count-section" class="cs-graphs">
+      <summary>
+        <h3 style="display:inline">Total estimated IP count</h3>
+        <span class="cs-graphs-help">Workers + master IPs over time · stacked per cluster · click chart to anchor crosshair</span>
+      </summary>
+      <div id="ipc-body">
+        <div class="ipc-controls">
+          <div class="seg-toggle" id="ipc-date-toggle" role="tablist">
+            <button class="seg" data-side="reference" role="tab" aria-selected="false">Reference</button>
+            <button class="seg active" data-side="current" role="tab" aria-selected="true">Current</button>
+            <button class="seg" data-side="both" role="tab" aria-selected="false">Both</button>
+          </div>
+          <span class="ipc-cap-note">IP cap <code id="ipc-cap-num">256</code> · warn ≥<span id="ipc-warn-pct">70</span>% · crit ≥<span id="ipc-crit-pct">90</span>% (configurable in <code>config.json</code> → <code>ipQuota</code>)</span>
+        </div>
+        <div class="ipc-pair" data-mode="current">
+          <section class="ipc-side" data-side="reference"></section>
+          <section class="ipc-side" data-side="current"></section>
+        </div>
+      </div>
+    </details>
     <details id="cluster-summary-graphs-section" class="cs-graphs">
       <summary>
         <h3 style="display:inline">Cluster Summary Graphs</h3>

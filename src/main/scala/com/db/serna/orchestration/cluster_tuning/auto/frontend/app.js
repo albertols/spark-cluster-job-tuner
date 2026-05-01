@@ -759,6 +759,7 @@ function renderDashboard() {
     csGraphs.removeAttribute('open');
     delete csGraphs.dataset.loaded;
   }
+  renderClusterIpCountSectionInit();
 }
 
 // Build the dropdown options for both the correlations and divergences cluster filters.
@@ -1490,6 +1491,58 @@ function renderClusterConfComparison(clusterName, refJson, curJson, refDate, cur
        <thead><tr><th>Field</th><th>Reference (${escapeHtml(formatDate(refDate))})</th><th>Current (${escapeHtml(formatDate(curDate))})</th></tr></thead>
        <tbody>${rows}</tbody>
      </table>`;
+}
+
+// ── Cluster IP Count Timeline (TODO_3) ──────────────────────────────────────
+// Above the Cluster Summary Graphs in Fleet Overview. Stacked-area chart of
+// per-cluster IPs (workers + master) over time, with hover + anchored
+// crosshair, KPI strip (live total + day max), and a synced table.
+//
+// Data source: per-cluster JSON `cost_timeline` already emitted by the tuner.
+// Reuses `loadClusterJson` for caching. Section is closed by default and
+// renders lazily on first <details> toggle.
+
+let _ipcInitialized = false;
+
+function _ipcInit() {
+  if (_ipcInitialized) return;
+  _ipcInitialized = true;
+
+  const section = document.getElementById('cluster-ip-count-section');
+  if (!section) return;
+
+  // Inject ipQuota values from config so the cap-note is accurate.
+  const q = (config && config.ipQuota) || {};
+  const cap = +q.max_ip_count || 256;
+  const warnPct = +q.warn_pct || 70;
+  const critPct = +q.crit_pct || 90;
+  const capEl  = document.getElementById('ipc-cap-num');
+  const warnEl = document.getElementById('ipc-warn-pct');
+  const critEl = document.getElementById('ipc-crit-pct');
+  if (capEl)  capEl.textContent  = String(cap);
+  if (warnEl) warnEl.textContent = String(warnPct);
+  if (critEl) critEl.textContent = String(critPct);
+
+  // Lazy first-paint on first open.
+  section.addEventListener('toggle', () => {
+    if (!section.open) return;
+    if (section.dataset.rendered === '1') return;
+    section.dataset.rendered = '1';
+    _renderClusterIpCountSection();
+  }, { once: false });
+}
+
+// Public entry. Called once from bootstrap so the toggle listener is wired
+// before users interact.
+function renderClusterIpCountSectionInit() { _ipcInit(); }
+
+// Real renderer wired in subsequent tasks. For now: empty-state placeholder.
+async function _renderClusterIpCountSection() {
+  const pair = document.querySelector('#ipc-body .ipc-pair');
+  if (!pair) return;
+  pair.querySelectorAll('.ipc-side').forEach(sideEl => {
+    sideEl.innerHTML = `<div class="empty-msg">IPC timeline rendering not yet implemented.</div>`;
+  });
 }
 
 function orderConfKeys(keys) {
