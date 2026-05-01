@@ -1751,6 +1751,35 @@ function _ipcRenderSide(sideEl, sideData, ipQuota, dateLabel) {
   if (canvas) {
     canvas._ipcSideEl = sideEl;
     sideEl._ipcChart = _ipcBuildChart(canvas, sideData, ipQuota, sideName);
+
+    // Hover → set _ipcHoverMs and refresh.
+    canvas.addEventListener('mousemove', (evt) => {
+      const ms = sideEl._ipcChart.scales.x.getValueForPixel(evt.offsetX);
+      sideEl._ipcHoverMs = Number.isFinite(ms) ? Math.round(ms) : null;
+      _ipcRefreshSide(sideEl);
+    });
+    canvas.addEventListener('mouseleave', () => {
+      sideEl._ipcHoverMs = null;
+      _ipcRefreshSide(sideEl);
+    });
+
+    // Click → anchor at clicked x.
+    canvas.addEventListener('click', (evt) => {
+      const ms = sideEl._ipcChart.scales.x.getValueForPixel(evt.offsetX);
+      if (!Number.isFinite(ms)) return;
+      sideEl.dataset.anchorMs = String(Math.round(ms));
+      _ipcRefreshSide(sideEl);
+    });
+
+    // Anchor chip ✕ → clear anchor.
+    const clearBtn = sideEl.querySelector('.ipc-anchor-clear');
+    if (clearBtn) clearBtn.addEventListener('click', () => {
+      sideEl.dataset.anchorMs = '';
+      _ipcRefreshSide(sideEl);
+    });
+
+    // Initial paint at peak (anchorMs and hoverMs both null → fallback to peakMs).
+    _ipcRefreshSide(sideEl);
   }
 }
 
@@ -1896,10 +1925,114 @@ function _ipcBuildChart(canvas, sideData, ipQuota, sideName) {
         }
       }
     },
-    plugins: [ipcThresholdsPlugin]
+    plugins: [ipcThresholdsPlugin, ipcCrosshairPlugin]
   });
   canvas._chartInstance = chart;
   return chart;
+}
+
+// Plugin: solid (anchored) and dashed (hover) vertical lines from y.top→y.bottom.
+const ipcCrosshairPlugin = {
+  id: 'ipcCrosshair',
+  afterDatasetsDraw(chart) {
+    const sideEl = chart.canvas._ipcSideEl;
+    if (!sideEl) return;
+    const anchorMs = +sideEl.dataset.anchorMs || null;
+    const hoverMs = sideEl._ipcHoverMs;
+    const { ctx, chartArea: { top, bottom }, scales: { x } } = chart;
+    if (!x) return;
+    const sideColor = sideEl.dataset.side === 'reference' ? '#58a6ff' : '#f0883e';
+
+    const drawLine = (ms, dashed) => {
+      if (!Number.isFinite(ms)) return;
+      const px = x.getPixelForValue(ms);
+      if (!Number.isFinite(px) || px < chart.chartArea.left || px > chart.chartArea.right) return;
+      ctx.save();
+      ctx.lineWidth = dashed ? 1 : 2;
+      ctx.strokeStyle = dashed ? 'rgba(139,148,158,0.55)' : sideColor;
+      ctx.setLineDash(dashed ? [4, 3] : []);
+      ctx.beginPath();
+      ctx.moveTo(px, top);
+      ctx.lineTo(px, bottom);
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    // Hover dashed only when hover != anchor.
+    if (hoverMs != null && hoverMs !== anchorMs) drawLine(hoverMs, true);
+    if (anchorMs != null) drawLine(anchorMs, false);
+  }
+};
+
+// Single source of truth for "what time is the table/KPI reading?"
+// Fallback chain: anchorMs ?? hoverMs ?? peakMs (D.1).
+function _ipcResolveActiveMs(sideEl) {
+  const a = +sideEl.dataset.anchorMs;
+  if (Number.isFinite(a) && a > 0) return a;
+  if (Number.isFinite(sideEl._ipcHoverMs)) return sideEl._ipcHoverMs;
+  const sd = sideEl._ipcData;
+  return sd && Number.isFinite(sd.peakMs) ? sd.peakMs : null;
+}
+
+function _ipcRefreshSide(sideEl) {
+  const sd = sideEl._ipcData; const ipQuota = sideEl._ipcQuota;
+  if (!sd || !ipQuota) return;
+  const t = _ipcResolveActiveMs(sideEl);
+  const rows = (t == null) ? [] : _ipcEvalAt(sd.segments, t);
+  const fleetTotal = rows.reduce((s, r) => s + r.ips, 0);
+  const fleetCost  = rows.reduce((s, r) => s + r.segCostEur, 0);
+
+  // KPI total box.
+  const totalEl = sideEl.querySelector('.ipc-kpi-total');
+  if (totalEl) {
+    const cap = +ipQuota.max_ip_count || 256;
+    const cls = _ipcThresholdLevel(fleetTotal, ipQuota);
+    totalEl.classList.remove('warn', 'crit', 'over');
+    if (cls) totalEl.classList.add(cls);
+    totalEl.querySelector('.ipc-kpi-value').textContent = `${fleetTotal} IPs`;
+    totalEl.querySelector('.ipc-kpi-sub').textContent =
+      `${fleetTotal} of ${cap} · ${Math.round(100 * fleetTotal / cap)}%`;
+  }
+
+  // Anchor chip.
+  const chip = sideEl.querySelector('.ipc-anchor-chip');
+  const anchorMs = +sideEl.dataset.anchorMs;
+  if (chip) {
+    if (Number.isFinite(anchorMs) && anchorMs > 0) {
+      chip.classList.add('visible');
+      const noneTag = rows.length === 0 ? ' (no clusters alive)' : '';
+      chip.querySelector('.ipc-anchor-text').textContent =
+        `Anchored at ${_ipcFmtHmsUtc(anchorMs)}Z${noneTag}`;
+    } else {
+      chip.classList.remove('visible');
+    }
+  }
+
+  // Table body.
+  const tbody = sideEl.querySelector('.ipc-table tbody');
+  if (tbody) {
+    if (rows.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-msg" style="padding:16px;">No clusters alive at this moment.</td></tr>`;
+    } else {
+      tbody.innerHTML = rows.map(r => `
+        <tr data-cluster="${escapeAttr(r.cluster)}">
+          <td>${escapeHtml(r.cluster)}</td>
+          <td>${r.workers}</td>
+          <td>${r.master}</td>
+          <td>${r.ips}</td>
+          <td><code>${escapeHtml(r.machineType)}</code></td>
+          <td>€${r.segCostEur.toFixed(2)}</td>
+          <td>${r.idx}</td>
+        </tr>`).join('');
+    }
+  }
+  const tfTotal = sideEl.querySelector('.ipc-tfoot-total');
+  const tfCost  = sideEl.querySelector('.ipc-tfoot-cost');
+  if (tfTotal) tfTotal.textContent = String(fleetTotal);
+  if (tfCost)  tfCost.textContent  = `€${fleetCost.toFixed(2)}`;
+
+  // Re-draw chart so crosshair plugin picks up new state.
+  if (sideEl._ipcChart) sideEl._ipcChart.update('none');
 }
 
 function orderConfKeys(keys) {
