@@ -1601,3 +1601,117 @@ h3.section-heading {
 .cluster-outlier-table tr:hover { background: rgba(88, 166, 255, 0.05); }
 .cluster-outlier-table .z-high { color: #f85149; font-weight: 600; }
 .cluster-outlier-table .z-med { color: #d29922; }
+
+/* ── Detail Cluster Cost (TODO_2) ───────────────────────────────────────── */
+.dcc-deltas {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.dcc-deltas-note {
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #8b949e;
+  font-style: italic;
+}
+.dcc-chip {
+  display: flex;
+  flex-direction: column;
+  background: #1c2128;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 6px 12px;
+  min-width: 120px;
+}
+.dcc-chip-label { font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.04em; }
+.dcc-chip-value { font-size: 14px; color: #c9d1d9; font-weight: 600; }
+.dcc-chip-sub   { font-size: 11px; color: #8b949e; font-weight: 400; margin-left: 4px; }
+.dcc-chip.up   { border-color: rgba(248,81,73,0.45); }
+.dcc-chip.up   .dcc-chip-value { color: #f85149; }
+.dcc-chip.down { border-color: rgba(63,185,80,0.45); }
+.dcc-chip.down .dcc-chip-value { color: #3fb950; }
+
+.dcc-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.dcc-pair[data-expanded="reference"] .dcc-side[data-side="current"]   { display: none; }
+.dcc-pair[data-expanded="reference"] .dcc-side[data-side="reference"] { grid-column: 1 / -1; }
+.dcc-pair[data-expanded="current"]   .dcc-side[data-side="reference"] { display: none; }
+.dcc-pair[data-expanded="current"]   .dcc-side[data-side="current"]   { grid-column: 1 / -1; }
+
+.dcc-side {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 10px 12px;
+  min-width: 0; /* allow flex items to shrink in narrow viewports */
+}
+.dcc-side-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.dcc-side-header h4 { margin: 0; flex: 1; font-size: 13px; color: #c9d1d9; font-weight: 600; }
+.dcc-side-date { color: #8b949e; font-weight: 400; font-size: 12px; margin-left: 4px; }
+.dcc-side-reset, .dcc-side-expand {
+  background: transparent;
+  color: #8b949e;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.dcc-side-reset:hover, .dcc-side-expand:hover { color: #c9d1d9; border-color: #58a6ff; }
+
+.dcc-totals {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  background: #0d1117;
+  border-radius: 4px;
+  border: 1px solid #21262d;
+}
+.dcc-totals-cost { font-size: 22px; font-weight: 700; color: #58a6ff; }
+.dcc-side[data-side="current"] .dcc-totals-cost { color: #f0883e; }
+.dcc-totals-meta { font-size: 11px; color: #8b949e; line-height: 1.5; }
+
+.dcc-chart-wrap {
+  position: relative;
+  height: 220px;
+  margin-bottom: 10px;
+}
+.dcc-pair[data-expanded] .dcc-chart-wrap { height: 320px; }
+
+.dcc-lifespans {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  table-layout: auto;
+  display: block;
+  overflow-x: auto;
+}
+.dcc-lifespans thead th {
+  text-align: left;
+  padding: 6px 8px;
+  color: #8b949e;
+  border-bottom: 1px solid #30363d;
+  background: #0d1117;
+  position: sticky;
+  top: 0;
+  font-weight: 500;
+}
+.dcc-lifespans td { padding: 6px 8px; border-bottom: 1px solid #21262d; color: #c9d1d9; white-space: nowrap; }
+.dcc-lifespans tr:hover { background: rgba(88,166,255,0.04); }
+.dcc-lifespans code { background: rgba(110,118,129,0.15); padding: 1px 4px; border-radius: 3px; font-size: 10px; }
+
+@media (max-width: 720px) {
+  .dcc-pair { grid-template-columns: 1fr; }
+}

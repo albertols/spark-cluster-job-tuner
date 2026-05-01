@@ -1011,6 +1011,7 @@ async function showClusterDetailRaw(clusterName) {
   loadClusterJsonsForDates(clusterName).then(({ ref, cur, refDate, curDate }) => {
     renderClusterConfComparison(clusterName, ref, cur, refDate, curDate);
     annotateKeptRecipeCards(cur);
+    renderDetailClusterCost(clusterName, ref, cur, refDate, curDate);
   });
 
   // Recipe cards with delta tables
@@ -1149,6 +1150,308 @@ function renderClusterDetailOutliers(clusterName) {
     <thead><tr><th>Cluster</th><th>Recipe</th><th>Metric</th><th>Reference</th><th>Current</th><th>Z-Score</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
+}
+
+// ── Detail Cluster Cost ─────────────────────────────────────────────────────
+// Reads `cost_timeline` from each side's per-cluster JSON (emitted by the Scala
+// tuner from b20/b21). Side absent (or empty) → empty-state notice on that side
+// only. The chart renders a single time axis with gaps between incarnations and
+// vertical create/delete markers. Click ⤢ on a side to expand it full width.
+
+function _ctOf(json) {
+  return (json && json.cost_timeline) ? json.cost_timeline : null;
+}
+
+// Convert ISO timestamp to epoch ms; safe for null/invalid input.
+function _tsMs(s) { const t = new Date(s).getTime(); return Number.isFinite(t) ? t : null; }
+
+// Format epoch ms as "HH:MM:SS" UTC for axis ticks and tooltip titles.
+function _fmtHmsUtc(ms) {
+  if (!Number.isFinite(ms)) return '';
+  return new Date(ms).toISOString().slice(11, 19);
+}
+
+// Builds Chart.js point list for a single side using numeric x (epoch ms).
+// Inserts an explicit y=null "gap" point between adjacent incarnations so
+// spanGaps:false renders breaks. Uses a linear x scale so we don't need an
+// extra date-adapter CDN script (Chart.js's time scale requires one).
+function _buildDccChartData(ct) {
+  if (!ct || !Array.isArray(ct.incarnations) || ct.incarnations.length === 0) {
+    return { points: [], boundaries: [] };
+  }
+  const points = [];
+  const boundaries = [];
+  ct.incarnations.forEach((inc, i) => {
+    const startMs = _tsMs(inc.span_start_ts);
+    const endMs   = _tsMs(inc.span_end_ts);
+    if (i > 0 && startMs != null) points.push({ x: startMs, y: null });
+    if (startMs != null) boundaries.push({ x: startMs, kind: 'create', idx: inc.idx });
+    (inc.intervals || []).forEach(iv => {
+      const fromMs = _tsMs(iv.from_ts);
+      const toMs   = _tsMs(iv.to_ts);
+      if (fromMs != null) points.push({ x: fromMs, y: iv.workers, segCost: iv.seg_cost_eur, idx: inc.idx });
+      if (toMs   != null) points.push({ x: toMs,   y: iv.workers, segCost: iv.seg_cost_eur, idx: inc.idx });
+    });
+    if (endMs != null) boundaries.push({ x: endMs, kind: 'delete', idx: inc.idx });
+  });
+  return { points, boundaries };
+}
+
+// Plugin: vertical dashed lines at each incarnation create/delete timestamp.
+const dccBoundaryMarkersPlugin = {
+  id: 'dccBoundaryMarkers',
+  afterDatasetsDraw(chart, _, opts) {
+    const boundaries = opts && opts.boundaries;
+    if (!Array.isArray(boundaries) || boundaries.length === 0) return;
+    const { ctx, scales: { x, y } } = chart;
+    if (!x || !y) return;
+    ctx.save();
+    ctx.setLineDash([4, 3]);
+    ctx.lineWidth = 1;
+    boundaries.forEach(b => {
+      const px = x.getPixelForValue(b.x);
+      if (!Number.isFinite(px)) return;
+      ctx.strokeStyle = b.kind === 'create' ? 'rgba(63,185,80,0.65)' : 'rgba(248,81,73,0.65)';
+      ctx.beginPath();
+      ctx.moveTo(px, y.top);
+      ctx.lineTo(px, y.bottom);
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+};
+
+function _formatEur(n) {
+  if (n == null || !Number.isFinite(+n)) return '—';
+  const v = +n;
+  return `€${v.toFixed(v >= 1 ? 2 : 4)}`;
+}
+
+function _formatPct(n) {
+  if (n == null || !Number.isFinite(+n)) return '—';
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${(+n).toFixed(1)}%`;
+}
+
+function _formatMin(n) {
+  if (n == null || !Number.isFinite(+n)) return '—';
+  return `${(+n).toFixed(0)} min`;
+}
+
+// Top KPI delta strip: ±cost%, ±avg workers, ±total minutes (current vs reference).
+function _buildDccDeltasHtml(refCt, curCt) {
+  const chip = (label, valueHtml, cls) =>
+    `<div class="dcc-chip ${cls}"><span class="dcc-chip-label">${label}</span><span class="dcc-chip-value">${valueHtml}</span></div>`;
+
+  if (!refCt && !curCt) return '';
+  if (!refCt || !curCt) {
+    const note = !refCt ? 'reference' : 'current';
+    return `<div class="dcc-deltas-note">No autoscaling data exported for ${note} date — delta KPIs unavailable.</div>`;
+  }
+  const dCost = +curCt.total_cost_eur - +refCt.total_cost_eur;
+  const refCost = +refCt.total_cost_eur || 0;
+  const dCostPct = refCost > 0 ? (dCost / refCost) * 100 : null;
+  const dAvgW = +curCt.real_used_avg_num_of_workers - +refCt.real_used_avg_num_of_workers;
+  const refMin = (refCt.incarnations || []).reduce((s, i) => s + (+i.span_minutes || 0), 0);
+  const curMin = (curCt.incarnations || []).reduce((s, i) => s + (+i.span_minutes || 0), 0);
+  const dMin = curMin - refMin;
+
+  const cls = (v) => v == null ? '' : (v < 0 ? 'down' : (v > 0 ? 'up' : ''));
+
+  return `<div class="dcc-deltas">
+    ${chip('Δ cost', `${_formatEur(dCost)} <span class="dcc-chip-sub">(${_formatPct(dCostPct)})</span>`, cls(dCost))}
+    ${chip('Δ avg workers', `${dAvgW > 0 ? '+' : ''}${dAvgW.toFixed(2)}`, cls(dAvgW))}
+    ${chip('Δ active minutes', `${dMin > 0 ? '+' : ''}${dMin.toFixed(0)} min`, cls(dMin))}
+  </div>`;
+}
+
+function _buildDccLifespanTable(ct) {
+  if (!ct || !Array.isArray(ct.incarnations) || ct.incarnations.length === 0) return '';
+  const headers = `<thead><tr>
+    <th>#</th><th>Start</th><th>End</th><th>Duration</th>
+    <th>Avg w</th><th>Min w</th><th>Max w</th>
+    <th>Worker</th><th>Master</th>
+    <th>€/h w</th><th>€/h m</th>
+    <th>Cost €</th>
+  </tr></thead>`;
+  const fmtTs = (s) => {
+    if (!s) return '—';
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? escapeHtml(s) : `${d.toISOString().slice(11, 19)}Z`;
+  };
+  const rows = ct.incarnations.map(inc => {
+    const wCost = +inc.worker_cost_eur || 0;
+    const mCost = +inc.master_cost_eur || 0;
+    const tCost = +inc.total_cost_eur || (wCost + mCost);
+    return `<tr>
+      <td>${inc.idx}</td>
+      <td title="${escapeAttr(inc.span_start_ts || '')}">${fmtTs(inc.span_start_ts)}</td>
+      <td title="${escapeAttr(inc.span_end_ts || '')}">${fmtTs(inc.span_end_ts)}</td>
+      <td>${(+inc.span_minutes || 0).toFixed(0)} min</td>
+      <td>${(+inc.avg_workers || 0).toFixed(2)}</td>
+      <td>${inc.min_workers ?? 0}</td>
+      <td>${inc.max_workers ?? 0}</td>
+      <td><code>${escapeHtml(ct.worker_machine_type || '')}</code></td>
+      <td><code>${escapeHtml(ct.master_machine_type || '')}</code></td>
+      <td>${(+ct.worker_hourly_eur || 0).toFixed(4)}</td>
+      <td>${(+ct.master_hourly_eur || 0).toFixed(4)}</td>
+      <td title="worker ${_formatEur(wCost)} + master ${_formatEur(mCost)}">${_formatEur(tCost)}</td>
+    </tr>`;
+  }).join('');
+  return `<table class="dcc-lifespans">${headers}<tbody>${rows}</tbody></table>`;
+}
+
+function _buildDccTotalsHtml(ct) {
+  if (!ct) return '';
+  const wMt = ct.worker_machine_type || '—';
+  const mMt = ct.master_machine_type || '—';
+  return `<div class="dcc-totals">
+    <div class="dcc-totals-cost">${_formatEur(ct.total_cost_eur)}</div>
+    <div class="dcc-totals-meta">
+      avg ${(+ct.real_used_avg_num_of_workers || 0).toFixed(2)} w · min ${ct.real_used_min_workers ?? 0} · max ${ct.real_used_max_workers ?? 0}
+      <br><code>${escapeHtml(wMt)}</code> + <code>${escapeHtml(mMt)}</code>
+    </div>
+  </div>`;
+}
+
+// Render one side (reference or current). When ct is null → empty-state notice.
+function _renderDccSide(sideEl, ct, dateLabel) {
+  const headerLabel = sideEl.dataset.side === 'reference' ? 'Reference' : 'Current';
+  const dateChip = dateLabel ? `<span class="dcc-side-date">(${escapeHtml(dateLabel)})</span>` : '';
+  if (!ct || !Array.isArray(ct.incarnations) || ct.incarnations.length === 0) {
+    sideEl.innerHTML = `
+      <header class="dcc-side-header">
+        <h4>${headerLabel} ${dateChip}</h4>
+        <button class="dcc-side-expand" title="Expand">⤢</button>
+      </header>
+      <div class="empty-msg">No autoscaling data exported for this date.</div>`;
+    return;
+  }
+
+  const canvasId = `dcc-canvas-${sideEl.dataset.side}-${Math.random().toString(36).slice(2, 8)}`;
+  sideEl.innerHTML = `
+    <header class="dcc-side-header">
+      <h4>${headerLabel} ${dateChip}</h4>
+      <button class="dcc-side-reset" title="Reset zoom">↻</button>
+      <button class="dcc-side-expand" title="Expand">⤢</button>
+    </header>
+    ${_buildDccTotalsHtml(ct)}
+    <div class="dcc-chart-wrap"><canvas id="${canvasId}"></canvas></div>
+    ${_buildDccLifespanTable(ct)}`;
+
+  const { points, boundaries } = _buildDccChartData(ct);
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  // Destroy any prior instance bound to this canvas (defensive — id is random
+  // here but re-renders on the same side reuse the wrap element).
+  if (canvas._chartInstance) { try { canvas._chartInstance.destroy(); } catch (e) {} }
+
+  const tooltipCallbacks = {
+    title: (items) => items[0] ? _fmtHmsUtc(items[0].parsed.x) + 'Z' : '',
+    label: (ctx) => {
+      const raw = ctx.raw || {};
+      const w = (raw.y == null) ? '—' : raw.y;
+      const cost = (raw.segCost == null) ? '' : ` · ${_formatEur(raw.segCost)}`;
+      const inc = (raw.idx == null) ? '' : ` · lifespan #${raw.idx}`;
+      return `workers ${w}${cost}${inc}`;
+    }
+  };
+
+  const chart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      datasets: [{
+        label: 'workers',
+        data: points,
+        parsing: false,
+        borderColor: sideEl.dataset.side === 'reference' ? '#58a6ff' : '#f0883e',
+        backgroundColor: sideEl.dataset.side === 'reference' ? 'rgba(88,166,255,0.18)' : 'rgba(240,136,62,0.18)',
+        fill: 'origin',
+        spanGaps: false,
+        stepped: true,
+        pointRadius: 0,
+        pointHoverRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      parsing: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: tooltipCallbacks },
+        zoom: csZoomPluginConfig(canvas),
+        dccBoundaryMarkers: { boundaries }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          ticks: {
+            color: '#8b949e',
+            maxRotation: 0,
+            autoSkip: true,
+            callback: (v) => _fmtHmsUtc(+v)
+          },
+          grid: { color: 'rgba(139,148,158,0.1)' }
+        },
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: 'workers', color: '#8b949e' },
+          ticks: { color: '#8b949e', precision: 0 },
+          grid: { color: 'rgba(139,148,158,0.1)' }
+        }
+      }
+    },
+    plugins: [dccBoundaryMarkersPlugin]
+  });
+  canvas._chartInstance = chart;
+
+  const resetBtn = sideEl.querySelector('.dcc-side-reset');
+  if (resetBtn) resetBtn.addEventListener('click', () => { try { chart.resetZoom(); } catch (e) {} });
+}
+
+function renderDetailClusterCost(clusterName, refJson, curJson, refDate, curDate) {
+  const body = document.getElementById('detail-cluster-cost-body');
+  if (!body) return;
+
+  const refCt = _ctOf(refJson);
+  const curCt = _ctOf(curJson);
+
+  if (!refCt && !curCt) {
+    body.innerHTML = `<div class="empty-msg">No autoscaling data exported for either date — provide b20/b21 CSVs to see cost intervals.</div>`;
+    return;
+  }
+
+  body.innerHTML = `
+    ${_buildDccDeltasHtml(refCt, curCt)}
+    <div class="dcc-pair">
+      <section class="dcc-side" data-side="reference"></section>
+      <section class="dcc-side" data-side="current"></section>
+    </div>`;
+
+  const refSide = body.querySelector('.dcc-side[data-side="reference"]');
+  const curSide = body.querySelector('.dcc-side[data-side="current"]');
+  _renderDccSide(refSide, refCt, refDate);
+  _renderDccSide(curSide, curCt, curDate);
+
+  // Wire ↔ expand on each side: hide other, expand self full width; toggle.
+  body.querySelectorAll('.dcc-side-expand').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const side = btn.closest('.dcc-side');
+      const pair = side.parentElement;
+      const which = side.dataset.side;
+      const cur = pair.dataset.expanded || '';
+      pair.dataset.expanded = (cur === which) ? '' : which;
+      btn.textContent = pair.dataset.expanded === which ? '⤡' : '⤢';
+      // Resize the chart to fit the new width
+      const canvas = side.querySelector('canvas');
+      if (canvas && canvas._chartInstance) {
+        setTimeout(() => canvas._chartInstance.resize(), 50);
+      }
+    });
+  });
 }
 
 function renderClusterConfComparison(clusterName, refJson, curJson, refDate, curDate) {

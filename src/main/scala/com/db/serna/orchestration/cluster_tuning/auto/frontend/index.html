@@ -77,6 +77,10 @@
     <button id="back-to-overview">&larr; Back to Fleet</button>
     <h2 id="detail-cluster-name"></h2>
     <div id="detail-cluster-conf"></div>
+    <details id="detail-cluster-cost" class="detail-foldout">
+      <summary>Cluster cost &amp; autoscaling <span class="info-icon" data-doc-key="trend" title="Per-incarnation worker timeline + cost breakdown from b20 spans + b21 events">ⓘ</span></summary>
+      <div id="detail-cluster-cost-body"><div class="empty-msg">Loading cost timeline…</div></div>
+    </details>
     <div id="detail-recipes"></div>
     <details id="detail-correlations" class="detail-foldout" open>
       <summary>Correlations for this cluster <span class="info-icon" data-doc-key="pearson_full">ⓘ</span></summary>
