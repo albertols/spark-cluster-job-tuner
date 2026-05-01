@@ -1536,13 +1536,24 @@ function _ipcInit() {
 // before users interact.
 function renderClusterIpCountSectionInit() { _ipcInit(); }
 
-// Real renderer wired in subsequent tasks. For now: empty-state placeholder.
 async function _renderClusterIpCountSection() {
-  const pair = document.querySelector('#ipc-body .ipc-pair');
-  if (!pair) return;
-  pair.querySelectorAll('.ipc-side').forEach(sideEl => {
-    sideEl.innerHTML = `<div class="empty-msg">IPC timeline rendering not yet implemented.</div>`;
-  });
+  if (!data || !data.metadata) return;
+  const ipQuota = (config && config.ipQuota) || { max_ip_count: 256, warn_pct: 70, crit_pct: 90 };
+  const refDate = data.metadata.reference_date;
+  const curDate = data.metadata.current_date;
+
+  // Always load both sides — toggling is cheap once cached.
+  const [refData, curData] = await Promise.all([
+    refDate ? _ipcLoadDataForDate(refDate) : Promise.resolve(null),
+    curDate ? _ipcLoadDataForDate(curDate) : Promise.resolve(null)
+  ]);
+  _ipcSideCache.set('reference', refData);
+  _ipcSideCache.set('current', curData);
+
+  const refSide = document.querySelector('.ipc-side[data-side="reference"]');
+  const curSide = document.querySelector('.ipc-side[data-side="current"]');
+  if (refSide) _ipcRenderSide(refSide, refData, ipQuota, refDate);
+  if (curSide) _ipcRenderSide(curSide, curData, ipQuota, curDate);
 }
 
 // Convert ISO timestamp to epoch ms; null on invalid input.
@@ -1663,6 +1674,77 @@ async function _ipcLoadDataForDate(date) {
   // Skipped clusters (no cost_timeline) — surface in a footer chip.
   const skipped = pairs.filter(([_n, j]) => !j || !j.cost_timeline).map(([n]) => n);
   return { date, segments, peakMs: peak.peakMs, peakIps: peak.peakIps, skipped };
+}
+
+// Per-side cache: side name → loaded data + chart instance.
+const _ipcSideCache = new Map();
+
+// Render one side's full DOM. Chart wiring comes in subsequent tasks; for
+// now this lays out the header / KPI strip / chart canvas / anchor chip /
+// table shell so the visual structure is final.
+function _ipcRenderSide(sideEl, sideData, ipQuota, dateLabel) {
+  const sideName = sideEl.dataset.side; // 'reference' | 'current'
+  const headerLabel = sideName === 'reference' ? 'Reference' : 'Current';
+
+  // Empty-state path (I.2).
+  if (!sideData || sideData.segments.length === 0) {
+    sideEl.innerHTML = `
+      <header class="ipc-side-header">
+        <h4>${headerLabel}${dateLabel ? ` <span class="ipc-side-date">(${escapeHtml(dateLabel)})</span>` : ''}</h4>
+      </header>
+      <div class="empty-msg">No autoscaling data exported for this date.</div>`;
+    return;
+  }
+
+  const canvasId = `ipc-canvas-${sideName}-${Math.random().toString(36).slice(2, 8)}`;
+  const peakClass = _ipcThresholdLevel(sideData.peakIps, ipQuota);
+
+  sideEl.innerHTML = `
+    <header class="ipc-side-header">
+      <h4>${headerLabel}${dateLabel ? ` <span class="ipc-side-date">(${escapeHtml(dateLabel)})</span>` : ''}</h4>
+      <div class="ipc-side-buttons">
+        <button class="ipc-side-reset" title="Reset zoom and clear anchor">↻</button>
+        <button class="ipc-side-expand" title="Expand">⤢</button>
+      </div>
+    </header>
+    <div class="ipc-kpi-strip">
+      <div class="ipc-kpi ipc-kpi-total" data-kind="total">
+        <div class="ipc-kpi-label">Total estimated IP count</div>
+        <div class="ipc-kpi-value">—</div>
+        <div class="ipc-kpi-sub">— of ${ipQuota.max_ip_count}</div>
+      </div>
+      <div class="ipc-kpi ipc-kpi-max clickable ${peakClass}" data-kind="max" title="Click to anchor crosshair at peak">
+        <div class="ipc-kpi-label">Max total IP count</div>
+        <div class="ipc-kpi-value">${sideData.peakIps}</div>
+        <div class="ipc-kpi-sub">@ ${_ipcFmtHmsUtc(sideData.peakMs)}Z · ${Math.round(100 * sideData.peakIps / (ipQuota.max_ip_count || 256))}% of ${ipQuota.max_ip_count}</div>
+      </div>
+    </div>
+    <div class="ipc-chart-wrap"><canvas id="${canvasId}"></canvas></div>
+    <div class="ipc-anchor-chip">
+      <span class="ipc-anchor-text">Anchored at —</span>
+      <button class="ipc-anchor-clear" title="Clear anchor">✕</button>
+    </div>
+    ${sideData.skipped.length ? `<div class="ipc-skipped-chip">${sideData.skipped.length} cluster${sideData.skipped.length === 1 ? '' : 's'} skipped — no b20 span: ${sideData.skipped.map(escapeHtml).join(', ')}</div>` : ''}
+    <div class="ipc-table-wrap">
+      <table class="ipc-table">
+        <thead><tr>
+          <th>Cluster</th><th>W</th><th>M</th><th>IPs</th>
+          <th>Machine</th><th>Cost/seg</th><th>Inc#</th>
+        </tr></thead>
+        <tbody></tbody>
+        <tfoot><tr>
+          <td>Σ fleet</td><td>—</td><td>—</td><td class="ipc-tfoot-total">—</td>
+          <td>—</td><td class="ipc-tfoot-cost">—</td><td>—</td>
+        </tr></tfoot>
+      </table>
+    </div>`;
+
+  // Stash side-local state for later tasks.
+  sideEl._ipcData = sideData;
+  sideEl._ipcQuota = ipQuota;
+  sideEl._ipcCanvasId = canvasId;
+  sideEl._ipcHoverMs = null;
+  sideEl.dataset.anchorMs = '';
 }
 
 function orderConfKeys(keys) {
