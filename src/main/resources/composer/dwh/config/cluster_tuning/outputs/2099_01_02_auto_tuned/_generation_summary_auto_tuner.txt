@@ -5,17 +5,17 @@
   Reference date:  2099_01_01
   Current date:    2099_01_02
   Strategy:        default
-  Generated at:    2026-05-03T17:15:38.062257Z
+  Generated at:    2026-05-03T17:50:46.906945Z
 
 ------------------------------------------------------------------------
   TREND SUMMARY
 ------------------------------------------------------------------------
-  Total clusters:      3
-  Total recipes:       3
+  Total clusters:      4
+  Total recipes:       9
     Improved:          0
     Degraded:          0
     Stable:            3
-    New entries:       0
+    New entries:       6
     Dropped entries:   0
 
 ------------------------------------------------------------------------
@@ -23,7 +23,7 @@
 ------------------------------------------------------------------------
   Kept (stable/improved):   3
   Boosted (degraded):       0
-  Fresh (new):              0
+  Fresh (new):              1
   Preserved (historical):   0
   Skipped (no metrics):     0
 

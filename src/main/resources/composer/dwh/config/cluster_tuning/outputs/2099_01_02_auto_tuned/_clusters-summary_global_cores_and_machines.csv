@@ -1,3 +1,2 @@
 MACHINE_TYPE, ESTIMATED_MAX_NO_OF_WORKERS, ESTIMATED_MAX_NO_OF_CORES, REAL_MAX_NO_OF_WORKERS, REAL_MAX_NO_OF_CORES, CLUSTERS_LIST
-n2d-highcpu-48,10,480,10,480,mock-cluster-001
-n2-highcpu-48,2,96,4,192,mock-cluster-new
+e2-highcpu-32,2,64,4,128,cluster-wf-anonimiza-636bf97f-main

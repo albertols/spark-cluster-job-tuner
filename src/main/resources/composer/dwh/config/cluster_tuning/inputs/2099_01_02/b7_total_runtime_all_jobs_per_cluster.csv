@@ -1,4 +1,0 @@
-cluster_name,total_runtime_ms,total_runtime_minutes,total_runtime_hours
-mock-cluster-ss-normal-001,6000000,100,1.666667
-mock-cluster-ss-synth-002,6000000,100,1.666667
-mock-cluster-ss-synth-003,3000000,50,0.833333

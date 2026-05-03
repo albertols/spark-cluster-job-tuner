@@ -1,4 +1,0 @@
-cluster_name,recipe_filename,p95_job_duration_ms,avg_job_duration_ms,runs
-mock-cluster-ss-normal-001,mock-recipe-control.json,480000,300000,20
-mock-cluster-ss-synth-002,mock-recipe-orphan.json,480000,300000,20
-mock-cluster-ss-synth-003,mock-recipe-stub.json,90000,60000,50

@@ -1,4 +1,0 @@
-cluster_name,recipe_filename,seconds_at_cap
-mock-cluster-ss-normal-001,mock-recipe-control.json,120
-mock-cluster-ss-synth-002,mock-recipe-orphan.json,120
-mock-cluster-ss-synth-003,mock-recipe-stub.json,0

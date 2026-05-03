@@ -1,4 +1,0 @@
-cluster_name,max_concurrent_jobs
-mock-cluster-ss-normal-001,4
-mock-cluster-ss-synth-002,4
-mock-cluster-ss-synth-003,2

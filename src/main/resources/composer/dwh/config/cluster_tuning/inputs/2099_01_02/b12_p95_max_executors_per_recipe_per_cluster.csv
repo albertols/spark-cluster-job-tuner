@@ -1,4 +1,0 @@
-cluster_name,recipe_filename,p95_run_max_executors,avg_run_max_executors,runs
-mock-cluster-ss-normal-001,mock-recipe-control.json,12,6,20
-mock-cluster-ss-synth-002,mock-recipe-orphan.json,12,6,20
-mock-cluster-ss-synth-003,mock-recipe-stub.json,4,2,50

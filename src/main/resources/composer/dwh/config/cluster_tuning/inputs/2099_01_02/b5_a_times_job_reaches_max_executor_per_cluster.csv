@@ -1,4 +1,0 @@
-cluster_name,recipe_filename,runs_reaching_cap,total_runs,fraction_reaching_cap
-mock-cluster-ss-normal-001,mock-recipe-control.json,2,20,0.100000
-mock-cluster-ss-synth-002,mock-recipe-orphan.json,2,20,0.100000
-mock-cluster-ss-synth-003,mock-recipe-stub.json,0,50,0

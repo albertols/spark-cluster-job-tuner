@@ -2,3 +2,8 @@ cluster_name,recipe_filename,avg_executors_per_job,p95_run_max_executors,avg_job
 mock-cluster-ss-normal-001,mock-recipe-control.json,6,12,300000,480000,20,120,2,20,0.100000,4
 mock-cluster-ss-synth-002,mock-recipe-orphan.json,6,12,300000,480000,20,120,2,20,0.100000,4
 mock-cluster-ss-synth-003,mock-recipe-stub.json,2,4,60000,90000,50,0,0,50,0,2
+cluster-wf-anonimiza-636bf97f-main,_ETL_m_DM_LKP_CLIENTE_BORRADO.json,0,,45812,46324,2,,,,,2
+cluster-wf-anonimiza-636bf97f-main,_ETL_m_DM_LKP_CONTRATOS_CLIENTES_GDPR.json,0,,44311.5,44425,2,,,,,2
+cluster-wf-anonimiza-636bf97f-main,_ETL_m_DWH_D_CONTRATOS_CLIENTES_GDPR.json,0,,40078.5,41860,2,,,,,2
+cluster-wf-anonimiza-636bf97f-main,_ETL_m_ODS_CLIENTE_BORRADO.json,0,,48300.5,49553,2,,,,,2
+cluster-wf-anonimiza-636bf97f-main,_ETL_m_ODS_CONTRATOS_CLIENTES_GDPR.json,0.1590909090909091,1,50135.5,55531,2,,,,,2

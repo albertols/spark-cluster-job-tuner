@@ -734,6 +734,100 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     json should include ("\"events_count\": 0")
   }
 
+  // ── Real-world b20 + b21 row shape (from BigQuery CSV export) ─────────────
+  //
+  // Verifies the loaders + cost pipeline produce a populated cost_timeline
+  // when fed exactly the CSV row format BigQuery exports — including:
+  //   - ISO timestamps with 6-digit microseconds and 3-digit millis intermixed
+  //   - b21 rows in non-RECOMMENDING states (INITIALIZING, COOLDOWN, SCALING,
+  //     STOPPED) that the loader must filter out
+  //   - b21 RECOMMENDING rows with target=NULL (CANCEL decision) that must
+  //     also be filtered out
+  //   - b21 rows whose status_details contains a quoted comma — Csv.parse is
+  //     naive (no CSV quote handling) but the leading 14 well-formed cells
+  //     still align with the 15-column header
+
+  test("real-world: 1 b20 row + b21 RECOMMENDING events produces a non-null cost_timeline (regression — IPC + cluster-cost surfacing)") {
+    val tmp     = Files.createTempDirectory("real-b20-b21-test-").toFile
+    val inDir   = tmp                                       // loaders read from cfg.inputDir directly
+    val cluster = "cluster-wf-anonimiza-636bf97f-main"
+
+    // b20: 10-column header + 1 data row, ISO microseconds, lowercase booleans.
+    val b20Header = "cluster_name,incarnation_idx,span_start_ts,span_end_ts,span_minutes,create_event_ts,delete_event_ts,has_explicit_create,has_explicit_delete,total_events"
+    val b20Row    = s"$cluster,1,2026-05-01T07:00:56.283227Z,2026-05-01T07:11:35.307332Z,10.65,2026-05-01T07:00:56.283227Z,2026-05-01T07:11:35.307332Z,true,true,42891"
+    val b20F      = new File(inDir, "b20_cluster_span_time.csv")
+    val w20       = new PrintWriter(b20F)
+    try { w20.println(b20Header); w20.println(b20Row) } finally w20.close()
+
+    // b21: 15-column header + 12 data rows of mixed states (INITIALIZING,
+    // COOLDOWN, RECOMMENDING NO_SCALE, COOLDOWN, RECOMMENDING SCALE_DOWN,
+    // SCALING, COOLDOWN, RECOMMENDING CANCEL — null target, dropped — SCALING,
+    // SCALING, COOLDOWN, STOPPED). Loader must keep only the 2 RECOMMENDING
+    // rows with non-null target_primary_workers.
+    val b21Header = "cluster_name,event_ts,state,decision,decision_metric,current_primary_workers,target_primary_workers,min_primary_workers,max_primary_workers,current_secondary_workers,target_secondary_workers,min_secondary_workers,max_secondary_workers,recommendation_id,status_details"
+    val b21Rows = Seq(
+      s"$cluster,2026-05-01T07:03:55.216Z,INITIALIZING,,,,,,,,,,,,Enabling autoscaling.",
+      s"$cluster,2026-05-01T07:03:55.230Z,COOLDOWN,,,,,,,,,,,,2 minute cooldown started.",
+      s"$cluster,2026-05-01T07:05:55.545Z,RECOMMENDING,NO_SCALE,YARN_CORES,3,3,2,4,,,,,rec-1,Autoscaling Recommender suggests NO_SCALE.",
+      s"$cluster,2026-05-01T07:05:55.572999Z,COOLDOWN,,,,,,,,,,,,2 minute cooldown started.",
+      s"""$cluster,2026-05-01T07:07:55.878999Z,RECOMMENDING,SCALE_DOWN,YARN_MEMORY,3,2,2,4,,,,,rec-2,"Autoscaling Recommender suggests SCALE_DOWN to 2 primary workers, and 0 secondary workers."""",
+      s"$cluster,2026-05-01T07:07:56.454999Z,SCALING,,,,,,,,,,,,Update operation in progress.",
+      s"$cluster,2026-05-01T07:07:56.493Z,COOLDOWN,,,,,,,,,,,,2 minute cooldown started.",
+      s"$cluster,2026-05-01T07:09:56.783999Z,RECOMMENDING,CANCEL,YARN_MEMORY,3,,2,4,,,,,rec-3,Autoscaling Recommender suggests CANCEL.",
+      s"$cluster,2026-05-01T07:09:56.848999Z,SCALING,,,,,,,,,,,,Cancel update operation in progress.",
+      s"$cluster,2026-05-01T07:10:08.098999Z,SCALING,,,,,,,,,,,,Update operation finished successfully.",
+      s"$cluster,2026-05-01T07:10:08.128Z,COOLDOWN,,,,,,,,,,,,2 minute cooldown started.",
+      s"$cluster,2026-05-01T07:11:56.154Z,STOPPED,,,,,,,,,,,,Stopped autoscaling cluster."
+    )
+    val b21F = new File(inDir, "b21_cluster_autoscaler_values.csv")
+    val w21  = new PrintWriter(b21F)
+    try { w21.println(b21Header); b21Rows.foreach(w21.println) } finally w21.close()
+
+    val machine = MachineCatalog.byName("e2-highcpu-32").get
+    val cfg = ClusterMachineAndRecipeTuner.Config(
+      useFlattened  = true,
+      date          = "2026_05_01",
+      inputDir      = inDir,
+      outputDir     = new File(tmp, "out"),
+      defaultMaster = machine,
+      defaultWorker = machine
+    )
+
+    val spansByCluster  = ClusterMachineAndRecipeTuner.loadClusterSpans(cfg)
+    val eventsByCluster = ClusterMachineAndRecipeTuner.loadAutoscalerEvents(cfg)
+
+    // Loaders pick up exactly what we wrote: 1 span and 2 RECOMMENDING events
+    // (NO_SCALE target=3 and SCALE_DOWN target=2; CANCEL target-null is dropped).
+    spansByCluster.keySet  shouldBe Set(cluster)
+    spansByCluster(cluster) should have size 1
+    eventsByCluster.keySet shouldBe Set(cluster)
+    eventsByCluster(cluster) should have size 2
+    eventsByCluster(cluster).map(_.targetPrimary) shouldBe Seq(Some(3), Some(2))
+
+    // Cost integration produces a non-null timeline with positive cost. This is
+    // the data structure the frontend reads to populate "Total estimated IP
+    // count" (#cluster-ip-count-section) and "Cluster cost & autoscaling"
+    // (#detail-cluster-cost-body) — empty cost_timeline = "No autoscaling data
+    // exported" message.
+    val breakdown = ClusterMachineAndRecipeTuner.computeClusterCost(
+      spans           = spansByCluster(cluster),
+      events          = eventsByCluster(cluster),
+      worker          = machine,
+      master          = machine,
+      fallbackWorkers = 2
+    )
+    breakdown.totalActiveMinutes should be > 10.0
+    breakdown.estimatedCostEur   should be > 0.0
+    breakdown.workerStats.maxWorkers shouldBe 3
+    breakdown.workerStats.minWorkers shouldBe 2
+    breakdown.costTimelineJson shouldBe defined
+    val json = breakdown.costTimelineJson.get
+    json should include (s""""worker_machine_type": "${machine.name}"""")
+    json should include ("\"synthetic_span\": false")  // b20 row exists, no synthesis
+    json should include ("\"events_count\": 2")        // 2 RECOMMENDING events kept
+    json should include ("\"has_synthetic_span\": false")
+  }
+
   // ── AutoscalingPolicyConfig ───────────────────────────────────────────────
 
   test("AutoscalingPolicyConfig.resolvePolicy brackets") {
