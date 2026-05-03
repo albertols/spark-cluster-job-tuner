@@ -317,6 +317,68 @@ object MockScenarios {
     )
   }
 
+  // ── syntheticSpan — exercises b20-missing / b21-present synthesis ─────────
+  //
+  // Two clusters: one normal (b20 + b21), one whose incarnations are excluded
+  // from b20 entirely. The tuner must synthesize a span from b21 event
+  // boundaries (synthetic_span = true) and the frontend must surface the
+  // "b22 · synthetic span" badge in both the IPC table-wrap header and the
+  // Cluster cost & autoscaling card.
+
+  def syntheticSpan(date: String, seed: Long = 1234L): MockScenario = {
+    val (start, end) = windowFor(date)
+    MockScenario(
+      name   = "syntheticSpan",
+      seed   = seed,
+      window = (start, end),
+      clusters = Seq(
+        // Normal control: b20 row present, b21 events present.
+        MockCluster(
+          name = "mock-cluster-ss-normal-001",
+          recipes = Seq(recipeMedium("mock-recipe-control.json")),
+          incarnations = Seq(MockIncarnation(
+            spanStart  = start.plus(2, ChronoUnit.HOURS),
+            spanEnd    = start.plus(8, ChronoUnit.HOURS),
+            autoscaler = Some(MockAutoscalerProfile(
+              minPrimary = 2, maxPrimary = 8, initialPrimary = 2,
+              schedule   = Seq((300L, 4), (1800L, 6), (12000L, 4), (18000L, 2))
+            ))
+          ))
+        ),
+        // b20 missing for this cluster — only b21 events get emitted. The tuner
+        // synthesizes the span from event min/max timestamps and flags it.
+        MockCluster(
+          name = "mock-cluster-ss-synth-002",
+          recipes = Seq(recipeMedium("mock-recipe-orphan.json")),
+          incarnations = Seq(MockIncarnation(
+            spanStart      = start.plus(4, ChronoUnit.HOURS),
+            spanEnd        = start.plus(7, ChronoUnit.HOURS),
+            excludeFromB20 = true,
+            autoscaler     = Some(MockAutoscalerProfile(
+              minPrimary = 2, maxPrimary = 6, initialPrimary = 2,
+              schedule   = Seq((120L, 4), (3600L, 6), (7200L, 4), (10200L, 2))
+            ))
+          ))
+        ),
+        // Second b20-missing cluster with a different shape so the IPC chart
+        // shows multiple synthetic-span clusters at once.
+        MockCluster(
+          name = "mock-cluster-ss-synth-003",
+          recipes = Seq(recipeLight("mock-recipe-stub.json")),
+          incarnations = Seq(MockIncarnation(
+            spanStart      = start.plus(5, ChronoUnit.HOURS).plus(30, ChronoUnit.MINUTES),
+            spanEnd        = start.plus(6, ChronoUnit.HOURS).plus(30, ChronoUnit.MINUTES),
+            excludeFromB20 = true,
+            autoscaler     = Some(MockAutoscalerProfile(
+              minPrimary = 2, maxPrimary = 4, initialPrimary = 2,
+              schedule   = Seq((60L, 3), (1800L, 4), (3000L, 2))
+            ))
+          ))
+        )
+      )
+    )
+  }
+
   // ── multiDateBaseline — coherent reference + current pair with drift ──────
   //
   // Drift recipe (so AutoTuner sees real signals):
@@ -470,18 +532,37 @@ object MockScenarios {
 
   /** Single-date scenarios callable by name from the CLI. */
   val singleDate: Map[String, (String, Long) => MockScenario] = Map(
-    "minimal"     -> (minimal _),
-    "baseline"    -> (baseline _),
-    "oomHeavy"    -> (oomHeavy _),
-    "autoscaling" -> (autoscaling _)
+    "minimal"       -> (minimal _),
+    "baseline"      -> (baseline _),
+    "oomHeavy"      -> (oomHeavy _),
+    "autoscaling"   -> (autoscaling _),
+    "syntheticSpan" -> (syntheticSpan _)
   )
 
   val singleDateNames: Seq[String] = singleDate.keys.toSeq.sorted
 
+  // ── multiDateSyntheticSpan — multi-date pair with synthetic-span clusters ─
+  //
+  // Both reference and current dates use the syntheticSpan single-date scenario
+  // (rebased to each date's window). Lets the AutoTuner produce a full output
+  // pair the frontend can render — including the b22 badges in IPC and the
+  // Cluster cost & autoscaling 3-card view.
+
+  def multiDateSyntheticSpan(refDate: String, curDate: String, seed: Long = 1234L): MultiDateScenario = {
+    val ref = syntheticSpan(refDate, seed)
+    val (s2, e2) = windowFor(curDate)
+    val curClusters = ref.clusters.map { c =>
+      c.copy(incarnations = c.incarnations.map(rebaseIncarnation(_, ref.window._1, s2)))
+    }
+    val cur = MockScenario(name = "syntheticSpan", clusters = curClusters, window = (s2, e2), seed = seed)
+    MultiDateScenario(name = "multiDateSyntheticSpan", perDate = Map(refDate -> ref, curDate -> cur))
+  }
+
   /** Multi-date scenarios callable by name from the CLI. */
   val multiDate: Map[String, (String, String, Long) => MultiDateScenario] = Map(
-    "multiDateBaseline"   -> (multiDateBaseline _),
-    "mixedDropAndDegrade" -> (mixedDropAndDegrade _)
+    "multiDateBaseline"      -> (multiDateBaseline _),
+    "mixedDropAndDegrade"    -> (mixedDropAndDegrade _),
+    "multiDateSyntheticSpan" -> (multiDateSyntheticSpan _)
   )
 
   val multiDateNames: Seq[String] = multiDate.keys.toSeq.sorted

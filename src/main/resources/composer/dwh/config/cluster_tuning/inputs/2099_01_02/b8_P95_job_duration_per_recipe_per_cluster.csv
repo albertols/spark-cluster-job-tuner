@@ -1,8 +1,4 @@
 cluster_name,recipe_filename,p95_job_duration_ms,avg_job_duration_ms,runs
-mock-cluster-001,mock-recipe-load-orders.json,624000,390000,20
-mock-cluster-001,mock-recipe-aggregate-daily.json,117000,78000,50
-mock-cluster-002,mock-recipe-cleanup.json,90000,60000,50
-mock-cluster-002,mock-recipe-export-csv.json,90000,60000,50
-mock-cluster-002,mock-recipe-warehouse-load.json,480000,300000,20
-mock-cluster-003,mock-recipe-ml-train.json,2400000,1440000,5
-mock-cluster-new,mock-recipe-newcomer.json,90000,60000,50
+mock-cluster-ss-normal-001,mock-recipe-control.json,480000,300000,20
+mock-cluster-ss-synth-002,mock-recipe-orphan.json,480000,300000,20
+mock-cluster-ss-synth-003,mock-recipe-stub.json,90000,60000,50

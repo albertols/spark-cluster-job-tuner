@@ -255,23 +255,28 @@ object MockGen {
     sb.append("cluster_name,incarnation_idx,span_start_ts,span_end_ts,span_minutes,")
     sb.append("create_event_ts,delete_event_ts,has_explicit_create,has_explicit_delete,total_events\n")
     for (c <- scenario.clusters) {
+      // Incarnations flagged excludeFromB20 are still indexed by their original
+      // position (so b21 ↔ b20 incarnation_idx mapping stays consistent for the
+      // ones that ARE emitted), but they don't produce a row here.
       c.incarnations.zipWithIndex.foreach { case (inc, i) =>
-        val idx          = i + 1
-        val spanMinutes  = (inc.spanEnd.toEpochMilli - inc.spanStart.toEpochMilli) / 60000.0
-        val totalEvents  = inc.autoscaler.map(_.schedule.size + 2).getOrElse(0) // schedule + initial + final markers (synthetic)
-        val createTs     = if (inc.hasExplicitCreate) fmtTs(inc.spanStart) else ""
-        val deleteTs     = if (inc.hasExplicitDelete) fmtTs(inc.spanEnd)   else ""
-        sb.append(c.name).append(',')
-          .append(idx).append(',')
-          .append(fmtTs(inc.spanStart)).append(',')
-          .append(fmtTs(inc.spanEnd)).append(',')
-          .append(fmtNum(spanMinutes)).append(',')
-          .append(createTs).append(',')
-          .append(deleteTs).append(',')
-          .append(inc.hasExplicitCreate).append(',')
-          .append(inc.hasExplicitDelete).append(',')
-          .append(totalEvents)
-          .append('\n')
+        if (!inc.excludeFromB20) {
+          val idx          = i + 1
+          val spanMinutes  = (inc.spanEnd.toEpochMilli - inc.spanStart.toEpochMilli) / 60000.0
+          val totalEvents  = inc.autoscaler.map(_.schedule.size + 2).getOrElse(0) // schedule + initial + final markers (synthetic)
+          val createTs     = if (inc.hasExplicitCreate) fmtTs(inc.spanStart) else ""
+          val deleteTs     = if (inc.hasExplicitDelete) fmtTs(inc.spanEnd)   else ""
+          sb.append(c.name).append(',')
+            .append(idx).append(',')
+            .append(fmtTs(inc.spanStart)).append(',')
+            .append(fmtTs(inc.spanEnd)).append(',')
+            .append(fmtNum(spanMinutes)).append(',')
+            .append(createTs).append(',')
+            .append(deleteTs).append(',')
+            .append(inc.hasExplicitCreate).append(',')
+            .append(inc.hasExplicitDelete).append(',')
+            .append(totalEvents)
+            .append('\n')
+        }
       }
     }
     sb.toString

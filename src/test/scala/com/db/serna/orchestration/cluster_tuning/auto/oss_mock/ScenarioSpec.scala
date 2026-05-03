@@ -18,10 +18,11 @@ class ScenarioSpec extends AnyFunSuite with Matchers {
   private val curDate  = "2099_01_02"
 
   private val scenarios: Seq[(String, MockScenario)] = Seq(
-    "minimal"     -> MockScenarios.minimal(testDate),
-    "baseline"    -> MockScenarios.baseline(testDate),
-    "oomHeavy"    -> MockScenarios.oomHeavy(testDate),
-    "autoscaling" -> MockScenarios.autoscaling(testDate)
+    "minimal"       -> MockScenarios.minimal(testDate),
+    "baseline"      -> MockScenarios.baseline(testDate),
+    "oomHeavy"      -> MockScenarios.oomHeavy(testDate),
+    "autoscaling"   -> MockScenarios.autoscaling(testDate),
+    "syntheticSpan" -> MockScenarios.syntheticSpan(testDate)
   )
 
   // ── Per-scenario invariants ───────────────────────────────────────────────

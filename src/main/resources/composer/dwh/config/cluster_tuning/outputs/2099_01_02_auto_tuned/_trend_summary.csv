@@ -1,9 +1,4 @@
 cluster,recipe,trend,confidence,action,reason,p95_duration_ref,p95_duration_cur,p95_duration_pct_change
-mock-cluster-001,mock-recipe-aggregate-daily.json,degraded,1,boost_resources,Performance degraded: p95_job_duration_ms changed 30.0%. Re-planning with current metrics.,90000,117000,30
-mock-cluster-001,mock-recipe-load-orders.json,degraded,1,boost_resources,Performance degraded: p95_job_duration_ms changed 30.0%. Re-planning with current metrics.,480000,624000,30
-mock-cluster-002,mock-recipe-cleanup.json,stable,1,keep_as_is,Performance stable (confidence=1.0). Keeping reference config.,90000,90000,0
-mock-cluster-002,mock-recipe-export-csv.json,stable,1,keep_as_is,Performance stable (confidence=1.0). Keeping reference config.,90000,90000,0
-mock-cluster-002,mock-recipe-warehouse-load.json,stable,1,keep_as_is,Performance stable (confidence=1.0). Keeping reference config.,480000,480000,0
-mock-cluster-003,mock-recipe-ml-train.json,improved,0.5000,keep_as_is,Performance improved (confidence=0.5). Keeping reference config.,3000000,2400000,-20
-mock-cluster-004,mock-recipe-feature-engineer.json,dropped_entry,0,preserve_historical,Recipe absent from current date. Preserving historical config for future evolution.,,,
-mock-cluster-new,mock-recipe-newcomer.json,new_entry,0,generate_fresh,New recipe not present in reference date. Generating fresh config.,,,
+mock-cluster-ss-normal-001,mock-recipe-control.json,stable,1,keep_as_is,Performance stable (confidence=1.0). Keeping reference config.,480000,480000,0
+mock-cluster-ss-synth-002,mock-recipe-orphan.json,stable,1,keep_as_is,Performance stable (confidence=1.0). Keeping reference config.,480000,480000,0
+mock-cluster-ss-synth-003,mock-recipe-stub.json,stable,1,keep_as_is,Performance stable (confidence=1.0). Keeping reference config.,90000,90000,0

@@ -1,0 +1,96 @@
+{
+  "clusterConf": {
+    "mock-cluster-ss-normal-001": {
+      "num_workers": 10,
+      "master_machine_type": "n2d-highcpu-48",
+      "worker_machine_type": "n2d-highcpu-48",
+      "autoscaling_policy": "extra-large-workload-autoscaling",
+      "tuner_version": "2099_02_01",
+      "total_no_of_jobs": 1,
+      "cluster_max_total_memory_gb": 960,
+      "cluster_max_total_cores": 480,
+      "accumulated_max_total_memory_per_jobs_gb": 96
+    }
+  },
+  "recipeSparkConf": {
+    "mock-recipe-control.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.dynamicAllocation.enabled": "true",
+        "spark.dynamicAllocation.minExecutors": "6",
+        "spark.dynamicAllocation.maxExecutors": "12",
+        "spark.dynamicAllocation.initialExecutors": "6",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 48,
+      "total_executor_maximum_allocated_memory_gb": 96
+    }
+  },
+  "cost_timeline": {
+    "worker_machine_type": "n2d-highcpu-48",
+    "master_machine_type": "n2d-highcpu-48",
+    "worker_hourly_eur": 2.6400,
+    "master_hourly_eur": 2.6400,
+    "real_used_avg_num_of_workers": 4.58,
+    "real_used_min_workers": 2,
+    "real_used_max_workers": 6,
+    "total_cost_eur": 88.4400,
+    "has_synthetic_span": false,
+    "incarnations": [
+      {
+        "idx": 1,
+        "span_start_ts": "2099-01-02T02:00:00Z",
+        "span_end_ts": "2099-01-02T08:00:00Z",
+        "span_minutes": 360.00,
+        "avg_workers": 4.58,
+        "min_workers": 2,
+        "max_workers": 6,
+        "worker_cost_eur": 72.6000,
+        "master_cost_eur": 15.8400,
+        "total_cost_eur": 88.4400,
+        "synthetic_span": false,
+        "events_count": 4,
+        "intervals": [
+          {
+            "from_ts": "2099-01-02T02:00:00Z",
+            "to_ts": "2099-01-02T02:05:00Z",
+            "workers": 2.0,
+            "seg_seconds": 300,
+            "seg_cost_eur": 0.6600
+          },
+          {
+            "from_ts": "2099-01-02T02:05:00Z",
+            "to_ts": "2099-01-02T02:30:00Z",
+            "workers": 4.0,
+            "seg_seconds": 1500,
+            "seg_cost_eur": 5.5000
+          },
+          {
+            "from_ts": "2099-01-02T02:30:00Z",
+            "to_ts": "2099-01-02T05:20:00Z",
+            "workers": 6.0,
+            "seg_seconds": 10200,
+            "seg_cost_eur": 52.3600
+          },
+          {
+            "from_ts": "2099-01-02T05:20:00Z",
+            "to_ts": "2099-01-02T07:00:00Z",
+            "workers": 4.0,
+            "seg_seconds": 6000,
+            "seg_cost_eur": 22.0000
+          },
+          {
+            "from_ts": "2099-01-02T07:00:00Z",
+            "to_ts": "2099-01-02T08:00:00Z",
+            "workers": 2.0,
+            "seg_seconds": 3600,
+            "seg_cost_eur": 7.9200
+          }
+        ]
+      }
+    ]
+  }
+}

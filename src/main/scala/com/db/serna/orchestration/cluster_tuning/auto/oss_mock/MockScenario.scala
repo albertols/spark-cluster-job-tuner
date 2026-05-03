@@ -87,7 +87,12 @@ final case class MockIncarnation(
                                   spanEnd: Instant,
                                   hasExplicitCreate: Boolean = true,
                                   hasExplicitDelete: Boolean = true,
-                                  autoscaler: Option[MockAutoscalerProfile] = None
+                                  autoscaler: Option[MockAutoscalerProfile] = None,
+                                  // When true, MockGen.b20Csv skips this incarnation while b21 (autoscaler
+                                  // events) is still emitted. Mirrors the real-world pattern where the
+                                  // b20 cluster-span query returns no row but b21 has events — the tuner
+                                  // synthesizes a span from event boundaries (synthetic_span = true).
+                                  excludeFromB20: Boolean = false
                                 ) {
   require(spanEnd.isAfter(spanStart), s"spanEnd must be after spanStart: start=$spanStart end=$spanEnd")
 }
@@ -100,7 +105,7 @@ final case class MockCluster(
                               oomEvents: Seq[MockOomEvent]       = Nil
                             ) {
   require(name.nonEmpty,                 "MockCluster.name must be non-empty")
-  require(incarnations.nonEmpty,         s"MockCluster $name has no incarnations (b20 needs at least one)")
+  require(incarnations.nonEmpty,         s"MockCluster $name has no incarnations (need at least one — even if all are excludeFromB20)")
   oomEvents.foreach { o =>
     require(recipes.exists(_.name == o.recipe),
       s"MockCluster $name has OOM event referencing unknown recipe ${o.recipe}")

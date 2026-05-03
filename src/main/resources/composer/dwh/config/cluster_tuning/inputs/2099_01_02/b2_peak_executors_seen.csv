@@ -1,5 +1,4 @@
 cluster_name,peak_executors_seen
-mock-cluster-001,12
-mock-cluster-002,12
-mock-cluster-003,28
-mock-cluster-new,4
+mock-cluster-ss-normal-001,12
+mock-cluster-ss-synth-002,12
+mock-cluster-ss-synth-003,4

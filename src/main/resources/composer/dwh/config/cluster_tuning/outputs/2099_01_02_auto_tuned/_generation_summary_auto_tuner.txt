@@ -5,26 +5,26 @@
   Reference date:  2099_01_01
   Current date:    2099_01_02
   Strategy:        default
-  Generated at:    2026-04-30T19:29:54.183270Z
+  Generated at:    2026-05-03T17:15:38.062257Z
 
 ------------------------------------------------------------------------
   TREND SUMMARY
 ------------------------------------------------------------------------
-  Total clusters:      5
-  Total recipes:       8
-    Improved:          1
-    Degraded:          2
+  Total clusters:      3
+  Total recipes:       3
+    Improved:          0
+    Degraded:          0
     Stable:            3
-    New entries:       1
-    Dropped entries:   1
+    New entries:       0
+    Dropped entries:   0
 
 ------------------------------------------------------------------------
   EVOLUTION ACTIONS (cluster level)
 ------------------------------------------------------------------------
-  Kept (stable/improved):   2
-  Boosted (degraded):       1
-  Fresh (new):              1
-  Preserved (historical):   1
+  Kept (stable/improved):   3
+  Boosted (degraded):       0
+  Fresh (new):              0
+  Preserved (historical):   0
   Skipped (no metrics):     0
 
 ------------------------------------------------------------------------
@@ -41,6 +41,6 @@
   STATISTICAL ANALYSIS
 ------------------------------------------------------------------------
   Correlation pairs computed: 4
-  Divergences detected:      2
+  Divergences detected:      0
 
 ========================================================================

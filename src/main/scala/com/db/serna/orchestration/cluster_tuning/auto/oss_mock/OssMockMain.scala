@@ -18,6 +18,9 @@ import java.io.File
  *   --reference-date=2099_01_01 --current-date=2099_01_02 \
  *     --scenario=multiDateBaseline --full                            # writes inputs, runs both single tuner passes,
  *                                                                    # then runs the AutoTuner so the frontend has _auto_tuner_analysis.json
+ *   --date=2099_01_01 --scenario=syntheticSpan --full                # b20-missing / b21-present synthesis (single-date)
+ *   --reference-date=2099_01_01 --current-date=2099_01_02 \
+ *     --scenario=multiDateSyntheticSpan --full                       # same, paired across two dates for the frontend's 3-card view
  *
  * Notes:
  *   - The tuner reads inputs from the canonical path

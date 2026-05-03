@@ -1,8 +1,4 @@
 cluster_name,recipe_filename,seconds_at_cap
-mock-cluster-001,mock-recipe-load-orders.json,120
-mock-cluster-001,mock-recipe-aggregate-daily.json,0
-mock-cluster-002,mock-recipe-cleanup.json,0
-mock-cluster-002,mock-recipe-export-csv.json,0
-mock-cluster-002,mock-recipe-warehouse-load.json,120
-mock-cluster-003,mock-recipe-ml-train.json,600
-mock-cluster-004,mock-recipe-feature-engineer.json,120
+mock-cluster-ss-normal-001,mock-recipe-control.json,120
+mock-cluster-ss-synth-002,mock-recipe-orphan.json,120
+mock-cluster-ss-synth-003,mock-recipe-stub.json,0

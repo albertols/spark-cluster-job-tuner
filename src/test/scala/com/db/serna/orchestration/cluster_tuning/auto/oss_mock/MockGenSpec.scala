@@ -132,4 +132,28 @@ class MockGenSpec extends AnyFunSuite with Matchers {
       withClue(s"event ts=$ts for cluster=$cluster outside its spans=$spans: ") { inside shouldBe true }
     }
   }
+
+  // ── syntheticSpan scenario (excludeFromB20) ───────────────────────────────
+
+  test("syntheticSpan: incarnations flagged excludeFromB20 are omitted from b20 but b21 still emits their events") {
+    val ss = MockScenarios.syntheticSpan(testDate)
+    val dir = writeScenario(ss)
+    val b20 = Csv.parse(new File(dir, "b20_cluster_span_time.csv"))
+    val b21 = Csv.parse(new File(dir, "b21_cluster_autoscaler_values.csv"))
+
+    val b20ClustersExpected = ss.clusters.filter(_.incarnations.exists(!_.excludeFromB20)).map(_.name).toSet
+    val b21ClustersExpected = ss.clusters.filter(_.incarnations.exists(_.autoscaler.isDefined)).map(_.name).toSet
+    val excludedClusters    = ss.clusters
+      .filter(_.incarnations.forall(_.excludeFromB20))
+      .map(_.name).toSet
+
+    excludedClusters should not be empty
+    b20.map(_("cluster_name")).toSet shouldBe b20ClustersExpected
+    b21.map(_("cluster_name")).toSet shouldBe b21ClustersExpected
+    // Excluded clusters appear in b21 but NOT in b20 — the synthetic-span path.
+    excludedClusters.foreach { c =>
+      withClue(s"$c should be missing from b20: ") { b20.exists(_("cluster_name") == c) shouldBe false }
+      withClue(s"$c should appear in b21:      ") { b21.exists(_("cluster_name") == c) shouldBe true  }
+    }
+  }
 }

@@ -1,5 +1,5 @@
 metric_a,metric_b,covariance,pearson_correlation,sample_size
-delta_p95_run_max_executors,delta_p95_job_duration_ms,0,0,6
-delta_avg_executors_per_job,delta_avg_job_duration_ms,0,0,6
-delta_fraction_reaching_cap,delta_p95_job_duration_ms,0,0,6
-delta_runs,delta_avg_job_duration_ms,0,0,6
+delta_p95_run_max_executors,delta_p95_job_duration_ms,0,0,3
+delta_avg_executors_per_job,delta_avg_job_duration_ms,0,0,3
+delta_fraction_reaching_cap,delta_p95_job_duration_ms,0,0,3
+delta_runs,delta_avg_job_duration_ms,0,0,3

@@ -1,5 +1,4 @@
 cluster_name,total_jobs
-mock-cluster-001,70
-mock-cluster-002,120
-mock-cluster-003,5
-mock-cluster-004,20
+mock-cluster-ss-normal-001,20
+mock-cluster-ss-synth-002,20
+mock-cluster-ss-synth-003,50
