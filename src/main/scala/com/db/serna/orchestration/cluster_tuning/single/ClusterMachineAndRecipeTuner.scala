@@ -246,7 +246,8 @@ final case class ClusterSpan(
                               spanStart: Instant,
                               spanEnd: Instant,
                               hasExplicitCreate: Boolean,
-                              hasExplicitDelete: Boolean
+                              hasExplicitDelete: Boolean,
+                              synthetic: Boolean = false
                             ) {
   def spanMinutes: Double = (spanEnd.toEpochMilli - spanStart.toEpochMilli) / 60000.0
   def contains(ts: Instant): Boolean =
@@ -780,6 +781,32 @@ object ClusterMachineAndRecipeTuner {
     grouped
   }
 
+  /**
+   * Synthesize a single ClusterSpan from autoscaler events (b21) when b20 has no
+   * row for this cluster but b21 has events. Span boundaries = [min(eventTs), max(eventTs)].
+   * Marked `synthetic = true` so consumers (frontend / summary) can render a badge.
+   * Returns `None` when fewer than 2 events (not enough to bound a span).
+   */
+  private[cluster_tuning] def synthesizeSpanFromEvents(
+    cluster: String,
+    events: Seq[AutoscalerEvent]
+  ): Option[ClusterSpan] = {
+    if (events.size < 2) return None
+    val sorted = events.sortBy(_.eventTs)
+    val start = sorted.head.eventTs
+    val end   = sorted.last.eventTs
+    if (!end.isAfter(start)) return None
+    Some(ClusterSpan(
+      cluster            = cluster,
+      incarnationIdx     = 1,
+      spanStart          = start,
+      spanEnd            = end,
+      hasExplicitCreate  = false,
+      hasExplicitDelete  = false,
+      synthetic          = true
+    ))
+  }
+
   private[cluster_tuning] def clusterActiveMinutes(metrics: Iterable[RecipeMetrics]): Double =
     metrics.map(m => m.avgJobDurationMs / 60000.0).sum
 
@@ -961,6 +988,8 @@ object ClusterMachineAndRecipeTuner {
         "worker_cost_eur"  -> num(f"$workerCost%.4f"),
         "master_cost_eur"  -> num(f"$masterCost%.4f"),
         "total_cost_eur"   -> num(f"$totalCost%.4f"),
+        "synthetic_span"   -> bool(span.synthetic),
+        "events_count"     -> num(spanEvents.size),
         "intervals"        -> arr(intervalsJson: _*)
       )
     }
@@ -972,6 +1001,8 @@ object ClusterMachineAndRecipeTuner {
         .iterator.map(_.totalCostEur).sum
     }.sum
 
+    val hasSynthetic = spans.exists(_.synthetic)
+
     Some(obj(
       "worker_machine_type"           -> str(worker.name),
       "master_machine_type"           -> str(master.name),
@@ -981,6 +1012,7 @@ object ClusterMachineAndRecipeTuner {
       "real_used_min_workers"         -> num(stats.minWorkers),
       "real_used_max_workers"         -> num(stats.maxWorkers),
       "total_cost_eur"                -> num(f"$grandTotal%.4f"),
+      "has_synthetic_span"            -> bool(hasSynthetic),
       "incarnations"                  -> arr(incarnationsJson: _*)
     ))
   }
@@ -1559,8 +1591,20 @@ object ClusterMachineAndRecipeTuner {
       // Compute wall-clock minutes, interval-integrated cost, time-weighted worker
       // stats, and the cost_timeline JSON in one pass. Empty spans yield zeros and
       // None for cost_timeline (frontend renders the "no autoscaling data" notice).
-      val spans: Seq[ClusterSpan] = clusterSpansByName.getOrElse(clusterName, Seq.empty)
+      // When b20 is missing but b21 has events, synthesize a span from event boundaries
+      // (marked synthetic=true so consumers can render a badge).
+      val rawSpans: Seq[ClusterSpan] = clusterSpansByName.getOrElse(clusterName, Seq.empty)
       val events: Seq[AutoscalerEvent] = autoscalerEventsByName.getOrElse(clusterName, Seq.empty)
+      val spans: Seq[ClusterSpan] = if (rawSpans.isEmpty && events.nonEmpty) {
+        synthesizeSpanFromEvents(clusterName, events) match {
+          case Some(s) =>
+            logger.info(s"No b20 span for $clusterName but ${events.size} b21 events found — synthesized span [${s.spanStart}, ${s.spanEnd}].")
+            Seq(s)
+          case None =>
+            logger.warn(s"No b20 span for $clusterName and only ${events.size} b21 event(s) — cannot synthesize span; estimated_cost_eur=0.0.")
+            Seq.empty
+        }
+      } else rawSpans
       if (spans.isEmpty) {
         logger.warn(s"No b20 cluster span for $clusterName; estimated_cost_eur=0.0 and total_active_minutes=0.0. Provide b20_cluster_span_time.csv covering this cluster's active window to compute cost.")
       }

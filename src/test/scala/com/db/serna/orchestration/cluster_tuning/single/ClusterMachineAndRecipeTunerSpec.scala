@@ -682,6 +682,58 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     br.totalActiveMinutes shouldBe 90.0 +- 0.001
   }
 
+  // ── synthesizeSpanFromEvents (b20 missing, b21 present) ───────────────────
+
+  test("synthesizeSpanFromEvents returns None when fewer than 2 events") {
+    ClusterMachineAndRecipeTuner.synthesizeSpanFromEvents("c1", Seq.empty) shouldBe None
+    ClusterMachineAndRecipeTuner.synthesizeSpanFromEvents(
+      "c1", Seq(event("2026-01-01T08:00:00Z", current = 3, target = 4))
+    ) shouldBe None
+  }
+
+  test("synthesizeSpanFromEvents bounds span at min/max event timestamps and flags synthetic=true") {
+    val e1 = event("2026-01-01T08:30:00Z", current = 3, target = 5)
+    val e2 = event("2026-01-01T08:00:00Z", current = 5, target = 2)
+    val e3 = event("2026-01-01T09:00:00Z", current = 2, target = 4)
+    val out = ClusterMachineAndRecipeTuner.synthesizeSpanFromEvents("c1", Seq(e1, e2, e3))
+    out shouldBe defined
+    val s = out.get
+    s.cluster shouldBe "c1"
+    s.synthetic shouldBe true
+    s.spanStart shouldBe java.time.Instant.parse("2026-01-01T08:00:00Z")
+    s.spanEnd   shouldBe java.time.Instant.parse("2026-01-01T09:00:00Z")
+    s.hasExplicitCreate shouldBe false
+    s.hasExplicitDelete shouldBe false
+  }
+
+  test("costTimelineJson emits synthetic_span flag and has_synthetic_span when span is synthesized") {
+    val w = MachineCatalog.byName("e2-standard-8").get
+    val e1 = event("2026-01-01T08:00:00Z", current = 3, target = 5)
+    val e2 = event("2026-01-01T09:00:00Z", current = 5, target = 2)
+    val synth = ClusterMachineAndRecipeTuner.synthesizeSpanFromEvents("c1", Seq(e1, e2)).get
+    val out = ClusterMachineAndRecipeTuner.costTimelineJson(
+      spans = Seq(synth), events = Seq(e1, e2), worker = w, master = w, fallbackWorkers = 4
+    )
+    out shouldBe defined
+    val json = out.get
+    json should include ("\"synthetic_span\": true")
+    json should include ("\"has_synthetic_span\": true")
+    json should include ("\"events_count\":")
+  }
+
+  test("costTimelineJson emits synthetic_span:false when span is loaded from b20") {
+    val w = MachineCatalog.byName("e2-standard-8").get
+    val s = span("2026-01-01T08:00:00Z", "2026-01-01T10:00:00Z")
+    val out = ClusterMachineAndRecipeTuner.costTimelineJson(
+      spans = Seq(s), events = Seq.empty, worker = w, master = w, fallbackWorkers = 4
+    )
+    out shouldBe defined
+    val json = out.get
+    json should include ("\"synthetic_span\": false")
+    json should include ("\"has_synthetic_span\": false")
+    json should include ("\"events_count\": 0")
+  }
+
   // ── AutoscalingPolicyConfig ───────────────────────────────────────────────
 
   test("AutoscalingPolicyConfig.resolvePolicy brackets") {

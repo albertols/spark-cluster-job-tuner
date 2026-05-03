@@ -59,6 +59,7 @@ Discovery (`discoverAnalyses` + `parseDirListing`) scrapes the HTML directory li
 - Keep functions pure where possible; pass state in, return data out.
 - DOM building: prefer building a small string with already-escaped pieces, or use `document.createElement` + `textContent` for dynamic values.
 - Charts: route options through `chartOpts(...)`; do not duplicate its tooltip/zoom config.
+- Pan/zoom clamp: charts whose data is non-negative by definition (time, worker counts, IP counts, cost €, jobs, minutes) MUST pass `{ clampX: true, clampY: true }` to `csZoomPluginConfig(canvas, …)`. Set only the axes that are non-negative (e.g. `{ clampY: true }` when only Y is bounded). Z-score / signed-delta / divergence charts must NOT clamp — they legitimately span negative values.
 - Routing changes: update both `parseRoute` and `buildUrl`, and ensure `applyRoute` handles the new shape. Never write `location.href`/`history.pushState` outside `navigate`.
 - Caches: read through the existing cache maps; only add new keys if a new fetch path requires it. Do not bypass the cache for "freshness".
 - CSS: add to `style.css`, scoped to a class. No inline styles for theming. Reuse spacing/typography variables already in the file.

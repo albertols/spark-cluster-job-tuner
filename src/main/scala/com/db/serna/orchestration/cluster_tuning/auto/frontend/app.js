@@ -160,7 +160,21 @@ const METRIC_DOCS = {
   },
   trend: {
     title: "Trend",
-    body: "Improved / Degraded / Stable / NewEntry / DroppedEntry. Decided per (cluster, recipe) by comparing the reference and current metrics with built-in noise thresholds."
+    bodyHtml: "Per (cluster, recipe) classification of how the current run compares to the reference run.<br><br>" +
+          "<strong>Improved</strong> — the chosen metric (typically p95 duration) dropped by more than the configured noise threshold.<br>" +
+          "<strong>Degraded</strong> — the metric rose by more than the noise threshold.<br>" +
+          "<strong>Stable</strong> — within the noise threshold; not statistically distinguishable.<br>" +
+          "<strong>NewEntry</strong> — present in current run only (newly observed cluster/recipe).<br>" +
+          "<strong>DroppedEntry</strong> — present in reference only (no data this run).<br><br>" +
+          "Noise thresholds are configured per metric. Z-score uses the cluster's own historical distribution where available; otherwise falls back to the fleet baseline. Confidence weights the assessment by paired-run count."
+  },
+  cluster_cost_autoscaling: {
+    title: "Cluster cost & autoscaling",
+    bodyHtml: "Three cards bracket the cost evolution for this cluster:<br><br>" +
+          "<strong>Previous → Reference</strong> — actual workers during reference-date observations, priced at the <em>previous-reference</em> machines (what was actually deployed during that window).<br>" +
+          "<strong>Reference → Current</strong> — actual workers during current-date observations, priced at the <em>reference</em> machines (what is actually deployed now). This card is the true 'current cost'.<br>" +
+          "<strong>Future projection</strong> — the same current-date workload re-priced at the new tuning that will be applied in the next deployment.<br><br>" +
+          "Spans come from <code>b20</code>; per-second worker counts come from <code>b21</code> autoscaler events. When <code>b20</code> is missing for a cluster but <code>b21</code> has events, span boundaries are inferred from the first/last event (badge: <code>b22 · synthetic span</code>). When <code>b21</code> is empty, the worker count is held flat at the recommended size (badge: <code>b23 · no autoscaler events</code>)."
   },
   // Richer popovers: title + body + formula + svg + (optional) live example.
   pearson_full: {
@@ -235,7 +249,10 @@ async function discoverAnalyses() {
     const r = await fetch(`${outputsRoot}/_analyses_index.json`, { cache: 'no-store' });
     if (r.ok) {
       const j = await r.json();
-      if (Array.isArray(j.entries)) return j.entries;
+      if (Array.isArray(j.entries)) {
+        console.info(`[Discovery] ${j.entries.length} analyses from _analyses_index.json at ${outputsRoot}`);
+        return j.entries;
+      }
     }
   } catch (e) { /* fall through */ }
 
@@ -246,7 +263,9 @@ async function discoverAnalyses() {
     const html = await r.text();
     const dirs = parseDirListing(html);
     const entries = await Promise.all(dirs.map(buildEntryFromDir));
-    return entries.filter(Boolean);
+    const filtered = entries.filter(Boolean);
+    console.info(`[Discovery] ${filtered.length} analyses from directory listing at ${outputsRoot} (${dirs.length} dirs scanned)`);
+    return filtered;
   } catch (e) {
     return [];
   }
@@ -368,11 +387,77 @@ async function loadClusterJson(date, clusterName) {
 async function loadClusterJsonsForDates(clusterName) {
   const refDate = data.metadata.reference_date;
   const curDate = data.metadata.current_date;
-  const [ref, cur] = await Promise.all([
+  const prevRefDate = findPreviousReferenceDate(refDate);
+  const [ref, cur, prevRef] = await Promise.all([
     loadClusterJson(refDate, clusterName),
     loadClusterJson(curDate, clusterName),
+    prevRefDate ? loadClusterJson(prevRefDate, clusterName) : Promise.resolve(null),
   ]);
-  return { ref, cur, refDate, curDate };
+  return { ref, cur, prevRef, refDate, curDate, prevRefDate };
+}
+
+// Find the date that was the `current_date` of the run whose output produced
+// the machines deployed during this run's reference_date observations. That is:
+// the entry in `discoveredEntries` whose `current_date == refDate` — its output
+// is what was actually deployed when the reference-date b20/b21 events happened.
+// Returns null when no such prior run is indexed.
+function findPreviousReferenceDate(refDate) {
+  if (!refDate || !Array.isArray(discoveredEntries)) return null;
+  // Entries are typically AutoTuner runs (ref→cur). The prior run's `current_date`
+  // matches our refDate when consecutive runs are chained.
+  const match = discoveredEntries.find(e => e && e.current_date === refDate);
+  return match ? (match.current_date || null) : null;
+  // NOTE: we return match.current_date (= our refDate) deliberately — that's the
+  // date directory under outputs/ where the prior tuning's per-cluster JSON lives.
+  // The prior tuning's recommended machine = what's deployed during refDate.
+}
+
+// Pure transform: given actuals `cost_timeline` (workers/spans from one date)
+// and a machine-source `cost_timeline` (worker_machine_type, worker_hourly_eur,
+// master_machine_type, master_hourly_eur from a different date), return a NEW
+// cost_timeline with prices recomputed at the machine-source rates while keeping
+// the actuals' workers timeline intact. Pure / Scala.js-friendly: takes plain
+// JSON, returns plain JSON, no DOM.
+function recomputeCostTimeline(actualsCt, machineCt) {
+  if (!actualsCt) return null;
+  if (!machineCt) return actualsCt;  // No re-pricing source → keep actuals as-is.
+
+  const wHourly = +machineCt.worker_hourly_eur || 0;
+  const mHourly = +machineCt.master_hourly_eur || 0;
+  const wType   = machineCt.worker_machine_type || actualsCt.worker_machine_type || '';
+  const mType   = machineCt.master_machine_type || actualsCt.master_machine_type || '';
+
+  let grandTotal = 0;
+  const newIncs = (actualsCt.incarnations || []).map(inc => {
+    let workerCost = 0;
+    let masterCost = 0;
+    const newIntervals = (inc.intervals || []).map(iv => {
+      const segSec = +iv.seg_seconds || 0;
+      const workers = +iv.workers || 0;
+      const wCost = wHourly * workers * (segSec / 3600);
+      const mCost = mHourly * (segSec / 3600);
+      workerCost += wCost;
+      masterCost += mCost;
+      return Object.assign({}, iv, { seg_cost_eur: +(wCost + mCost).toFixed(4) });
+    });
+    const total = workerCost + masterCost;
+    grandTotal += total;
+    return Object.assign({}, inc, {
+      worker_cost_eur: +workerCost.toFixed(4),
+      master_cost_eur: +masterCost.toFixed(4),
+      total_cost_eur:  +total.toFixed(4),
+      intervals:       newIntervals
+    });
+  });
+
+  return Object.assign({}, actualsCt, {
+    worker_machine_type: wType,
+    master_machine_type: mType,
+    worker_hourly_eur:   wHourly,
+    master_hourly_eur:   mHourly,
+    total_cost_eur:      +grandTotal.toFixed(4),
+    incarnations:        newIncs
+  });
 }
 
 // ── Bootstrap ───────────────────────────────────────────────────────────────
@@ -1016,10 +1101,10 @@ async function showClusterDetailRaw(clusterName) {
     `<h3>Cluster Configuration <span class="info-icon" data-doc-key="trend" title="Compares reference vs current date config">ⓘ</span></h3>` +
     `<div class="empty-msg">Loading cluster configurations…</div>`;
 
-  loadClusterJsonsForDates(clusterName).then(({ ref, cur, refDate, curDate }) => {
+  loadClusterJsonsForDates(clusterName).then(({ ref, cur, prevRef, refDate, curDate, prevRefDate }) => {
     renderClusterConfComparison(clusterName, ref, cur, refDate, curDate);
     annotateKeptRecipeCards(cur);
-    renderDetailClusterCost(clusterName, ref, cur, refDate, curDate);
+    renderDetailClusterCost(clusterName, ref, cur, refDate, curDate, prevRef, prevRefDate);
   });
 
   // Recipe cards with delta tables
@@ -1158,6 +1243,21 @@ function renderClusterDetailOutliers(clusterName) {
     <thead><tr><th>Cluster</th><th>Recipe</th><th>Metric</th><th>Reference</th><th>Current</th><th>Z-Score</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
+  // Wire clickable rows → navigate to recipe tuning details (mirrors fleet
+  // divergence-table behaviour). Uses `divergenceRowHtml`'s data-cluster /
+  // data-recipe attrs.
+  host.querySelectorAll('table.cluster-outlier-table tbody tr.div-row-clickable').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.copy-btn')) return;
+      navigate({ cluster: row.dataset.cluster, recipe: row.dataset.recipe });
+    });
+    row.addEventListener('auxclick', (e) => {
+      if (e.button !== 1) return;
+      e.preventDefault();
+      const url = buildUrl(Object.assign({}, parseRoute(), { cluster: row.dataset.cluster, recipe: row.dataset.recipe }));
+      window.open(url, '_blank');
+    });
+  });
 }
 
 // ── Detail Cluster Cost ─────────────────────────────────────────────────────
@@ -1205,6 +1305,68 @@ function _buildDccChartData(ct) {
   return { points, boundaries };
 }
 
+// Per-side palette for dataset-per-incarnation rendering. Each side has 4 tones
+// rotating by `inc.idx % 4` so adjacent lifespans are visually distinct without
+// requiring a legend. Side hues differ so prev/current/future stay distinct.
+function _dccPalette(sideKind, idx) {
+  const hueBySide = {
+    prev:      [210, 200, 220, 195],   // blue family
+    reference: [210, 200, 220, 195],   // blue family (back-compat)
+    current:   [25, 35, 15, 40],       // orange family
+    future:    [165, 170, 155, 180]    // teal family
+  };
+  const hues = hueBySide[sideKind] || hueBySide.current;
+  const h = hues[Math.abs(idx) % hues.length];
+  // Alternate lightness so adjacent incarnations of the same idx-parity still differ.
+  const isEvenSlot = (Math.abs(idx) % 2) === 0;
+  const sat   = isEvenSlot ? 70 : 55;
+  const light = isEvenSlot ? 60 : 45;
+  return {
+    border: `hsl(${h} ${sat}% ${light}%)`,
+    fill:   `hsla(${h}, ${sat}%, ${light}%, 0.22)`
+  };
+}
+
+// One dataset per incarnation so the chart can colour-alternate them; the
+// dccBoundaryMarkers plugin still draws create/delete dashed verticals.
+function _buildDccDatasetsPerInc(ct, sideKind) {
+  if (!ct || !Array.isArray(ct.incarnations) || ct.incarnations.length === 0) {
+    return { datasets: [], boundaries: [] };
+  }
+  const datasets = [];
+  const boundaries = [];
+  ct.incarnations.forEach(inc => {
+    const startMs = _tsMs(inc.span_start_ts);
+    const endMs   = _tsMs(inc.span_end_ts);
+    if (startMs != null) boundaries.push({ x: startMs, kind: 'create', idx: inc.idx });
+    if (endMs != null) boundaries.push({ x: endMs, kind: 'delete', idx: inc.idx });
+    const pts = [];
+    (inc.intervals || []).forEach(iv => {
+      const fromMs = _tsMs(iv.from_ts);
+      const toMs   = _tsMs(iv.to_ts);
+      if (fromMs != null) pts.push({ x: fromMs, y: iv.workers, segCost: iv.seg_cost_eur, idx: inc.idx });
+      if (toMs   != null) pts.push({ x: toMs,   y: iv.workers, segCost: iv.seg_cost_eur, idx: inc.idx });
+    });
+    if (pts.length === 0) return;
+    const colors = _dccPalette(sideKind, inc.idx);
+    datasets.push({
+      label: `#${inc.idx}`,
+      data: pts,
+      parsing: false,
+      borderColor: colors.border,
+      backgroundColor: colors.fill,
+      borderWidth: 1.5,
+      fill: 'origin',
+      spanGaps: false,
+      stepped: true,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      _incIdx: inc.idx
+    });
+  });
+  return { datasets, boundaries };
+}
+
 // Plugin: vertical dashed lines at each incarnation create/delete timestamp.
 const dccBoundaryMarkersPlugin = {
   id: 'dccBoundaryMarkers',
@@ -1246,27 +1408,30 @@ function _formatMin(n) {
   return `${(+n).toFixed(0)} min`;
 }
 
-// Top KPI delta strip: ±cost%, ±avg workers, ±total minutes (current vs reference).
-function _buildDccDeltasHtml(refCt, curCt) {
+// Top KPI delta strip: ±cost%, ±avg workers, ±total minutes between the
+// "previous → reference" card and the "reference → current" card. This is the
+// meaningful adjacent-period comparison (both periods used a deployed machine
+// that matched their observation date) — a true day-over-day cost evolution.
+function _buildDccDeltasHtml(prevCt, currentCt) {
   const chip = (label, valueHtml, cls) =>
     `<div class="dcc-chip ${cls}"><span class="dcc-chip-label">${label}</span><span class="dcc-chip-value">${valueHtml}</span></div>`;
 
-  if (!refCt && !curCt) return '';
-  if (!refCt || !curCt) {
-    const note = !refCt ? 'reference' : 'current';
-    return `<div class="dcc-deltas-note">No autoscaling data exported for ${note} date — delta KPIs unavailable.</div>`;
+  if (!prevCt && !currentCt) return '';
+  if (!prevCt || !currentCt) {
+    const note = !prevCt ? 'previous → reference' : 'reference → current';
+    return `<div class="dcc-deltas-note">No autoscaling data exported for ${note} period — delta KPIs unavailable.</div>`;
   }
-  const dCost = +curCt.total_cost_eur - +refCt.total_cost_eur;
-  const refCost = +refCt.total_cost_eur || 0;
-  const dCostPct = refCost > 0 ? (dCost / refCost) * 100 : null;
-  const dAvgW = +curCt.real_used_avg_num_of_workers - +refCt.real_used_avg_num_of_workers;
-  const refMin = (refCt.incarnations || []).reduce((s, i) => s + (+i.span_minutes || 0), 0);
-  const curMin = (curCt.incarnations || []).reduce((s, i) => s + (+i.span_minutes || 0), 0);
-  const dMin = curMin - refMin;
+  const dCost = +currentCt.total_cost_eur - +prevCt.total_cost_eur;
+  const prevCost = +prevCt.total_cost_eur || 0;
+  const dCostPct = prevCost > 0 ? (dCost / prevCost) * 100 : null;
+  const dAvgW = +currentCt.real_used_avg_num_of_workers - +prevCt.real_used_avg_num_of_workers;
+  const prevMin = (prevCt.incarnations || []).reduce((s, i) => s + (+i.span_minutes || 0), 0);
+  const curMin  = (currentCt.incarnations || []).reduce((s, i) => s + (+i.span_minutes || 0), 0);
+  const dMin = curMin - prevMin;
 
   const cls = (v) => v == null ? '' : (v < 0 ? 'down' : (v > 0 ? 'up' : ''));
 
-  return `<div class="dcc-deltas">
+  return `<div class="dcc-deltas" title="Compares 'previous→reference' card to 'reference→current' card">
     ${chip('Δ cost', `${_formatEur(dCost)} <span class="dcc-chip-sub">(${_formatPct(dCostPct)})</span>`, cls(dCost))}
     ${chip('Δ avg workers', `${dAvgW > 0 ? '+' : ''}${dAvgW.toFixed(2)}`, cls(dAvgW))}
     ${chip('Δ active minutes', `${dMin > 0 ? '+' : ''}${dMin.toFixed(0)} min`, cls(dMin))}
@@ -1322,10 +1487,53 @@ function _buildDccTotalsHtml(ct) {
   </div>`;
 }
 
+// Format epoch ms as YYYY-MM-DD UTC. Used for observed-date chip in side header.
+function _fmtYmdUtc(ms) {
+  if (!Number.isFinite(ms)) return '';
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+// Compute observed date(s) from incarnations: returns "YYYY-MM-DD" or
+// "YYYY-MM-DD → YYYY-MM-DD" when spans cross days. Returns null on empty/invalid.
+function _observedDateRange(ct) {
+  if (!ct || !Array.isArray(ct.incarnations) || ct.incarnations.length === 0) return null;
+  const startMs = _tsMs(ct.incarnations[0].span_start_ts);
+  const endMs   = _tsMs(ct.incarnations[ct.incarnations.length - 1].span_end_ts);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return null;
+  const startYmd = _fmtYmdUtc(startMs);
+  const endYmd   = _fmtYmdUtc(endMs);
+  return startYmd === endYmd ? startYmd : `${startYmd} → ${endYmd}`;
+}
+
+// Build the chip showing the run-date and (when different) the observed date(s)
+// pulled from the actual b20/b21 timestamps. Helps surface input-data quirks.
+function _dccDateChipHtml(dateLabel, observedRange) {
+  if (!dateLabel && !observedRange) return '';
+  const runDateYmd = (dateLabel || '').replace(/_/g, '-');
+  const showObserved = observedRange && observedRange !== runDateYmd;
+  if (showObserved) {
+    return `<span class="dcc-side-date" title="Run date · observed dates from b20/b21">(${escapeHtml(dateLabel)} · observed ${escapeHtml(observedRange)})</span>`;
+  }
+  return dateLabel ? `<span class="dcc-side-date">(${escapeHtml(dateLabel)})</span>` : '';
+}
+
 // Render one side (reference or current). When ct is null → empty-state notice.
 function _renderDccSide(sideEl, ct, dateLabel) {
-  const headerLabel = sideEl.dataset.side === 'reference' ? 'Reference' : 'Current';
-  const dateChip = dateLabel ? `<span class="dcc-side-date">(${escapeHtml(dateLabel)})</span>` : '';
+  const sideKind = sideEl.dataset.side;
+  const headerLabel = sideKind === 'prev' ? 'Previous → Reference'
+                    : sideKind === 'future' ? 'Future projection'
+                    : sideKind === 'reference' ? 'Reference'
+                    : sideKind === 'current' ? 'Reference → Current'
+                    : 'Current';
+  const observedRange = _observedDateRange(ct);
+  const dateChip = _dccDateChipHtml(dateLabel, observedRange);
+  const synthChip = (ct && ct.has_synthetic_span === true)
+    ? `<span class="dcc-synthetic-tag" title="Span boundaries inferred from b21 autoscaler events; no b20 row was found for this cluster.">b22 · synthetic span</span>`
+    : '';
+  const noEventsChip = (ct && Array.isArray(ct.incarnations) && ct.incarnations.length > 0
+                       && ct.incarnations.every(i => (+i.events_count || 0) === 0))
+    ? `<span class="dcc-fallback-tag" title="No autoscaler events for any incarnation; using recommended worker count flat across the span.">b23 · no autoscaler events</span>`
+    : '';
   if (!ct || !Array.isArray(ct.incarnations) || ct.incarnations.length === 0) {
     sideEl.innerHTML = `
       <header class="dcc-side-header">
@@ -1336,10 +1544,10 @@ function _renderDccSide(sideEl, ct, dateLabel) {
     return;
   }
 
-  const canvasId = `dcc-canvas-${sideEl.dataset.side}-${Math.random().toString(36).slice(2, 8)}`;
+  const canvasId = `dcc-canvas-${sideKind}-${Math.random().toString(36).slice(2, 8)}`;
   sideEl.innerHTML = `
     <header class="dcc-side-header">
-      <h4>${headerLabel} ${dateChip}</h4>
+      <h4>${headerLabel} ${dateChip} ${synthChip} ${noEventsChip}</h4>
       <button class="dcc-side-reset" title="Reset zoom">↻</button>
       <button class="dcc-side-expand" title="Expand">⤢</button>
     </header>
@@ -1347,7 +1555,7 @@ function _renderDccSide(sideEl, ct, dateLabel) {
     <div class="dcc-chart-wrap"><canvas id="${canvasId}"></canvas></div>
     ${_buildDccLifespanTable(ct)}`;
 
-  const { points, boundaries } = _buildDccChartData(ct);
+  const { datasets: dccDatasets, boundaries } = _buildDccDatasetsPerInc(ct, sideKind);
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
 
@@ -1369,18 +1577,7 @@ function _renderDccSide(sideEl, ct, dateLabel) {
   const chart = new Chart(canvas, {
     type: 'line',
     data: {
-      datasets: [{
-        label: 'workers',
-        data: points,
-        parsing: false,
-        borderColor: sideEl.dataset.side === 'reference' ? '#58a6ff' : '#f0883e',
-        backgroundColor: sideEl.dataset.side === 'reference' ? 'rgba(88,166,255,0.18)' : 'rgba(240,136,62,0.18)',
-        fill: 'origin',
-        spanGaps: false,
-        stepped: true,
-        pointRadius: 0,
-        pointHoverRadius: 4
-      }]
+      datasets: dccDatasets
     },
     options: {
       responsive: true,
@@ -1390,7 +1587,7 @@ function _renderDccSide(sideEl, ct, dateLabel) {
       plugins: {
         legend: { display: false },
         tooltip: { callbacks: tooltipCallbacks },
-        zoom: csZoomPluginConfig(canvas),
+        zoom: csZoomPluginConfig(canvas, { clampX: true, clampY: true }),
         dccBoundaryMarkers: { boundaries }
       },
       scales: {
@@ -1420,31 +1617,58 @@ function _renderDccSide(sideEl, ct, dateLabel) {
   if (resetBtn) resetBtn.addEventListener('click', () => { try { chart.resetZoom(); } catch (e) {} });
 }
 
-function renderDetailClusterCost(clusterName, refJson, curJson, refDate, curDate) {
+function renderDetailClusterCost(clusterName, refJson, curJson, refDate, curDate, prevRefJson, prevRefDate) {
   const body = document.getElementById('detail-cluster-cost-body');
   if (!body) return;
 
-  const refCt = _ctOf(refJson);
-  const curCt = _ctOf(curJson);
+  const refCt     = _ctOf(refJson);
+  const curCt     = _ctOf(curJson);
+  const prevRefCt = _ctOf(prevRefJson);
+
+  const refIncs = refCt && Array.isArray(refCt.incarnations) ? refCt.incarnations.length : 0;
+  const curIncs = curCt && Array.isArray(curCt.incarnations) ? curCt.incarnations.length : 0;
+  const refSynth = !!(refCt && refCt.has_synthetic_span);
+  const curSynth = !!(curCt && curCt.has_synthetic_span);
+  console.info(`[Cluster cost] ${clusterName} · prev-ref ${prevRefDate || 'none'} · ref ${refDate} (${refIncs} inc${refSynth ? ' synth' : ''}) · cur ${curDate} (${curIncs} inc${curSynth ? ' synth' : ''})`);
 
   if (!refCt && !curCt) {
     body.innerHTML = `<div class="empty-msg">No autoscaling data exported for either date — provide b20/b21 CSVs to see cost intervals.</div>`;
     return;
   }
 
+  // Build the 3 cards. See plan/IMPROVEMENT_0:
+  //   prev    = ref-date actuals × previous-reference-date machine (deployed during ref)
+  //   current = cur-date actuals × reference-date machine (deployed during cur)
+  //   future  = cur-date actuals × current-date machine (will be deployed next)
+  const card1Ct = recomputeCostTimeline(refCt, prevRefCt || refCt);
+  const card2Ct = recomputeCostTimeline(curCt, refCt || curCt);
+  const card3Ct = curCt;
+
   body.innerHTML = `
-    ${_buildDccDeltasHtml(refCt, curCt)}
-    <div class="dcc-pair">
-      <section class="dcc-side" data-side="reference"></section>
+    ${_buildDccDeltasHtml(card1Ct, card2Ct)}
+    <div class="dcc-trio">
+      <section class="dcc-side" data-side="prev"></section>
       <section class="dcc-side" data-side="current"></section>
+      <section class="dcc-side" data-side="future"></section>
     </div>`;
 
-  const refSide = body.querySelector('.dcc-side[data-side="reference"]');
-  const curSide = body.querySelector('.dcc-side[data-side="current"]');
-  _renderDccSide(refSide, refCt, refDate);
-  _renderDccSide(curSide, curCt, curDate);
+  const prevSide   = body.querySelector('.dcc-side[data-side="prev"]');
+  const currentSide = body.querySelector('.dcc-side[data-side="current"]');
+  const futureSide = body.querySelector('.dcc-side[data-side="future"]');
+  _renderDccSide(prevSide, card1Ct, refDate);
+  _renderDccSide(currentSide, card2Ct, curDate);
+  _renderDccSide(futureSide, card3Ct, curDate);
 
-  // Wire ↔ expand on each side: hide other, expand self full width; toggle.
+  // If there's no previous-reference run, surface the missing-history note.
+  if (!prevRefCt && prevSide) {
+    const note = document.createElement('div');
+    note.className = 'dcc-side-note';
+    note.textContent = 'No prior tuning indexed — using reference machines as a stand-in for previous deployment.';
+    note.title = 'A run whose current_date matched this reference_date was not found in _analyses_index.json.';
+    prevSide.appendChild(note);
+  }
+
+  // Wire ↔ expand on each side: hide others, expand self full width; toggle.
   body.querySelectorAll('.dcc-side-expand').forEach(btn => {
     btn.addEventListener('click', () => {
       const side = btn.closest('.dcc-side');
@@ -1598,6 +1822,7 @@ function _ipcBuildSegments(perClusterJsons) {
     const ct = json.cost_timeline;
     const machineType = ct.worker_machine_type || '';
     (ct.incarnations || []).forEach(inc => {
+      const synthetic = inc.synthetic_span === true;
       (inc.intervals || []).forEach(iv => {
         const fromMs = _ipcTsMs(iv.from_ts);
         const toMs   = _ipcTsMs(iv.to_ts);
@@ -1611,7 +1836,8 @@ function _ipcBuildSegments(perClusterJsons) {
           ips: workers + 1,
           machineType,
           segCostEur: +iv.seg_cost_eur || 0,
-          idx: inc.idx
+          idx: inc.idx,
+          synthetic
         });
       });
     });
@@ -1692,6 +1918,10 @@ async function _ipcLoadDataForDate(date) {
   const peak = _ipcFindPeak(segments);
   // Skipped clusters (no cost_timeline) — surface in a footer chip.
   const skipped = pairs.filter(([_n, j]) => !j || !j.cost_timeline).map(([n]) => n);
+  const loaded = pairs.filter(([_n, j]) => j != null).length;
+  const withCt = pairs.filter(([_n, j]) => j && j.cost_timeline).length;
+  const withSynthetic = pairs.filter(([_n, j]) => j && j.cost_timeline && j.cost_timeline.has_synthetic_span === true).length;
+  console.info(`[IP count] ${date}: ${names.length} clusters, ${loaded} loaded, ${withCt} with cost_timeline, ${segments.length} segments, ${skipped.length} skipped, ${withSynthetic} synthetic-span`);
   return { date, segments, peakMs: peak.peakMs, peakIps: peak.peakIps, skipped };
 }
 
@@ -1860,7 +2090,10 @@ const ipcThresholdsPlugin = {
       ctx.restore();
     }
 
-    // Dashed lines and right-flush labels.
+    // Dashed lines and labels. Labels render as small rounded chips so they
+    // don't merge visually when warn/crit/cap lines are near each other.
+    // To prevent vertical collision, labels stack with a minimum 14px gap and
+    // are nudged above/below the line based on density.
     const lines = [
       { v: warnAt, color: '#d4a72c', label: `warn ${Math.round(warnAt)}` },
       { v: critAt, color: '#f85149', label: `crit ${Math.round(critAt)}` },
@@ -1870,7 +2103,8 @@ const ipcThresholdsPlugin = {
     ctx.setLineDash([4, 3]);
     ctx.font = '10px ui-monospace, monospace';
     ctx.textAlign = 'right';
-    ctx.textBaseline = 'bottom';
+    ctx.textBaseline = 'middle';
+    // First pass: draw the dashed lines.
     lines.forEach(line => {
       const py = y.getPixelForValue(line.v);
       if (!Number.isFinite(py) || py < top || py > bottom) return;
@@ -1880,8 +2114,46 @@ const ipcThresholdsPlugin = {
       ctx.moveTo(left, py);
       ctx.lineTo(right, py);
       ctx.stroke();
+    });
+    // Second pass: place labels with collision-avoidance. Walk top-to-bottom
+    // (highest threshold first) and snap each label so it's >= 14px below the
+    // previous one. Each label sits at the right edge with a 4px chip padding.
+    ctx.setLineDash([]);
+    const placed = lines
+      .map(l => ({ ...l, py: y.getPixelForValue(l.v) }))
+      .filter(l => Number.isFinite(l.py) && l.py >= top && l.py <= bottom)
+      .sort((a, b) => a.py - b.py);  // top-to-bottom
+    let lastBottom = -Infinity;
+    placed.forEach(line => {
+      const wantPy = Math.max(line.py, lastBottom + 14);
+      const labelPy = Math.min(wantPy, bottom - 6);
+      const padX = 4, padY = 2;
+      const textW = ctx.measureText(line.label).width;
+      const chipW = textW + 2 * padX;
+      const chipH = 14;
+      const chipX = right - chipW - 2;
+      const chipY = labelPy - chipH / 2;
+      // Backdrop chip
+      ctx.fillStyle = 'rgba(13,17,23,0.85)';
+      ctx.strokeStyle = line.color;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      const r = 3;
+      ctx.moveTo(chipX + r, chipY);
+      ctx.lineTo(chipX + chipW - r, chipY);
+      ctx.quadraticCurveTo(chipX + chipW, chipY, chipX + chipW, chipY + r);
+      ctx.lineTo(chipX + chipW, chipY + chipH - r);
+      ctx.quadraticCurveTo(chipX + chipW, chipY + chipH, chipX + chipW - r, chipY + chipH);
+      ctx.lineTo(chipX + r, chipY + chipH);
+      ctx.quadraticCurveTo(chipX, chipY + chipH, chipX, chipY + chipH - r);
+      ctx.lineTo(chipX, chipY + r);
+      ctx.quadraticCurveTo(chipX, chipY, chipX + r, chipY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
       ctx.fillStyle = line.color;
-      ctx.fillText(line.label, right - 4, py - 2);
+      ctx.fillText(line.label, chipX + chipW - padX, chipY + chipH / 2 + padY / 2);
+      lastBottom = chipY + chipH;
     });
     ctx.restore();
   }
@@ -1936,7 +2208,9 @@ function _ipcBuildChart(canvas, sideData, ipQuota, sideName) {
   }
   const datasets = _ipcBuildDatasets(sideData.segments);
   const cap = +ipQuota.max_ip_count || 256;
-  const yMax = Math.max(sideData.peakIps * 1.05, cap * 1.05);
+  // Add headroom so the warn/crit/cap chips never sit on the very top edge
+  // (they're 14px tall and need ~10px of breathing room above the top tick).
+  const yMax = Math.max(sideData.peakIps * 1.18, cap * 1.12);
 
   const chart = new Chart(canvas, {
     type: 'line',
@@ -1958,7 +2232,7 @@ function _ipcBuildChart(canvas, sideData, ipQuota, sideName) {
             label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y == null ? '—' : ctx.parsed.y} IPs`
           }
         },
-        zoom: csZoomPluginConfig(canvas)
+        zoom: csZoomPluginConfig(canvas, { clampX: true, clampY: true })
       },
       scales: {
         x: {
@@ -2076,10 +2350,13 @@ function _ipcRefreshSide(sideEl) {
         const ownSegs = sd.segments.filter(s => s.cluster === r.cluster);
         const isB23 = ownSegs.length > 0 &&
           ownSegs.every(s => s.workers === ownSegs[0].workers);
-        const tag = isB23 ? `<span class="ipc-tag-fallback" title="No autoscaler events; using recommended worker count">b23</span>` : '';
+        const isSynth = ownSegs.some(s => s.synthetic);
+        const b23Tag = isB23 ? `<span class="ipc-tag-fallback" title="No autoscaler events; using recommended worker count">b23</span>` : '';
+        const synthTag = isSynth ? `<span class="ipc-tag-synthetic" title="Span boundaries inferred from b21 events; no b20 row was found">b22 · synth</span>` : '';
+        const navUrl = buildUrl(Object.assign({}, parseRoute(), { cluster: r.cluster, recipe: null }));
         return `
-        <tr data-cluster="${escapeAttr(r.cluster)}">
-          <td>${escapeHtml(r.cluster)}${tag}</td>
+        <tr data-cluster="${escapeAttr(r.cluster)}" tabindex="0">
+          <td><a class="ipc-row-link" href="${escapeAttr(navUrl)}" data-nav-cluster="${escapeAttr(r.cluster)}" title="Open cluster card">${escapeHtml(r.cluster)} ↗</a>${b23Tag}${synthTag}</td>
           <td>${r.workers}</td>
           <td>${r.master}</td>
           <td>${r.ips}</td>
@@ -2088,8 +2365,17 @@ function _ipcRefreshSide(sideEl) {
           <td>${r.idx}</td>
         </tr>`;
       }).join('');
+      // Click on the link cell → navigate; click anywhere else on the row → highlight.
+      tbody.querySelectorAll('a.ipc-row-link').forEach(a => {
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const cluster = a.dataset.navCluster;
+          if (cluster) navigate({ cluster, recipe: null });
+        });
+      });
       tbody.querySelectorAll('tr[data-cluster]').forEach(tr => {
-        tr.addEventListener('click', () => {
+        const toggleHighlight = () => {
           const name = tr.dataset.cluster;
           const wasActive = tr.classList.contains('ipc-row-active');
           // Clear active state on all rows + all dataset borders.
@@ -2106,6 +2392,16 @@ function _ipcRefreshSide(sideEl) {
             }
           }
           if (sideEl._ipcChart) sideEl._ipcChart.update('none');
+        };
+        tr.addEventListener('click', toggleHighlight);
+        tr.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            navigate({ cluster: tr.dataset.cluster, recipe: null });
+          } else if (e.key === ' ') {
+            e.preventDefault();
+            toggleHighlight();
+          }
         });
       });
     }
@@ -2532,9 +2828,13 @@ function closeModalSilently() {
 // ── Doc popover ─────────────────────────────────────────────────────────────
 
 function showDocPopover(event, doc) {
+  // `bodyHtml` (when present) is treated as trusted rich text — used for entries
+  // that need <br>, <strong>, <em>, <code>. All entries are author-controlled
+  // (METRIC_DOCS literal), not user-derived, so this is safe.
+  const bodyContent = doc.bodyHtml ? doc.bodyHtml : escapeHtml(doc.body);
   const parts = [
     `<div class="doc-title">${escapeHtml(doc.title)}</div>`,
-    `<div class="doc-body">${escapeHtml(doc.body)}</div>`
+    `<div class="doc-body">${bodyContent}</div>`
   ];
   if (doc.formula) parts.push(`<div class="doc-formula">${escapeHtml(doc.formula)}</div>`);
   if (doc.svg) parts.push(`<div class="doc-svg-wrap">${doc.svg}</div>`);
@@ -2597,6 +2897,7 @@ function renderCorrelationCards(view, clusterFilter) {
   if (!host) return;
 
   const { results, fallback } = pickCorrelationSet(view, clusterFilter);
+  console.info(`[Correlations] view=${view}${clusterFilter ? ` cluster=${clusterFilter}` : ''}: ${(results || []).length} metric pairs${fallback ? ` fallback=${fallback}` : ''}`);
   if (!results || results.length === 0) {
     host.innerHTML = '<p style="color:#8b949e">No correlation data available.</p>';
     return;
@@ -2765,6 +3066,8 @@ function renderDivergenceTable(view, clusterFilter) {
   const divs = results
     .filter(d => Math.abs(d.z_score) >= zMin)
     .sort((a, b) => Math.abs(b.z_score) - Math.abs(a.z_score));
+  const high = divs.filter(d => Math.abs(d.z_score) >= 3).length;
+  console.info(`[Divergences] view=${view}${clusterFilter ? ` cluster=${clusterFilter}` : ''} zMin=${zMin}: ${divs.length} rows, ${high} high-z (|z|>=3)${fallback ? ` fallback=${fallback}` : ''}`);
 
   const tbody = document.querySelector('#divergence-table tbody');
   if (fallback === 'cluster_too_small') {
@@ -3511,9 +3814,16 @@ function wireCsExpandButtons() {
   });
 }
 
-// Shared zoom plugin config for Chart.js charts
-function csZoomPluginConfig(canvas) {
-  return {
+// Shared zoom plugin config for Chart.js charts.
+//
+// `clampX` / `clampY` constrain pan/zoom so non-negative metrics (time, worker
+// counts, IP counts, cost) cannot drift into the empty negative quadrant. Pass
+// `clampX: true` for time-series x axes; `clampY: true` for non-negative y axes.
+// Z-score / signed-delta charts must NOT clamp — leave both flags unset.
+function csZoomPluginConfig(canvas, opts) {
+  const clampX = !!(opts && opts.clampX);
+  const clampY = !!(opts && opts.clampY);
+  const cfg = {
     zoom: {
       wheel: { enabled: true, modifierKey: 'ctrl' },
       pinch: { enabled: true },
@@ -3532,6 +3842,12 @@ function csZoomPluginConfig(canvas) {
       }
     }
   };
+  if (clampX || clampY) {
+    cfg.limits = {};
+    if (clampX) cfg.limits.x = { min: 'original', max: 'original' };
+    if (clampY) cfg.limits.y = { min: 0, max: 'original' };
+  }
+  return cfg;
 }
 
 // Compute and render the saved-€ KPI strip. "Saved" is defined as the gap from
@@ -3623,7 +3939,7 @@ function renderCsLineChart(canvasId, history, currentDate, valueKey, label, form
             label: (ctx) => `${ctx.dataset.label}: ${formatter(ctx.parsed.y)}`
           }
         },
-        zoom: csZoomPluginConfig(canvas)
+        zoom: csZoomPluginConfig(canvas, { clampX: true, clampY: true })
       },
       scales: {
         x: { ticks: { color: '#8b949e', maxRotation: 45, autoSkip: true }, grid: { color: 'rgba(255,255,255,0.04)' } },
@@ -3697,7 +4013,7 @@ function renderCsAreaChart(history, currentDate) {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        zoom: csZoomPluginConfig(canvas)
+        zoom: csZoomPluginConfig(canvas, { clampX: true, clampY: true })
       },
       scales: {
         x: { stacked: true, ticks: { color: '#8b949e', maxRotation: 45, autoSkip: true }, grid: { color: 'rgba(255,255,255,0.04)' } },
@@ -3744,7 +4060,7 @@ function renderCsScatter(canvasId, history, currentDate, xKey, xLabel) {
           const p = ctx.raw;
           return `${p.cluster} (${p.date}): ${formatNum(p.x)} ${xLabel} → ${formatNum(p.y)} €`;
         } } },
-        zoom: csZoomPluginConfig(canvas)
+        zoom: csZoomPluginConfig(canvas, { clampX: true, clampY: true })
       },
       scales: {
         x: { ticks: { color: '#8b949e' }, grid: { color: 'rgba(255,255,255,0.04)' }, title: { display: true, text: xLabel, color: '#8b949e' } },
@@ -3820,7 +4136,7 @@ function renderCsDistribution(history, currentDate) {
             }
           }
         },
-        zoom: csZoomPluginConfig(canvas)
+        zoom: csZoomPluginConfig(canvas, { clampX: true, clampY: true })
       },
       scales: {
         x: {

@@ -1642,6 +1642,28 @@ h3.section-heading {
 .dcc-pair[data-expanded="current"]   .dcc-side[data-side="reference"] { display: none; }
 .dcc-pair[data-expanded="current"]   .dcc-side[data-side="current"]   { grid-column: 1 / -1; }
 
+/* 3-card layout: previous → reference → future. The middle card is the "true
+   current cost"; the surrounding cards bracket it with historical and projected
+   pricings. Click ⤢ on any card to expand it full-width. */
+.dcc-trio {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr 1fr;
+  gap: 12px;
+}
+.dcc-trio[data-expanded="prev"]    .dcc-side:not([data-side="prev"])    { display: none; }
+.dcc-trio[data-expanded="prev"]    .dcc-side[data-side="prev"]          { grid-column: 1 / -1; }
+.dcc-trio[data-expanded="current"] .dcc-side:not([data-side="current"]) { display: none; }
+.dcc-trio[data-expanded="current"] .dcc-side[data-side="current"]       { grid-column: 1 / -1; }
+.dcc-trio[data-expanded="future"]  .dcc-side:not([data-side="future"])  { display: none; }
+.dcc-trio[data-expanded="future"]  .dcc-side[data-side="future"]        { grid-column: 1 / -1; }
+.dcc-trio[data-expanded] .dcc-chart-wrap { height: 320px; }
+.dcc-side-note {
+  margin-top: 6px;
+  font-size: 10px;
+  color: #8b949e;
+  font-style: italic;
+}
+
 .dcc-side {
   background: #161b22;
   border: 1px solid #30363d;
@@ -1657,6 +1679,16 @@ h3.section-heading {
 }
 .dcc-side-header h4 { margin: 0; flex: 1; font-size: 13px; color: #c9d1d9; font-weight: 600; }
 .dcc-side-date { color: #8b949e; font-weight: 400; font-size: 12px; margin-left: 4px; }
+.dcc-synthetic-tag {
+  display: inline-block; padding: 1px 5px; border-radius: 3px;
+  background: rgba(168,124,222,0.15); color: #b083e0;
+  font-size: 10px; margin-left: 6px; font-weight: 500;
+}
+.dcc-fallback-tag {
+  display: inline-block; padding: 1px 5px; border-radius: 3px;
+  background: rgba(212,167,44,0.15); color: #d4a72c;
+  font-size: 10px; margin-left: 6px; font-weight: 500;
+}
 .dcc-side-reset, .dcc-side-expand {
   background: transparent;
   color: #8b949e;
@@ -1680,7 +1712,9 @@ h3.section-heading {
   border: 1px solid #21262d;
 }
 .dcc-totals-cost { font-size: 22px; font-weight: 700; color: #58a6ff; }
+.dcc-side[data-side="prev"]    .dcc-totals-cost { color: #58a6ff; }
 .dcc-side[data-side="current"] .dcc-totals-cost { color: #f0883e; }
+.dcc-side[data-side="future"]  .dcc-totals-cost { color: #56d364; }
 .dcc-totals-meta { font-size: 11px; color: #8b949e; line-height: 1.5; }
 
 .dcc-chart-wrap {
@@ -1712,6 +1746,9 @@ h3.section-heading {
 .dcc-lifespans tr:hover { background: rgba(88,166,255,0.04); }
 .dcc-lifespans code { background: rgba(110,118,129,0.15); padding: 1px 4px; border-radius: 3px; font-size: 10px; }
 
+@media (max-width: 1100px) {
+  .dcc-trio { grid-template-columns: 1fr; }
+}
 @media (max-width: 720px) {
   .dcc-pair { grid-template-columns: 1fr; }
 }
@@ -1809,6 +1846,17 @@ h3.section-heading {
   background: rgba(212,167,44,0.15); color: #d4a72c;
   font-size: 10px; margin-left: 6px;
 }
+.ipc-tag-synthetic {
+  display: inline-block; padding: 1px 5px; border-radius: 3px;
+  background: rgba(168,124,222,0.15); color: #b083e0;
+  font-size: 10px; margin-left: 6px;
+}
+.ipc-table .ipc-row-link {
+  color: #58a6ff; text-decoration: none; font-weight: 500;
+}
+.ipc-table .ipc-row-link:hover { text-decoration: underline; }
+.ipc-table tbody tr { cursor: pointer; }
+.ipc-table tbody tr:focus { outline: 1px solid #58a6ff; outline-offset: -1px; }
 .ipc-skipped-chip {
   display: inline-block; margin-top: 8px; padding: 2px 8px;
   background: #161b22; border: 1px solid #30363d; border-radius: 4px;
