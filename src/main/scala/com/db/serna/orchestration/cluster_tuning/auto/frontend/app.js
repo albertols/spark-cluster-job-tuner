@@ -1530,17 +1530,23 @@ function _renderDccSide(sideEl, ct, dateLabel) {
   const synthChip = (ct && ct.has_synthetic_span === true)
     ? `<span class="dcc-synthetic-tag" title="Span boundaries inferred from b21 autoscaler events; no b20 row was found for this cluster.">b22 · synthetic span</span>`
     : '';
+  // Only render the b23 chip when we have positive evidence: every incarnation
+  // must explicitly carry events_count == 0. Older JSON outputs lack the field
+  // entirely — treat "missing" as "unknown" (don't show), not "zero".
   const noEventsChip = (ct && Array.isArray(ct.incarnations) && ct.incarnations.length > 0
-                       && ct.incarnations.every(i => (+i.events_count || 0) === 0))
+                       && ct.incarnations.every(i => i && i.events_count != null && (+i.events_count) === 0))
     ? `<span class="dcc-fallback-tag" title="No autoscaler events for any incarnation; using recommended worker count flat across the span.">b23 · no autoscaler events</span>`
     : '';
   if (!ct || !Array.isArray(ct.incarnations) || ct.incarnations.length === 0) {
     sideEl.innerHTML = `
       <header class="dcc-side-header">
         <h4>${headerLabel} ${dateChip}</h4>
+        <button class="dcc-side-minimise" title="Hide card">−</button>
         <button class="dcc-side-expand" title="Expand">⤢</button>
       </header>
-      <div class="empty-msg">No autoscaling data exported for this date.</div>`;
+      <div class="dcc-side-body">
+        <div class="empty-msg">No autoscaling data exported for this date.</div>
+      </div>`;
     return;
   }
 
@@ -1549,11 +1555,14 @@ function _renderDccSide(sideEl, ct, dateLabel) {
     <header class="dcc-side-header">
       <h4>${headerLabel} ${dateChip} ${synthChip} ${noEventsChip}</h4>
       <button class="dcc-side-reset" title="Reset zoom">↻</button>
+      <button class="dcc-side-minimise" title="Hide card">−</button>
       <button class="dcc-side-expand" title="Expand">⤢</button>
     </header>
-    ${_buildDccTotalsHtml(ct)}
-    <div class="dcc-chart-wrap"><canvas id="${canvasId}"></canvas></div>
-    ${_buildDccLifespanTable(ct)}`;
+    <div class="dcc-side-body">
+      ${_buildDccTotalsHtml(ct)}
+      <div class="dcc-chart-wrap"><canvas id="${canvasId}"></canvas></div>
+      ${_buildDccLifespanTable(ct)}
+    </div>`;
 
   const { datasets: dccDatasets, boundaries } = _buildDccDatasetsPerInc(ct, sideKind);
   const canvas = document.getElementById(canvasId);
@@ -1668,6 +1677,35 @@ function renderDetailClusterCost(clusterName, refJson, curJson, refDate, curDate
     prevSide.appendChild(note);
   }
 
+  const trio = body.querySelector('.dcc-trio');
+
+  // Recompute the trio grid based on which sides are minimised. Visible cards
+  // share the available space; minimised cards collapse to a thin header strip.
+  // Middle (current) gets a slightly larger weight when visible — it's the hero.
+  function _dccApplyTrioLayout() {
+    if (!trio) return;
+    if (trio.dataset.expanded) {
+      trio.style.gridTemplateColumns = '';
+      return;
+    }
+    const sides = trio.querySelectorAll('.dcc-side');
+    const cols = [];
+    sides.forEach(s => {
+      if (s.dataset.minimised === 'true') {
+        cols.push('auto');
+      } else {
+        cols.push(s.dataset.side === 'current' ? '1.15fr' : '1fr');
+      }
+    });
+    trio.style.gridTemplateColumns = cols.join(' ');
+    sides.forEach(s => {
+      const canvas = s.querySelector('canvas');
+      if (canvas && canvas._chartInstance) {
+        setTimeout(() => canvas._chartInstance.resize(), 50);
+      }
+    });
+  }
+
   // Wire ↔ expand on each side: hide others, expand self full width; toggle.
   body.querySelectorAll('.dcc-side-expand').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1677,13 +1715,44 @@ function renderDetailClusterCost(clusterName, refJson, curJson, refDate, curDate
       const cur = pair.dataset.expanded || '';
       pair.dataset.expanded = (cur === which) ? '' : which;
       btn.textContent = pair.dataset.expanded === which ? '⤡' : '⤢';
-      // Resize the chart to fit the new width
+      // Expanding a card overrides any minimise state on the others.
+      pair.querySelectorAll('.dcc-side').forEach(s => { s.dataset.minimised = 'false'; });
+      pair.querySelectorAll('.dcc-side-minimise').forEach(b => { b.textContent = '−'; b.title = 'Hide card'; });
+      _dccApplyTrioLayout();
       const canvas = side.querySelector('canvas');
       if (canvas && canvas._chartInstance) {
         setTimeout(() => canvas._chartInstance.resize(), 50);
       }
     });
   });
+
+  // Per-card minimise: collapses the card to a thin header strip; the remaining
+  // visible cards reflow horizontally to fill the freed space. Click again to
+  // restore. Disabled when the trio is in expanded (single-card) mode.
+  body.querySelectorAll('.dcc-side-minimise').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const side = btn.closest('.dcc-side');
+      const pair = side.parentElement;
+      // Minimising clears any expanded state — they're mutually exclusive views.
+      if (pair.dataset.expanded) {
+        pair.dataset.expanded = '';
+        pair.querySelectorAll('.dcc-side-expand').forEach(b => { b.textContent = '⤢'; });
+      }
+      const minimised = side.dataset.minimised === 'true';
+      // Don't allow minimising the last visible card.
+      if (!minimised) {
+        const visibleCount = Array.from(pair.querySelectorAll('.dcc-side'))
+          .filter(s => s.dataset.minimised !== 'true').length;
+        if (visibleCount <= 1) return;
+      }
+      side.dataset.minimised = minimised ? 'false' : 'true';
+      btn.textContent = minimised ? '−' : '+';
+      btn.title = minimised ? 'Hide card' : 'Show card';
+      _dccApplyTrioLayout();
+    });
+  });
+
+  _dccApplyTrioLayout();
 }
 
 function renderClusterConfComparison(clusterName, refJson, curJson, refDate, curDate) {
@@ -1922,7 +1991,7 @@ async function _ipcLoadDataForDate(date) {
   const withCt = pairs.filter(([_n, j]) => j && j.cost_timeline).length;
   const withSynthetic = pairs.filter(([_n, j]) => j && j.cost_timeline && j.cost_timeline.has_synthetic_span === true).length;
   console.info(`[IP count] ${date}: ${names.length} clusters, ${loaded} loaded, ${withCt} with cost_timeline, ${segments.length} segments, ${skipped.length} skipped, ${withSynthetic} synthetic-span`);
-  return { date, segments, peakMs: peak.peakMs, peakIps: peak.peakIps, skipped };
+  return { date, segments, peakMs: peak.peakMs, peakIps: peak.peakIps, skipped, syntheticClusters: withSynthetic };
 }
 
 // Per-side cache: side name → loaded data + chart instance.
@@ -1955,9 +2024,17 @@ function _ipcRenderSide(sideEl, sideData, ipQuota, dateLabel) {
   const canvasId = `ipc-canvas-${sideName}-${Math.random().toString(36).slice(2, 8)}`;
   const peakClass = _ipcThresholdLevel(sideData.peakIps, ipQuota);
 
+  // Side-level synthetic-span chip: at least one cluster on this side had its
+  // span boundaries inferred from b21 events (b20 row missing). Per-row chips
+  // continue to flag the specific clusters in the table below.
+  const synthClusterCount = sideData.syntheticClusters || 0;
+  const synthHeaderChip = synthClusterCount > 0
+    ? `<span class="ipc-tag-synthetic" title="${synthClusterCount} cluster${synthClusterCount === 1 ? '' : 's'} on this side had span boundaries inferred from b21 autoscaler events because no b20 row was present.">b22 · ${synthClusterCount} synthetic span${synthClusterCount === 1 ? '' : 's'}</span>`
+    : '';
+
   sideEl.innerHTML = `
     <header class="ipc-side-header">
-      <h4>${headerLabel}${dateLabel ? ` <span class="ipc-side-date">(${escapeHtml(dateLabel)})</span>` : ''}</h4>
+      <h4>${headerLabel}${dateLabel ? ` <span class="ipc-side-date">(${escapeHtml(dateLabel)})</span>` : ''} ${synthHeaderChip}</h4>
       <div class="ipc-side-buttons">
         <button class="ipc-side-reset" title="Reset zoom and clear anchor">↻</button>
         <button class="ipc-side-expand" title="Expand">⤢</button>

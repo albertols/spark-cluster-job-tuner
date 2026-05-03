@@ -1644,7 +1644,9 @@ h3.section-heading {
 
 /* 3-card layout: previous → reference → future. The middle card is the "true
    current cost"; the surrounding cards bracket it with historical and projected
-   pricings. Click ⤢ on any card to expand it full-width. */
+   pricings. Click ⤢ on any card to expand it full-width; click − to minimise
+   it to a thin strip (the visible cards reflow to fill the freed space). The
+   grid-template-columns are recomputed in JS via _dccApplyTrioLayout. */
 .dcc-trio {
   display: grid;
   grid-template-columns: 1fr 1.15fr 1fr;
@@ -1689,7 +1691,7 @@ h3.section-heading {
   background: rgba(212,167,44,0.15); color: #d4a72c;
   font-size: 10px; margin-left: 6px; font-weight: 500;
 }
-.dcc-side-reset, .dcc-side-expand {
+.dcc-side-reset, .dcc-side-expand, .dcc-side-minimise {
   background: transparent;
   color: #8b949e;
   border: 1px solid #30363d;
@@ -1699,7 +1701,31 @@ h3.section-heading {
   font-size: 14px;
   line-height: 1;
 }
-.dcc-side-reset:hover, .dcc-side-expand:hover { color: #c9d1d9; border-color: #58a6ff; }
+.dcc-side-reset:hover, .dcc-side-expand:hover, .dcc-side-minimise:hover { color: #c9d1d9; border-color: #58a6ff; }
+
+/* Minimised card: collapse to a thin vertical strip showing only the header
+   label + the restore (+) button. Body content (totals, chart, table) hides
+   so the remaining visible cards can fill the freed horizontal space. */
+.dcc-side[data-minimised="true"] {
+  padding: 10px 8px;
+  min-width: 0;
+  width: max-content;
+}
+.dcc-side[data-minimised="true"] .dcc-side-body,
+.dcc-side[data-minimised="true"] .dcc-side-reset,
+.dcc-side[data-minimised="true"] .dcc-side-expand,
+.dcc-side[data-minimised="true"] .dcc-side-note,
+.dcc-side[data-minimised="true"] .dcc-synthetic-tag,
+.dcc-side[data-minimised="true"] .dcc-fallback-tag,
+.dcc-side[data-minimised="true"] .dcc-side-date { display: none; }
+.dcc-side[data-minimised="true"] .dcc-side-header { margin-bottom: 0; }
+.dcc-side[data-minimised="true"] .dcc-side-header h4 {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
 
 .dcc-totals {
   display: flex;
