@@ -40,6 +40,26 @@ final case class UnresolvedEntry(
 
 // ── Boosts ──────────────────────────────────────────────────────────────────
 
+/**
+ * Lifecycle state of a boost across multi-date AutoTuner runs.
+ *
+ *  - `New`     : recipe untagged, fresh signal in the current-date CSV → first-time boost.
+ *  - `ReBoost` : recipe already tagged AND fresh current-date signal → previous boost was
+ *                insufficient; multiply current memory by the per-step factor and store the
+ *                new cumulative factor.
+ *  - `Holding` : recipe already tagged but NO fresh current-date signal → carry the boost
+ *                forward unchanged (the boost is succeeding).
+ *
+ * Single-tuner (one inputDir) only ever emits `New` boosts; the holding/re-boost
+ * distinction requires AutoTuner-style date awareness (multiple inputDirs).
+ */
+sealed trait BoostState { def label: String }
+object BoostState {
+  case object New     extends BoostState { val label = "new" }
+  case object ReBoost extends BoostState { val label = "re-boost" }
+  case object Holding extends BoostState { val label = "holding" }
+}
+
 /** A computed action to apply to a recipe's Spark configuration. */
 sealed trait VitaminBoost {
   def recipeFilename: String
@@ -50,10 +70,15 @@ final case class MemoryHeapBoost(
                                   recipeFilename: String,
                                   originalMemory: String,
                                   boostedMemory: String,
-                                  boostFactor: Double
+                                  boostFactor: Double,
+                                  cumulativeFactor: Double = Double.NaN,
+                                  state: BoostState = BoostState.New
                                 ) extends VitaminBoost {
+  /** Cumulative factor stored in the recipe JSON. NaN sentinel means "same as boostFactor". */
+  def effectiveCumulativeFactor: Double = if (cumulativeFactor.isNaN) boostFactor else cumulativeFactor
+
   val description: String =
-    s"spark.executor.memory: $originalMemory -> $boostedMemory (x$boostFactor heap OOM boost)"
+    s"spark.executor.memory: $originalMemory -> $boostedMemory (x$boostFactor heap OOM boost, ${state.label})"
 }
 
 // ── Vitamin Trait ───────────────────────────────────────────────────────────
@@ -79,6 +104,21 @@ trait RefinementVitamin {
   def loadSignals(inputDir: File, clusterName: String): Seq[VitaminSignal]
   def computeBoosts(signals: Seq[VitaminSignal], recipes: Map[String, RecipeConfig]): Seq[VitaminBoost]
   def applyBoosts(boosts: Seq[VitaminBoost], recipes: Map[String, RecipeConfig]): Map[String, RecipeConfig]
+
+  /**
+   * Date-aware overload used by AutoTuner. `currentSignals` are the signals loaded from
+   * the current-date inputDir (the head of `inputDirs` in the pipeline); `signals` is the
+   * union of current + reference-date signals after dedupe.
+   *
+   * Default delegates to the legacy 2-arg method so vitamins that don't care about the
+   * current/reference distinction keep their existing behavior. Vitamins that need the
+   * `New` / `ReBoost` / `Holding` lifecycle (e.g. `MemoryHeapBoostVitamin`) override this.
+   */
+  def computeBoosts(
+                     signals: Seq[VitaminSignal],
+                     recipes: Map[String, RecipeConfig],
+                     currentSignals: Seq[VitaminSignal]
+                   ): Seq[VitaminBoost] = computeBoosts(signals, recipes)
 }
 
 // ── Recipe Resolution ───────────────────────────────────────────────────────
@@ -205,6 +245,13 @@ class MemoryHeapBoostVitamin(val boostFactor: Double = 1.5) extends RefinementVi
     }
   }
 
+  /**
+   * Legacy single-date entry point (single-tuner, single inputDir). Kept idempotent on
+   * re-run: a recipe that already carries `appliedMemoryHeapBoostFactor >= boostFactor`
+   * yields a no-op boost so the same CSV processed twice on its own output doesn't
+   * double-boost. AutoTuner uses the 3-arg overload below for the New / ReBoost / Holding
+   * lifecycle.
+   */
   def computeBoosts(signals: Seq[VitaminSignal], recipes: Map[String, RecipeConfig]): Seq[VitaminBoost] = {
     val heapSignals = signals.collect { case s: MemoryHeapOomSignal => s }
     val affectedRecipes = heapSignals.map(_.recipeFilename).filter(_.nonEmpty).distinct
@@ -212,17 +259,72 @@ class MemoryHeapBoostVitamin(val boostFactor: Double = 1.5) extends RefinementVi
     affectedRecipes.flatMap { recipe =>
       recipes.get(recipe).map { rc =>
         val currentMem = rc.sparkOptsMap.getOrElse("spark.executor.memory", "8g")
-        // Idempotency: if this recipe was already boosted with at least the desired factor
-        // (e.g. in a previous run whose output we're now re-processing), return a no-op
-        // boost so the recipe appears in tracking/summary without double-boosting memory.
         val existingFactor = rc.extraFields.get(boostFieldKey).flatMap(s => scala.util.Try(s.toDouble).toOption)
         val alreadyBoosted = existingFactor.exists(_ >= boostFactor)
         if (alreadyBoosted) {
-          // No-op: originalMemory == boostedMemory signals "propagated, no change"
-          MemoryHeapBoost(recipe, currentMem, currentMem, existingFactor.getOrElse(boostFactor))
+          // Single-tuner re-run idempotency. State is "Holding" so AutoTuner-side
+          // counters classify this consistently if it ever reaches them.
+          val cum = existingFactor.getOrElse(boostFactor)
+          MemoryHeapBoost(recipe, currentMem, currentMem, boostFactor, cum, BoostState.Holding)
         } else {
           val boostedMem = boostMemory(currentMem, boostFactor)
-          MemoryHeapBoost(recipe, currentMem, boostedMem, boostFactor)
+          MemoryHeapBoost(recipe, currentMem, boostedMem, boostFactor, boostFactor, BoostState.New)
+        }
+      }
+    }
+  }
+
+  /**
+   * Date-aware computeBoosts used by AutoTuner. Distinguishes:
+   *  - fresh OOM in current-date CSV + recipe untagged  → `New`
+   *  - fresh OOM in current-date CSV + recipe tagged    → `ReBoost` (stack: cur-mem * factor)
+   *  - tagged recipe with NO fresh current-date signal  → `Holding`
+   *
+   * Untagged recipes that only show up via reference-date signals are conservatively
+   * treated as `New` (a missed signal that should be acted on).
+   */
+  override def computeBoosts(
+                              signals: Seq[VitaminSignal],
+                              recipes: Map[String, RecipeConfig],
+                              currentSignals: Seq[VitaminSignal]
+                            ): Seq[VitaminBoost] = {
+    val heapAll = signals.collect { case s: MemoryHeapOomSignal => s }
+    val heapCurrent = currentSignals.collect { case s: MemoryHeapOomSignal => s }
+    val currentRecipeSet = heapCurrent.map(_.recipeFilename).filter(_.nonEmpty).toSet
+    val anyRecipeSet = heapAll.map(_.recipeFilename).filter(_.nonEmpty).toSet
+
+    // Holding includes recipes that were boosted in a past run but have no signal of
+    // any kind in the current input dirs — surface them so the dashboard can show
+    // "boost still working".
+    val recipesWithPriorTag = recipes.collect {
+      case (name, rc) if rc.extraFields.contains(boostFieldKey) => name
+    }.toSet
+
+    val candidates = (anyRecipeSet ++ recipesWithPriorTag).toSeq.distinct
+
+    candidates.flatMap { recipe =>
+      recipes.get(recipe).flatMap { rc =>
+        val currentMem = rc.sparkOptsMap.getOrElse("spark.executor.memory", "8g")
+        val priorFactor = rc.extraFields.get(boostFieldKey).flatMap(s => scala.util.Try(s.toDouble).toOption)
+        val hasNewSignal = currentRecipeSet.contains(recipe)
+
+        (priorFactor, hasNewSignal) match {
+          case (None, true) =>
+            val boosted = boostMemory(currentMem, boostFactor)
+            Some(MemoryHeapBoost(recipe, currentMem, boosted, boostFactor, boostFactor, BoostState.New))
+          case (Some(prev), true) =>
+            // Stack on top of current (already-boosted) memory.
+            val boosted = boostMemory(currentMem, boostFactor)
+            Some(MemoryHeapBoost(recipe, currentMem, boosted, boostFactor, prev * boostFactor, BoostState.ReBoost))
+          case (Some(prev), false) =>
+            Some(MemoryHeapBoost(recipe, currentMem, currentMem, boostFactor, prev, BoostState.Holding))
+          case (None, false) =>
+            // Untagged recipe with reference-only signal — conservatively boost so the
+            // signal isn't silently lost between runs.
+            if (anyRecipeSet.contains(recipe)) {
+              val boosted = boostMemory(currentMem, boostFactor)
+              Some(MemoryHeapBoost(recipe, currentMem, boosted, boostFactor, boostFactor, BoostState.New))
+            } else None
         }
       }
     }
@@ -233,9 +335,9 @@ class MemoryHeapBoostVitamin(val boostFactor: Double = 1.5) extends RefinementVi
       case (cfg, b: MemoryHeapBoost) =>
         cfg.get(b.recipeFilename) match {
           case Some(rc) =>
-            val updatedExtra = rc.extraFields + (boostFieldKey -> b.boostFactor.toString)
-            if (b.originalMemory == b.boostedMemory) {
-              // Propagated (already boosted) — only refresh the boost marker, no memory change
+            // Persist the cumulative factor so subsequent runs can detect chained boosts.
+            val updatedExtra = rc.extraFields + (boostFieldKey -> b.effectiveCumulativeFactor.toString)
+            if (b.state == BoostState.Holding || b.originalMemory == b.boostedMemory) {
               cfg.updated(b.recipeFilename, rc.copy(extraFields = updatedExtra))
             } else {
               val updatedOpts = rc.sparkOptsMap.updated("spark.executor.memory", b.boostedMemory)
@@ -312,11 +414,17 @@ object RefinementPipeline {
     val lists = mutable.LinkedHashMap.empty[String, Seq[String]]
 
     vitamins.foreach { vitamin =>
-      // Collect signals from ALL input dirs (curDate first, then refDate, etc.)
+      // Collect signals from ALL input dirs (curDate first, then refDate, etc.). Track the
+      // current-date subset separately so date-aware vitamins can distinguish "fresh" OOM
+      // (in the current-date CSV) from "carried" OOM (from older dirs).
+      val curRawSignals = inputDirs.headOption.toSeq.flatMap(dir => vitamin.loadSignals(dir, config.clusterName))
       val rawSignals = inputDirs.flatMap(dir => vitamin.loadSignals(dir, config.clusterName))
 
-      // Resolve all signals, then deduplicate by recipeFilename keeping first occurrence
+      // Resolve all signals (including the current-date subset for state classification).
       val (allResolved, allUnresolvd) = RecipeResolver.resolve(rawSignals, currentRecipes.keySet)
+      val (curResolved, _) = RecipeResolver.resolve(curRawSignals, currentRecipes.keySet)
+
+      // Deduplicate by recipeFilename keeping first occurrence (curDate wins over refDate).
       val seen = mutable.LinkedHashSet.empty[String]
       val resolved = allResolved.filter { s =>
         if (s.recipeFilename.isEmpty) false
@@ -324,7 +432,11 @@ object RefinementPipeline {
         else { seen += s.recipeFilename; true }
       }
 
-      val boosts = vitamin.computeBoosts(resolved, currentRecipes)
+      // Single inputDir → legacy 2-arg path (preserves single-tuner re-run idempotency).
+      // Multiple inputDirs → date-aware 3-arg path (new/re-boost/holding state lifecycle).
+      val boosts =
+        if (inputDirs.size > 1) vitamin.computeBoosts(resolved, currentRecipes, curResolved)
+        else vitamin.computeBoosts(resolved, currentRecipes)
       currentRecipes = vitamin.applyBoosts(boosts, currentRecipes)
       allBoosts ++= boosts
       counters(vitamin.counterKey) = boosts.size

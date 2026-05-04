@@ -2,7 +2,7 @@ package com.db.serna.orchestration.cluster_tuning.auto
 
 import com.db.serna.orchestration.cluster_tuning.single.ClusterMachineAndRecipeTuner.AutoscalingPolicyConfig
 import com.db.serna.orchestration.cluster_tuning.single.{ClusterDiagnosticsProcessor, ClusterMachineAndRecipeTuner, ClusterSummary, CostBiasedStrategy, DefaultTuningStrategy, DriverResourceOverride, GenerationSummary, GenerationSummaryEntry, GenerationSummaryWriter, MachineCatalog, PerformanceBiasedStrategy, QuotaTracker, RecipeMetrics, TuningStrategy, YarnDriverEviction}
-import com.db.serna.orchestration.cluster_tuning.single.refinement.{MemoryHeapBoost, MemoryHeapBoostVitamin, RefinementPipeline, RefinementVitamin, SimpleJsonParser, TunedClusterConfig}
+import com.db.serna.orchestration.cluster_tuning.single.refinement.{BoostState, MemoryHeapBoost, MemoryHeapBoostVitamin, RefinementPipeline, RefinementVitamin, SimpleJsonParser, TunedClusterConfig}
 import org.rogach.scallop._
 import org.slf4j.LoggerFactory
 
@@ -184,7 +184,12 @@ object ClusterMachineAndRecipeAutoTuner {
     val quotaTracker = new QuotaTracker(tuningStrategy.quotas)
 
     // 8. Generate outputs
-    val curOutputDir = new File(s"$BasePath/outputs/${curDate}_auto_tuned")
+    // Outputs share the same per-date dir as the single tuner so that subsequent
+    // AutoTuner runs can read the previous run's output via loadReferenceConfigs
+    // (which always reads outputs/<refDate>/). This enables continuous tuning
+    // chains: ref=04_23 cur=04_30 -> outputs/2026_04_30/, then ref=04_30 cur=05_07
+    // can find the just-written cumulative-boosted configs.
+    val curOutputDir = new File(s"$BasePath/outputs/$curDate")
     if (!curOutputDir.exists()) curOutputDir.mkdirs()
 
     val tunerVersion = ClusterMachineAndRecipeTuner.toTunerVersion(curDate)
@@ -195,7 +200,13 @@ object ClusterMachineAndRecipeAutoTuner {
     val summaryEntries = ArrayBuffer.empty[GenerationSummaryEntry]
 
     // Tracking for the summary report
-    val b14BoostedClusters = ArrayBuffer.empty[(String, String)] // (cluster, reason)
+    val b14BoostedClusters = ArrayBuffer.empty[(String, String)] // (cluster, reason) — new + re-applied this run
+    val b14HoldingClusters = ArrayBuffer.empty[(String, String)] // (cluster, "from -> to") — boost holding from prior run
+    // Per-cluster b14 state ("new" or "re-boost") derived from the ref config's
+    // applied_driver_promotion tag — mirrors b16's tag-based re-boost detection so a
+    // promotion that held across a run with no eviction is still labelled as re-boost
+    // when the next eviction arrives.
+    val b14StateByCluster = scala.collection.mutable.Map.empty[String, String]
     val b16BoostedRecipes = ArrayBuffer.empty[(String, Seq[MemoryHeapBoost])] // (cluster, boosts)
     var keptClusters = 0
     var boostedClusters = 0
@@ -225,6 +236,16 @@ object ClusterMachineAndRecipeAutoTuner {
           // recipes with lastTunedDate + keptWithoutCurrentDate.
           if (primaryAction == PreserveHistorical) preservedClusters += 1 else keptClusters += 1
           emitReferenceConfigs(clusterName, refOutputDir, curOutputDir, preservedRecipes, refDate)
+
+          // b14 holding: ref config carries a previously-applied driver promotion AND
+          // the current date has NO new eviction signal → boost is "holding". The tag
+          // (`applied_driver_promotion: "from -> to"`) was stamped by an earlier run.
+          val curHasB14 = curSnapshot.b14Signals.get(clusterName).exists(_.nonEmpty)
+          if (!curHasB14) {
+            referenceConfigs.get(clusterName).flatMap { rc =>
+              rc.clusterConfFields.find(_._1 == "applied_driver_promotion").map(_._2.replaceAll("\"", ""))
+            }.foreach(promotion => b14HoldingClusters += ((clusterName, promotion)))
+          }
 
           // Compute cost_timeline from current-date b20/b21 data and inject it
           // into the just-emitted JSON files. The reference JSON may have been
@@ -318,9 +339,27 @@ object ClusterMachineAndRecipeAutoTuner {
                 curOverride.driverMemoryOverheadGb, reason, Some(promoted))
             }
 
-            // Track b14 boosts
+            // Track b14 boosts. State derivation mirrors b16: a recipe — or here, a
+            // cluster — is "re-boost" iff the reference config carries the prior tag
+            // (`applied_driver_promotion`), regardless of whether the reference DATE
+            // happened to also have a b14 signal. This is stricter (and more accurate)
+            // than reading `refSnapshot.b14Signals`, which misses the case where a
+            // promotion held across an intermediate run with no eviction.
             if (driverOverride.isDefined) {
               b14BoostedClusters += ((clusterName, driverOverride.get.diagnosticReason))
+              val refHasPromotionTag = referenceConfigs.get(clusterName).exists(
+                _.clusterConfFields.exists(_._1 == "applied_driver_promotion")
+              )
+              b14StateByCluster(clusterName) = if (refHasPromotionTag) "re-boost" else "new"
+            }
+
+            // Detect prior promotion holding when the cluster was re-planned but the
+            // current date has no fresh b14 signal. The reference config's tag is the
+            // source of truth for "what was previously promoted".
+            if (driverOverride.isEmpty) {
+              referenceConfigs.get(clusterName).flatMap { rc =>
+                rc.clusterConfFields.find(_._1 == "applied_driver_promotion").map(_._2.replaceAll("\"", ""))
+              }.foreach(promotion => b14HoldingClusters += ((clusterName, promotion)))
             }
 
             // Compute current-date interval cost / wall-clock minutes / worker stats /
@@ -344,6 +383,15 @@ object ClusterMachineAndRecipeAutoTuner {
 
             ClusterMachineAndRecipeTuner.writeFile(curOutputDir, s"$clusterName-manually-tuned.json", manualJsonStr)
             ClusterMachineAndRecipeTuner.writeFile(curOutputDir, s"$clusterName-auto-scale-tuned.json", daJsonStr)
+
+            // Stamp the promotion tag so subsequent AutoTuner runs can detect "holding".
+            // Format keeps it parseable by SimpleJsonParser.extractOrderedFlatFields.
+            driverOverride.flatMap(_.promotedMasterMachineType).foreach { promoted =>
+              val baselineName = referenceConfigs.get(clusterName)
+                .flatMap(_.clusterConfFields.find(_._1 == "master_machine_type").map(_._2.replaceAll("\"", "")))
+                .getOrElse(clusterPlan.masterMachineType.name)
+              injectClusterConfTag(clusterName, curOutputDir, "applied_driver_promotion", s"$baselineName -> ${promoted.name}")
+            }
 
             // Carry over any preserve_historical recipes that were dropped in the
             // current date. The fresh plan was built only from current-date metrics,
@@ -465,7 +513,9 @@ object ClusterMachineAndRecipeAutoTuner {
       curOutputDir, refDate, curDate, strategyName, allTrends,
       keptClusters, boostedClusters, freshClusters, preservedClusters, skippedClusters,
       b14BoostedClusters.toSeq, b16BoostedRecipes.toSeq,
-      correlations.size, divergences.size
+      correlations.size, divergences.size,
+      b14HoldingClusters.toSeq,
+      b14StateByCluster.toMap
     )
 
     logger.info(s"AutoTuner finished. Output: ${curOutputDir.getPath}")
@@ -604,6 +654,41 @@ object ClusterMachineAndRecipeAutoTuner {
   }
 
   /**
+   * Inject a flat string field into the per-cluster `clusterConf.<clusterName>` block.
+   * Idempotent: if the key already exists, the existing value is replaced.
+   *
+   * Used to stamp `applied_driver_promotion` on cluster JSONs whenever the AutoTuner
+   * applies a master promotion, so later runs can detect "holding" state (the recipe
+   * carries the promotion forward without a new b14 eviction signal).
+   */
+  private def injectClusterConfTag(clusterName: String, outputDir: File, tagKey: String, tagValue: String): Unit = {
+    val q = '"'
+    Seq("-auto-scale-tuned.json", "-manually-tuned.json").foreach { suffix =>
+      val file = new File(outputDir, s"$clusterName$suffix")
+      if (file.exists()) {
+        val content = scala.io.Source.fromFile(file).mkString
+        val pat = ("\"" + java.util.regex.Pattern.quote(clusterName) + "\"\\s*:\\s*\\{").r
+        val updated = pat.findFirstMatchIn(content) match {
+          case Some(m) =>
+            val insertPos = m.end
+            // Replace existing tag (same key) anywhere in the cluster block; otherwise insert.
+            val keyToken = s"$q$tagKey$q"
+            val tagLine = s"\n    $keyToken: $q$tagValue$q,"
+            val existingPattern = (java.util.regex.Pattern.quote(keyToken) + "\\s*:\\s*\"[^\"]*\",?").r
+            existingPattern.findFirstMatchIn(content) match {
+              case Some(em) =>
+                content.substring(0, em.start) + s"$keyToken: $q$tagValue$q," + content.substring(em.end)
+              case None =>
+                content.substring(0, insertPos) + tagLine + content.substring(insertPos)
+            }
+          case None => content
+        }
+        ClusterMachineAndRecipeTuner.writeFile(outputDir, file.getName, updated)
+      }
+    }
+  }
+
+  /**
    * Merge preserve_historical recipes from the reference output JSON into the
    * freshly written current-date JSON. Used in the BoostResources / GenerateFresh
    * branch where the cluster was re-planned from current-date metrics only — any
@@ -657,19 +742,20 @@ object ClusterMachineAndRecipeAutoTuner {
   /**
    * Apply b16 memory heap OOM reboosting to a cluster's output JSONs.
    *
-   * Searches ALL input directories for the b16 CSV (e.g. current_date first,
-   * then reference_date). Signals from every available CSV are merged and
-   * deduplicated by recipe so that:
-   *  - Freshly generated configs receive boosts from both the current and older
-   *    CSVs, preventing OOM regression when the old signal is not repeated.
-   *  - Preserved (copied) reference configs don't get double-boosted: recipes
-   *    that already carry appliedMemoryHeapBoostFactor are tracked as propagated
-   *    boosts (reported in the summary) without re-applying the factor.
+   * `inputDirs` is ordered [current_date, reference_date, ...]. The order matters:
+   * the head is treated as the current dir for state classification, so even when the
+   * current-date b16 CSV is missing the recipe is correctly classified as `Holding`
+   * (carrying a previous boost without a new signal) instead of being re-boosted from
+   * the reference dir. Skip the entire step only when NO dir carries a b16 CSV.
+   *
+   * Lifecycle states, surfaced via `MemoryHeapBoost.state`:
+   *  - `New`     : untagged recipe + fresh current-date OOM signal
+   *  - `ReBoost` : already-tagged recipe + fresh current-date signal → stack on current memory
+   *  - `Holding` : already-tagged recipe + no fresh current-date signal → carry forward
    */
   private def applyB16Reboosting(clusterName: String, outputDir: File, inputDirs: Seq[File], factor: Double): Seq[MemoryHeapBoost] = {
-    // Collect ALL dirs that have a b16 CSV (not just the first one).
-    val validInputDirs = inputDirs.filter(d => d.exists() && new File(d, "b16_oom_job_driver_exceptions.csv").exists())
-    if (validInputDirs.isEmpty) return Seq.empty
+    val anyHasB16 = inputDirs.exists(d => d.exists() && new File(d, "b16_oom_job_driver_exceptions.csv").exists())
+    if (!anyHasB16) return Seq.empty
 
     val vitamins: Seq[RefinementVitamin] = Seq(new MemoryHeapBoostVitamin(factor))
     val allBoosts = ArrayBuffer.empty[MemoryHeapBoost]
@@ -679,15 +765,19 @@ object ClusterMachineAndRecipeAutoTuner {
       if (jsonFile.exists()) {
         try {
           val config = SimpleJsonParser.parseFile(jsonFile)
-          // Pass all valid dirs; RefinementPipeline merges and deduplicates signals.
-          val result = RefinementPipeline.refine(config, vitamins, validInputDirs)
+          // Pass full ordered dirs; the pipeline handles missing CSVs gracefully via
+          // loadSignals returning empty. Crucially, inputDirs.head is preserved as the
+          // current dir even if its CSV is absent.
+          val result = RefinementPipeline.refine(config, vitamins, inputDirs)
           if (result.appliedBoosts.nonEmpty) {
             val refinedJson = RefinementPipeline.toRefinedJson(result)
             ClusterMachineAndRecipeTuner.writeFile(outputDir, jsonFile.getName, refinedJson)
-            allBoosts ++= result.appliedBoosts.collect { case b: MemoryHeapBoost => b }
-            val newCount = result.appliedBoosts.count { case b: MemoryHeapBoost => b.originalMemory != b.boostedMemory; case _ => true }
-            val propCount = result.appliedBoosts.count { case b: MemoryHeapBoost => b.originalMemory == b.boostedMemory; case _ => false }
-            logger.info(s"  b16 reboosting applied to $clusterName$suffix: $newCount new boost(s), $propCount propagated")
+            val heap = result.appliedBoosts.collect { case b: MemoryHeapBoost => b }
+            allBoosts ++= heap
+            val newCount = heap.count(_.state == BoostState.New)
+            val reBoostCount = heap.count(_.state == BoostState.ReBoost)
+            val holdingCount = heap.count(_.state == BoostState.Holding)
+            logger.info(s"  b16 applied to $clusterName$suffix: $newCount new, $reBoostCount re-boost, $holdingCount holding")
           }
         } catch {
           case e: Exception =>
@@ -723,7 +813,9 @@ object ClusterMachineAndRecipeAutoTuner {
                                                  b14Boosts: Seq[(String, String)],
                                                  b16Boosts: Seq[(String, Seq[MemoryHeapBoost])],
                                                  correlationCount: Int,
-                                                 divergenceCount: Int
+                                                 divergenceCount: Int,
+                                                 b14Holding: Seq[(String, String)] = Seq.empty,
+                                                 b14StateByCluster: Map[String, String] = Map.empty
                                                ): Unit = {
     val trendCounts = allTrends.groupBy(_.trend.label).mapValues(_.size)
     val totalRecipes = allTrends.size
@@ -761,12 +853,21 @@ object ClusterMachineAndRecipeAutoTuner {
     sb.append("-" * 72).append("\n")
     sb.append("  b14 DRIVER BOOSTS\n")
     sb.append("-" * 72).append("\n")
-    if (b14Boosts.isEmpty) {
+    if (b14Boosts.isEmpty && b14Holding.isEmpty) {
       sb.append("  (none)\n")
     } else {
-      b14Boosts.foreach { case (cluster, reason) =>
-        sb.append(s"  $cluster\n")
-        sb.append(s"    Reason: $reason\n")
+      if (b14Boosts.nonEmpty) {
+        sb.append("  New / re-applied this run:\n")
+        b14Boosts.foreach { case (cluster, reason) =>
+          sb.append(s"    $cluster\n")
+          sb.append(s"      Reason: $reason\n")
+        }
+      }
+      if (b14Holding.nonEmpty) {
+        sb.append("  Holding · no new eviction signal:\n")
+        b14Holding.foreach { case (cluster, promotion) =>
+          sb.append(s"    $cluster   $promotion  [holding]\n")
+        }
       }
     }
     sb.append("\n")
@@ -785,9 +886,13 @@ object ClusterMachineAndRecipeAutoTuner {
         sb.append(s"  $cluster  (${uniqueBoosts.size} recipe(s))\n")
         uniqueBoosts.foreach { b =>
           val recipe = b.recipeFilename.stripPrefix("_").stripSuffix(".json")
-          val propagatedTag = if (b.originalMemory == b.boostedMemory) "  [propagated]" else ""
+          val tag = b.state match {
+            case BoostState.New     => ""
+            case BoostState.ReBoost => f"  [re-boost · cumulative x${b.effectiveCumulativeFactor}%.2f]"
+            case BoostState.Holding => "  [holding]"
+          }
           sb.append(("    %-60s  spark.executor.memory: %s -> %s  (x%.1f)%s\n")
-            .format(recipe, b.originalMemory, b.boostedMemory, b.boostFactor, propagatedTag))
+            .format(recipe, b.originalMemory, b.boostedMemory, b.boostFactor, tag))
         }
       }
     }
@@ -808,7 +913,8 @@ object ClusterMachineAndRecipeAutoTuner {
     writeAutoTunerSummaryJson(
       outputDir, refDate, curDate, strategyName, allTrends,
       kept, boosted, fresh, preserved, skipped,
-      b14Boosts, b16Boosts, correlationCount, divergenceCount
+      b14Boosts, b16Boosts, correlationCount, divergenceCount,
+      b14Holding, b14StateByCluster
     )
   }
 
@@ -828,7 +934,9 @@ object ClusterMachineAndRecipeAutoTuner {
                                                b14Boosts: Seq[(String, String)],
                                                b16Boosts: Seq[(String, Seq[MemoryHeapBoost])],
                                                correlationCount: Int,
-                                               divergenceCount: Int
+                                               divergenceCount: Int,
+                                               b14Holding: Seq[(String, String)] = Seq.empty,
+                                               b14StateByCluster: Map[String, String] = Map.empty
                                              ): Unit = {
     val trendCounts = allTrends.groupBy(_.trend.label).mapValues(_.size)
     val totalRecipes = allTrends.size
@@ -855,14 +963,19 @@ object ClusterMachineAndRecipeAutoTuner {
     val evictRe = """:\s*(\d+)\s*\(ref\)\s*->\s*(\d+)\s*\(cur\)""".r
     val curOnlyRe = """eviction\s*\((\d+)\)""".r
 
-    val b14Json: String = b14Boosts.map { case (cluster, reason) =>
+    val b14NewEntries: Seq[String] = b14Boosts.map { case (cluster, reason) =>
       val (fromM, toM) = promotionRe.findFirstMatchIn(reason).map(m => (m.group(1), m.group(2))).getOrElse(("", ""))
       val persistence = if (reason.toLowerCase.contains("persistent")) "persistent" else "current"
+      // Prefer the explicit state from AutoTuner (derived from the ref config's
+      // applied_driver_promotion tag — full b16 parity). Fall back to the persistence-
+      // text heuristic when no map is supplied (used by the legacy test signature).
+      val state = b14StateByCluster.getOrElse(cluster, if (persistence == "persistent") "re-boost" else "new")
       val (refE, curE) = evictRe.findFirstMatchIn(reason).map(m => (Some(m.group(1).toInt), Some(m.group(2).toInt))).getOrElse {
         if (persistence == "current") (None, curOnlyRe.findFirstMatchIn(reason).map(_.group(1).toInt)) else (None, None)
       }
       val parts = scala.collection.mutable.ArrayBuffer.empty[String]
       parts += s"${q("cluster")}:${q(cluster)}"
+      parts += s"${q("state")}:${q(state)}"
       parts += s"${q("reason")}:${q(reason)}"
       parts += s"${q("persistence")}:${q(persistence)}"
       if (fromM.nonEmpty) parts += s"${q("promotion")}:{${q("from")}:${q(fromM)},${q("to")}:${q(toM)}}"
@@ -871,22 +984,45 @@ object ClusterMachineAndRecipeAutoTuner {
       curE.foreach(v => evicts += s"${q("cur")}:$v")
       if (evicts.nonEmpty) parts += s"${q("evictions")}:{${evicts.mkString(",")}}"
       "{" + parts.mkString(",") + "}"
-    }.mkString(",")
+    }
+
+    val holdingPromotionRe = """([\w\-]+)\s*->\s*([\w\-]+)""".r
+    val b14HoldingEntries: Seq[String] = b14Holding.map { case (cluster, promotion) =>
+      val (fromM, toM) = holdingPromotionRe.findFirstMatchIn(promotion).map(m => (m.group(1), m.group(2))).getOrElse(("", ""))
+      val parts = scala.collection.mutable.ArrayBuffer.empty[String]
+      parts += s"${q("cluster")}:${q(cluster)}"
+      parts += s"${q("state")}:${q("holding")}"
+      parts += s"${q("reason")}:${q(s"Driver promotion holding: $promotion (no new b14 signal in current date)")}"
+      parts += s"${q("persistence")}:${q("holding")}"
+      if (fromM.nonEmpty) parts += s"${q("promotion")}:{${q("from")}:${q(fromM)},${q("to")}:${q(toM)}}"
+      "{" + parts.mkString(",") + "}"
+    }
+
+    val b14Json: String = (b14NewEntries ++ b14HoldingEntries).mkString(",")
 
     val b16Json: String = b16Boosts.map { case (cluster, boosts) =>
       val unique = boosts.groupBy(_.recipeFilename).values.map(_.head).toSeq.sortBy(_.recipeFilename)
       val recipes = unique.map { b =>
         val recipe = b.recipeFilename.stripPrefix("_").stripSuffix(".json")
-        val propagated = b.originalMemory == b.boostedMemory
+        // `propagated` kept for back-compat with older frontends; new frontends consume `state`.
+        val propagated = b.state == BoostState.Holding
         s"{${q("recipe")}:${q(recipe)}," +
           s"${q("recipe_filename")}:${q(b.recipeFilename)}," +
+          s"${q("state")}:${q(b.state.label)}," +
           s"${q("propagated")}:$propagated," +
-          s"${q("spark_executor_memory")}:{${q("from")}:${q(b.originalMemory)},${q("to")}:${q(b.boostedMemory)},${q("factor")}:${"%.2f".format(b.boostFactor)}}}"
+          s"${q("spark_executor_memory")}:{${q("from")}:${q(b.originalMemory)},${q("to")}:${q(b.boostedMemory)},${q("factor")}:${"%.2f".format(b.boostFactor)},${q("cumulative_factor")}:${"%.2f".format(b.effectiveCumulativeFactor)}}}"
       }.mkString(",")
       s"{${q("cluster")}:${q(cluster)},${q("recipes")}:[$recipes]}"
     }.mkString(",")
 
-    val b16TotalRecipesJson = b16Boosts.flatMap { case (_, boosts) => boosts.map(_.recipeFilename) }.distinct.size
+    // Counts split by state so the dashboard can render "N new · M holding" without
+    // re-walking the entries array. Distinct recipe filenames per cluster.
+    val b16FlatBoosts: Seq[MemoryHeapBoost] = b16Boosts.flatMap { case (_, boosts) =>
+      boosts.groupBy(_.recipeFilename).values.map(_.head).toSeq
+    }
+    val b16NewCount = b16FlatBoosts.count(b => b.state == BoostState.New || b.state == BoostState.ReBoost)
+    val b16HoldingCount = b16FlatBoosts.count(_.state == BoostState.Holding)
+    val b16TotalRecipesJson = b16FlatBoosts.size
 
     val sb = new StringBuilder
     sb.append("{\n")
@@ -896,8 +1032,8 @@ object ClusterMachineAndRecipeAutoTuner {
     sb.append(s"${q("new_entries")}:${trendCounts.getOrElse("new_entry", 0)},${q("dropped_entries")}:${trendCounts.getOrElse("dropped_entry", 0)}},\n")
     sb.append(s"  ${q("evolution_actions")}:{${q("kept")}:$kept,${q("boosted")}:$boosted,${q("fresh")}:$fresh,${q("preserved")}:$preserved,${q("skipped")}:$skipped},\n")
     sb.append(s"  ${q("boost_groups")}:[\n")
-    sb.append(s"    {${q("code")}:${q("b14")},${q("title")}:${q("Driver Boosts")},${q("kind")}:${q("cluster")},${q("count")}:${b14Boosts.size},${q("entries")}:[$b14Json]},\n")
-    sb.append(s"    {${q("code")}:${q("b16")},${q("title")}:${q("OOM Reboosting")},${q("kind")}:${q("recipe")},${q("count")}:$b16TotalRecipesJson,${q("cluster_count")}:${b16Boosts.size},${q("entries")}:[$b16Json]}\n")
+    sb.append(s"    {${q("code")}:${q("b14")},${q("title")}:${q("Driver Boosts")},${q("kind")}:${q("cluster")},${q("count")}:${b14Boosts.size + b14Holding.size},${q("count_new")}:${b14Boosts.size},${q("count_holding")}:${b14Holding.size},${q("entries")}:[$b14Json]},\n")
+    sb.append(s"    {${q("code")}:${q("b16")},${q("title")}:${q("OOM Reboosting")},${q("kind")}:${q("recipe")},${q("count")}:$b16TotalRecipesJson,${q("count_new")}:$b16NewCount,${q("count_holding")}:$b16HoldingCount,${q("cluster_count")}:${b16Boosts.size},${q("entries")}:[$b16Json]}\n")
     sb.append("  ],\n")
     sb.append(s"  ${q("statistical_analysis")}:{${q("correlation_pairs")}:$correlationCount,${q("divergences")}:$divergenceCount}\n")
     sb.append("}\n")

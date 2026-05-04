@@ -90,3 +90,5 @@ fabric.properties
 .idea/*
 *.iml
 /.idea/
+
+todo/

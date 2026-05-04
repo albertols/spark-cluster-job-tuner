@@ -103,7 +103,7 @@ flowchart TD
     B16 -.->|"b16 OOM signals\npersist to historical"| HIST
 
     %% ── OUTPUTS ──────────────────────────────────────────────────────────────
-    subgraph OUTPUTS ["📁  outputs/YYYY_MM_DD_auto_tuned/"]
+    subgraph OUTPUTS ["📁  outputs/YYYY_MM_DD/"]
         direction LR
         subgraph CLUSTER_JSON ["Per-cluster configs"]
             JMAN["📄 cluster-name\n-manually-tuned.json"]
@@ -274,7 +274,7 @@ main(Array("--reference-date=2025_12_20", "--current-date=2026_04_15",
 
 ## Output Files
 
-All outputs are written to `outputs/<current_date>_auto_tuned/`:
+All outputs are written to `outputs/<current_date>/` (the same dir the single tuner uses; the AutoTuner overwrites any single-tuner output for the same date so that subsequent AutoTuner runs can chain — `loadReferenceConfigs` reads from `outputs/<refDate>/`). Older runs may still live under `outputs/<date>_auto_tuned/`; the dashboard's discovery + cluster-config loaders fall back to the suffixed dir for back-compat.
 
 | File | Description |
 |---|---|

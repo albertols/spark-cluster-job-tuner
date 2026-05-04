@@ -3624,37 +3624,103 @@ function renderBoostOverview() {
     host.innerHTML = '';
     return;
   }
+
+  // Decide a recipe row's state: explicit `state` from the JSON wins; legacy fallback
+  // uses the (now-deprecated) `propagated` flag, then the from/to memory equality.
+  function recipeState(r) {
+    if (r && typeof r.state === 'string' && r.state) return r.state;
+    if (r && r.propagated === true) return 'holding';
+    const m = r && r.spark_executor_memory;
+    if (m && m.from && m.to && m.from === m.to) return 'holding';
+    return 'new';
+  }
+  function clusterState(e) {
+    if (e && typeof e.state === 'string' && e.state) return e.state;
+    return 'new';
+  }
+  function chipFor(state) {
+    const label = state === 're-boost' ? 're-boost' : state === 'holding' ? 'holding' : 'new';
+    return `<span class="boost-state-chip chip-${escapeAttr(label)}">${escapeHtml(label)}</span>`;
+  }
+
   const html = generationSummary.boost_groups.map(g => {
     const code = (g.code || '').toLowerCase();
-    const list = (g.entries || []).map(e => {
-      const clusterBtn = `<button class="boost-cluster-link" data-cluster="${escapeAttr(e.cluster)}">${escapeHtml(e.cluster)}</button>`;
-      if (Array.isArray(e.recipes) && e.recipes.length > 0) {
-        const rows = e.recipes.map(r => {
-          const memTo = r.spark_executor_memory && r.spark_executor_memory.to;
-          const memFrom = r.spark_executor_memory && r.spark_executor_memory.from;
-          const fac = r.spark_executor_memory && r.spark_executor_memory.factor;
-          const meta = (memFrom && memTo)
-            ? `<span class="delta">${escapeHtml(memFrom)} → ${escapeHtml(memTo)}${fac ? ` ×${fac}` : ''}</span>`
-            : '';
-          return `<div class="boost-recipe-row">
-            <button class="boost-recipe-link" data-cluster="${escapeAttr(e.cluster)}" data-recipe="${escapeAttr(r.recipe_filename || ('_' + r.recipe + '.json'))}" title="${escapeAttr(r.recipe_filename || '')}">${escapeHtml(r.recipe)}</button>
-            ${meta}
+    const entries = g.entries || [];
+
+    // Partition entries (recipe-kind groups) and clusters (cluster-kind groups) by state.
+    // Recipe-kind: split each cluster's recipes into [new/re-boost] and [holding] buckets;
+    // emit at most two cluster <li>s per cluster (one per non-empty bucket).
+    function renderRecipeBucket(label, predicate) {
+      const items = entries.flatMap(e => {
+        const recipes = (e.recipes || []).filter(r => predicate(recipeState(r)));
+        if (recipes.length === 0) return [];
+        const clusterBtn = `<button class="boost-cluster-link" data-cluster="${escapeAttr(e.cluster)}">${escapeHtml(e.cluster)}</button>`;
+        const rows = recipes.map(r => {
+          const m = r.spark_executor_memory || {};
+          const fac = m.factor;
+          const cum = m.cumulative_factor;
+          const st = recipeState(r);
+          let memHtml = '';
+          if (m.from && m.to) {
+            if (st === 'holding') {
+              // No arrow when the boost is holding; show only current memory.
+              memHtml = `<span class="delta">${escapeHtml(m.to)}${fac ? ` ×${fac}` : ''}</span>`;
+            } else if (st === 're-boost') {
+              memHtml = `<span class="delta">${escapeHtml(m.from)} → ${escapeHtml(m.to)}${fac ? ` ×${fac}` : ''}${cum ? ` <span class="cum">(cum ×${cum})</span>` : ''}</span>`;
+            } else {
+              memHtml = `<span class="delta">${escapeHtml(m.from)} → ${escapeHtml(m.to)}${fac ? ` ×${fac}` : ''}</span>`;
+            }
+          }
+          return `<div class="boost-recipe-row state-${escapeAttr(st)}">
+            <span class="recipe-label">
+              <button class="boost-recipe-link" data-cluster="${escapeAttr(e.cluster)}" data-recipe="${escapeAttr(r.recipe_filename || ('_' + r.recipe + '.json'))}" title="${escapeAttr(r.recipe_filename || '')}">${escapeHtml(r.recipe)}</button>
+              ${chipFor(st)}
+            </span>
+            ${memHtml}
           </div>`;
         }).join('');
-        return `<li>${clusterBtn} <span class="boost-meta">(${e.recipes.length} recipe${e.recipes.length === 1 ? '' : 's'})</span>${rows}</li>`;
-      }
-      const meta = e.promotion
-        ? `<div class="boost-meta">${escapeHtml(e.promotion.from)} → ${escapeHtml(e.promotion.to)}${e.persistence ? ` · ${escapeHtml(e.persistence)}` : ''}</div>`
-        : (e.reason ? `<div class="boost-meta">${escapeHtml(e.reason)}</div>` : '');
-      return `<li>${clusterBtn}${meta}</li>`;
-    }).join('');
+        return [`<li>${clusterBtn} <span class="boost-meta">(${recipes.length} recipe${recipes.length === 1 ? '' : 's'})</span>${rows}</li>`];
+      }).join('');
+      return items
+        ? `<div class="boost-subgroup-title">${escapeHtml(label)}</div><ul class="boost-card-list">${items}</ul>`
+        : '';
+    }
+    function renderClusterBucket(label, predicate) {
+      const items = entries.filter(e => predicate(clusterState(e))).map(e => {
+        const clusterBtn = `<button class="boost-cluster-link" data-cluster="${escapeAttr(e.cluster)}">${escapeHtml(e.cluster)}</button>`;
+        const meta = e.promotion
+          ? `<div class="boost-meta">${escapeHtml(e.promotion.from)} → ${escapeHtml(e.promotion.to)}${e.persistence && e.persistence !== 'holding' ? ` · ${escapeHtml(e.persistence)}` : ''}</div>`
+          : (e.reason ? `<div class="boost-meta">${escapeHtml(e.reason)}</div>` : '');
+        return `<li class="state-${escapeAttr(clusterState(e))}">
+          <span class="recipe-label">${clusterBtn} ${chipFor(clusterState(e))}</span>
+          ${meta}
+        </li>`;
+      }).join('');
+      return items
+        ? `<div class="boost-subgroup-title">${escapeHtml(label)}</div><ul class="boost-card-list">${items}</ul>`
+        : '';
+    }
+
+    const isRecipeKind = entries.some(e => Array.isArray(e.recipes) && e.recipes.length);
+    const newSection = isRecipeKind
+      ? renderRecipeBucket('New this run', s => s !== 'holding')
+      : renderClusterBucket('New this run', s => s !== 'holding');
+    const holdingSection = isRecipeKind
+      ? renderRecipeBucket('Holding · no new signal', s => s === 'holding')
+      : renderClusterBucket('Holding · no new signal', s => s === 'holding');
+
+    const newCount = (g.count_new !== undefined) ? g.count_new : entries.reduce((acc, e) => acc + ((e.recipes || []).filter(r => recipeState(r) !== 'holding').length || (clusterState(e) !== 'holding' ? 1 : 0)), 0);
+    const holdingCount = (g.count_holding !== undefined) ? g.count_holding : entries.reduce((acc, e) => acc + ((e.recipes || []).filter(r => recipeState(r) === 'holding').length || (clusterState(e) === 'holding' ? 1 : 0)), 0);
+    const headerCount = `${newCount}${holdingCount > 0 ? ` <span class="boost-count-sub">· ${holdingCount} holding</span>` : ''}${g.cluster_count !== undefined ? ` <span class="boost-count-sub">(${g.cluster_count} cluster${g.cluster_count === 1 ? '' : 's'})</span>` : ''}`;
+    const body = (newSection + holdingSection) || `<div class="empty-msg">none</div>`;
+
     return `<div class="boost-card ${escapeAttr(code)}">
       <div class="boost-card-header">
         <span class="bxx-badge">${escapeHtml(code)}</span>
         <span class="boost-title">${escapeHtml(g.title || code.toUpperCase())}</span>
-        <span class="boost-count">${g.count}${g.cluster_count !== undefined ? ` <span class="boost-count-sub">(${g.cluster_count} cluster${g.cluster_count === 1 ? '' : 's'})</span>` : ''}</span>
+        <span class="boost-count">${headerCount}</span>
       </div>
-      ${list ? `<ul class="boost-card-list">${list}</ul>` : `<div class="empty-msg">none</div>`}
+      ${body}
     </div>`;
   }).join('');
   host.innerHTML = html;
