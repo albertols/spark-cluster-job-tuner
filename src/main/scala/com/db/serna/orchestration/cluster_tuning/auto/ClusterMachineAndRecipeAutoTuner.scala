@@ -242,10 +242,10 @@ object ClusterMachineAndRecipeAutoTuner {
             val numWorkersStr = refConfig.flatMap(_.clusterConfFields.find(_._1 == "num_workers").map(_._2.replaceAll("\"", "")))
             val fallbackWorkers = numWorkersStr.flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(2)
             val breakdownKept = ClusterMachineAndRecipeTuner.computeClusterCost(
-              spans           = curSpansKept,
-              events          = curEventsKept,
-              worker          = workerMachine,
-              master          = masterMachine,
+              spans = curSpansKept,
+              events = curEventsKept,
+              worker = workerMachine,
+              master = masterMachine,
               fallbackWorkers = fallbackWorkers
             )
             breakdownKept.costTimelineJson.foreach { ctJson =>
@@ -332,10 +332,10 @@ object ClusterMachineAndRecipeAutoTuner {
               logger.warn(s"No b20 cluster span for $clusterName in current date; estimated_cost_eur=0.0 and total_active_minutes=0.0 in summaries.")
             }
             val breakdown = ClusterMachineAndRecipeTuner.computeClusterCost(
-              spans           = curSpans,
-              events          = curEvents,
-              worker          = clusterPlan.workerMachineType,
-              master          = clusterPlan.masterMachineType,
+              spans = curSpans,
+              events = curEvents,
+              worker = clusterPlan.workerMachineType,
+              master = clusterPlan.masterMachineType,
               fallbackWorkers = clusterPlan.workers
             )
 
@@ -543,12 +543,12 @@ object ClusterMachineAndRecipeAutoTuner {
    * re-planned.
    */
   private def emitReferenceConfigs(
-      clusterName: String,
-      refOutputDir: File,
-      curOutputDir: File,
-      preservedRecipes: Set[String],
-      refDate: String
-  ): Unit = {
+                                    clusterName: String,
+                                    refOutputDir: File,
+                                    curOutputDir: File,
+                                    preservedRecipes: Set[String],
+                                    refDate: String
+                                  ): Unit = {
     Seq("-auto-scale-tuned.json", "-manually-tuned.json").foreach { suffix =>
       val refFile = new File(refOutputDir, s"$clusterName$suffix")
       if (refFile.exists()) {
@@ -616,12 +616,12 @@ object ClusterMachineAndRecipeAutoTuner {
    * carry-over is skipped.
    */
   private def mergePreservedRecipesIntoOutputs(
-      clusterName: String,
-      preservedRecipes: Set[String],
-      refOutputDir: File,
-      curOutputDir: File,
-      refDate: String
-  ): Unit = {
+                                                clusterName: String,
+                                                preservedRecipes: Set[String],
+                                                refOutputDir: File,
+                                                curOutputDir: File,
+                                                refDate: String
+                                              ): Unit = {
     Seq("-auto-scale-tuned.json", "-manually-tuned.json").foreach { suffix =>
       val refFile = new File(refOutputDir, s"$clusterName$suffix")
       val curFile = new File(curOutputDir, s"$clusterName$suffix")
@@ -685,7 +685,7 @@ object ClusterMachineAndRecipeAutoTuner {
             val refinedJson = RefinementPipeline.toRefinedJson(result)
             ClusterMachineAndRecipeTuner.writeFile(outputDir, jsonFile.getName, refinedJson)
             allBoosts ++= result.appliedBoosts.collect { case b: MemoryHeapBoost => b }
-            val newCount  = result.appliedBoosts.count { case b: MemoryHeapBoost => b.originalMemory != b.boostedMemory; case _ => true }
+            val newCount = result.appliedBoosts.count { case b: MemoryHeapBoost => b.originalMemory != b.boostedMemory; case _ => true }
             val propCount = result.appliedBoosts.count { case b: MemoryHeapBoost => b.originalMemory == b.boostedMemory; case _ => false }
             logger.info(s"  b16 reboosting applied to $clusterName$suffix: $newCount new boost(s), $propCount propagated")
           }
@@ -772,7 +772,7 @@ object ClusterMachineAndRecipeAutoTuner {
     sb.append("\n")
 
     val b16TotalClusters = b16Boosts.size
-    val b16TotalRecipes  = b16Boosts.flatMap { case (_, boosts) => boosts.map(_.recipeFilename) }.distinct.size
+    val b16TotalRecipes = b16Boosts.flatMap { case (_, boosts) => boosts.map(_.recipeFilename) }.distinct.size
     sb.append("-" * 72).append("\n")
     sb.append(s"  b16 OOM REBOOSTING  ($b16TotalRecipes recipe(s) across $b16TotalClusters cluster(s))\n")
     sb.append("-" * 72).append("\n")
@@ -837,22 +837,23 @@ object ClusterMachineAndRecipeAutoTuner {
     def esc(s: String): String = {
       val sb = new StringBuilder
       s.foreach {
-        case '"'  => sb.append("\\\"")
+        case '"' => sb.append("\\\"")
         case '\\' => sb.append("\\\\")
         case '\n' => sb.append("\\n")
         case '\r' => sb.append("\\r")
         case '\t' => sb.append("\\t")
         case c if c < 0x20 => sb.append("\\u%04x".format(c.toInt))
-        case c    => sb.append(c)
+        case c => sb.append(c)
       }
       sb.toString
     }
+
     def q(s: String): String = "\"" + esc(s) + "\""
 
     // Parse a b14 reason like "... Promoted X -> Y" and "... eviction (...): A (ref) -> B (cur)".
     val promotionRe = """Promoted\s+([\w\-]+)\s*->\s*([\w\-]+)""".r
-    val evictRe     = """:\s*(\d+)\s*\(ref\)\s*->\s*(\d+)\s*\(cur\)""".r
-    val curOnlyRe   = """eviction\s*\((\d+)\)""".r
+    val evictRe = """:\s*(\d+)\s*\(ref\)\s*->\s*(\d+)\s*\(cur\)""".r
+    val curOnlyRe = """eviction\s*\((\d+)\)""".r
 
     val b14Json: String = b14Boosts.map { case (cluster, reason) =>
       val (fromM, toM) = promotionRe.findFirstMatchIn(reason).map(m => (m.group(1), m.group(2))).getOrElse(("", ""))
