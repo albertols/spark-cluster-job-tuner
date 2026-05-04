@@ -929,6 +929,16 @@ function renderSummaryCards() {
 // ── Cluster Grid ────────────────────────────────────────────────────────────
 
 /**
+ * Short, distinct chip label for a boost-group code. CSV-derived groups (b14,
+ * b16, future bNN) keep their compact code; the divergence-derived
+ * executor scale-up uses `z-score` to make the source unambiguous in the UI.
+ */
+function boostGroupBadgeText(code) {
+  if (code === 'executor_scale') return 'z-score';
+  return code;
+}
+
+/**
  * Build the per-cluster boost-chip row shown at the top of each cluster card.
  * Walks `generationSummary.boost_groups` and surfaces every group (b14, b16, future
  * bNN) that has an entry whose `cluster` matches the requested clusterName, broken
@@ -968,7 +978,7 @@ function renderClusterBoostChips(clusterName) {
       const tip = `${code.toUpperCase()} · ${st}${countSuffix} for this cluster`;
       chips.push(
         `<span class="cluster-boost-chip ${escapeAttr(code)}" title="${escapeAttr(tip)}">` +
-          `<span class="bxx-badge">${escapeHtml(code)}</span>` +
+          `<span class="bxx-badge">${escapeHtml(boostGroupBadgeText(code))}</span>` +
           `<span class="boost-state-chip chip-${escapeAttr(st)}">${escapeHtml(st)}</span>` +
           (countSuffix ? `<span class="cluster-boost-count">${escapeHtml(countSuffix)}</span>` : '') +
         `</span>`
@@ -1077,7 +1087,7 @@ function renderClusterDetailBoosts(clusterName) {
     boxes.push(`
       <div class="detail-boost-group ${escapeAttr(code)}">
         <div class="detail-boost-header">
-          <span class="bxx-badge">${escapeHtml(code)}</span>
+          <span class="bxx-badge">${escapeHtml(boostGroupBadgeText(code))}</span>
           <span class="boost-title">${escapeHtml(g.title || code.toUpperCase())}</span>
           <span class="boost-count-summary">${escapeHtml(countSummary)}</span>
         </div>
@@ -1974,20 +1984,34 @@ function renderClusterConfComparison(clusterName, refJson, curJson, refDate, cur
   ]);
   const orderedKeys = orderConfKeys(Array.from(allKeys));
 
+  // Render value cells. Arrays (e.g. boostedMemoryHeapJobList) and
+  // comma-joined string lists become a wrapped chip stack so a long list
+  // doesn't push the column past the right edge of the box.
+  function renderConfValue(v) {
+    if (v === undefined) return '<span class="empty-msg">—</span>';
+    if (Array.isArray(v)) {
+      return `<div class="job-list">${v.map(item =>
+        `<span class="job-list-item" title="${escapeAttr(String(item))}">${escapeHtml(String(item))}</span>`
+      ).join('')}</div>`;
+    }
+    return escapeHtml(String(v));
+  }
+
   const rows = orderedKeys.map(k => {
     const rv = refConf ? refConf[k] : undefined;
     const cv = curConf ? curConf[k] : undefined;
     const changed = rv !== undefined && cv !== undefined && JSON.stringify(rv) !== JSON.stringify(cv);
     return `<tr>
       <td class="key">${escapeHtml(k)}</td>
-      <td>${rv === undefined ? '<span class="empty-msg">—</span>' : escapeHtml(String(rv))}</td>
-      <td class="${changed ? 'changed' : ''}">${cv === undefined ? '<span class="empty-msg">—</span>' : escapeHtml(String(cv))}</td>
+      <td>${renderConfValue(rv)}</td>
+      <td class="${changed ? 'changed' : ''}">${renderConfValue(cv)}</td>
     </tr>`;
   }).join('');
 
   target.innerHTML =
     `<h3>Cluster Configuration <span class="info-icon" data-doc-key="trend" title="Compare cluster config across dates">ⓘ</span></h3>` +
     `<table class="cluster-conf-table">
+       <colgroup><col class="field"/><col class="ref-col"/><col class="cur-col"/></colgroup>
        <thead><tr><th>Field</th><th>Reference (${escapeHtml(formatDate(refDate))})</th><th>Current (${escapeHtml(formatDate(curDate))})</th></tr></thead>
        <tbody>${rows}</tbody>
      </table>`;
@@ -4012,7 +4036,7 @@ function renderBoostOverview() {
 
     return `<div class="boost-card ${escapeAttr(code)}">
       <div class="boost-card-header">
-        <span class="bxx-badge">${escapeHtml(code)}</span>
+        <span class="bxx-badge">${escapeHtml(boostGroupBadgeText(code))}</span>
         <span class="boost-title">${escapeHtml(g.title || code.toUpperCase())}</span>
         <span class="boost-count">${headerCount}</span>
       </div>

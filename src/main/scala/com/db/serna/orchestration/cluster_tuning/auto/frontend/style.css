@@ -491,12 +491,21 @@ main {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
+  table-layout: fixed;
 }
 .cluster-conf-table th, .cluster-conf-table td {
   padding: 4px 10px;
   text-align: left;
   border-bottom: 1px solid #21262d;
+  /* Long comma-separated values (e.g. boostedMemoryHeapJobList) used to spill
+     past the right edge of the box. Allow word-/character-level wrapping. */
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  vertical-align: top;
 }
+.cluster-conf-table colgroup col.field   { width: 32%; }
+.cluster-conf-table colgroup col.ref-col { width: 34%; }
+.cluster-conf-table colgroup col.cur-col { width: 34%; }
 .cluster-conf-table th {
   color: #8b949e;
   font-weight: 500;
@@ -509,6 +518,26 @@ main {
   font-weight: 600;
 }
 .cluster-conf-table .key { color: #8b949e; }
+/* Comma-separated job lists render as a vertical chip stack so the column
+   stays within its box and each entry stays selectable / readable. */
+.cluster-conf-table .job-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 6px;
+}
+.cluster-conf-table .job-list-item {
+  display: inline-block;
+  padding: 1px 6px;
+  background: rgba(110, 118, 129, 0.10);
+  border: 1px solid rgba(110, 118, 129, 0.25);
+  border-radius: 4px;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 #detail-recipes {
   display: grid;
@@ -1143,13 +1172,21 @@ main {
 .boost-cluster-link:hover, .boost-recipe-link:hover { text-decoration: underline; color: #79b8ff; }
 .boost-meta { color: #8b949e; font-size: 10px; }
 .boost-recipe-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
   margin-left: 12px;
   padding: 2px 0;
 }
-.boost-recipe-row .delta { color: #d29922; font-family: "SF Mono", Menlo, monospace; font-size: 10px; white-space: nowrap; }
+.boost-recipe-row .delta {
+  color: #d29922;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 10px;
+  white-space: nowrap;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
 .boost-recipe-row .delta .cum { color: #8b949e; font-size: 10px; }
 .boost-recipe-row .recipe-label,
 .boost-card-list li > .recipe-label {
@@ -1157,6 +1194,19 @@ main {
   align-items: center;
   gap: 6px;
   min-width: 0;
+  flex: 1 1 auto;
+  /* Long recipe names truncate inside their own column instead of pushing
+     the state chip + delta out of view on narrow panels. */
+  overflow: hidden;
+}
+.boost-recipe-row .recipe-label > .boost-recipe-link {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.boost-recipe-row .recipe-label > .boost-state-chip {
+  flex: 0 0 auto;
 }
 .boost-subgroup-title {
   font-size: 10px;
@@ -1178,6 +1228,9 @@ main {
   text-transform: uppercase;
   border: 1px solid transparent;
   line-height: 1.4;
+  /* Never break "RE-BOOST" / "HOLDING" across lines — caused the cluttered
+     overlap with the delta column on long recipe names. */
+  white-space: nowrap;
 }
 .boost-state-chip.chip-new      { color: #d29922; background: rgba(210,153,34,0.12);  border-color: rgba(210,153,34,0.35); }
 .boost-state-chip.chip-re-boost { color: #f85149; background: rgba(248,81,73,0.12);   border-color: rgba(248,81,73,0.40); }

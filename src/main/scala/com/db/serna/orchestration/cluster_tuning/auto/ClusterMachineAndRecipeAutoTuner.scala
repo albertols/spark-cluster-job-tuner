@@ -85,8 +85,9 @@ class AutoTunerConf(arguments: Seq[String]) extends ScallopConf(arguments) {
   )
 
   val scaleCapTouchRatio: ScallopOption[Double] = opt[Double](
-    default = Some(0.85),
-    descr = "Cap-touching threshold: scale-up only fires when p95_run_max_executors / current maxExecutors >= this (default: 0.85)",
+    default = Some(0.5),
+    descr = "Cap-touching threshold: scale-up only fires when p95_run_max_executors / current maxExecutors >= this " +
+      "(default: 0.5 — permissive so duration outliers fire even when execs aren't fully saturated; raise to 0.85 to require near-full saturation)",
     validate = r => r > 0.0 && r <= 1.0
   )
 
@@ -1091,7 +1092,7 @@ object ClusterMachineAndRecipeAutoTuner {
     val esTotalClusters = executorScaleBoosts.size
     val esTotalRecipes = executorScaleBoosts.flatMap { case (_, boosts) => boosts.map(_.recipeFilename) }.distinct.size
     sb.append("-" * 72).append("\n")
-    sb.append(s"  EXECUTOR SCALE-UP  ($esTotalRecipes recipe(s) across $esTotalClusters cluster(s))\n")
+    sb.append(s"  Z-SCORE EXECUTOR SCALE-UP  ($esTotalRecipes recipe(s) across $esTotalClusters cluster(s))\n")
     sb.append("-" * 72).append("\n")
     if (executorScaleBoosts.isEmpty) {
       sb.append("  (none)\n")
@@ -1271,7 +1272,7 @@ object ClusterMachineAndRecipeAutoTuner {
     sb.append(s"  ${q("boost_groups")}:[\n")
     sb.append(s"    {${q("code")}:${q("b14")},${q("title")}:${q("Driver Boosts")},${q("kind")}:${q("cluster")},${q("count")}:${b14Boosts.size + b14Holding.size},${q("count_new")}:${b14Boosts.size},${q("count_holding")}:${b14Holding.size},${q("entries")}:[$b14Json]},\n")
     sb.append(s"    {${q("code")}:${q("b16")},${q("title")}:${q("OOM Reboosting")},${q("kind")}:${q("recipe")},${q("count")}:$b16TotalRecipesJson,${q("count_new")}:$b16NewCount,${q("count_holding")}:$b16HoldingCount,${q("cluster_count")}:${b16Boosts.size},${q("entries")}:[$b16Json]},\n")
-    sb.append(s"    {${q("code")}:${q("executor_scale")},${q("title")}:${q("Executor Scale-up")},${q("kind")}:${q("recipe")},${q("count")}:$esTotalRecipesJson,${q("count_new")}:$esNewCount,${q("count_holding")}:$esHoldingCount,${q("cluster_count")}:${executorScaleBoosts.size},${q("entries")}:[$esJson]}\n")
+    sb.append(s"    {${q("code")}:${q("executor_scale")},${q("title")}:${q("Z-score Executor SCALE-UP")},${q("kind")}:${q("recipe")},${q("count")}:$esTotalRecipesJson,${q("count_new")}:$esNewCount,${q("count_holding")}:$esHoldingCount,${q("cluster_count")}:${executorScaleBoosts.size},${q("source")}:${q("derived")},${q("entries")}:[$esJson]}\n")
     sb.append("  ],\n")
     sb.append(s"  ${q("statistical_analysis")}:{${q("correlation_pairs")}:$correlationCount,${q("divergences")}:$divergenceCount}\n")
     sb.append("}\n")
