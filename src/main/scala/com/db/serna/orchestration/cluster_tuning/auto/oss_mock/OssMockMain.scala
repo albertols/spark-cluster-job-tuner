@@ -2,6 +2,7 @@ package com.db.serna.orchestration.cluster_tuning.auto.oss_mock
 
 import com.db.serna.orchestration.cluster_tuning.auto.{ClusterMachineAndRecipeAutoTuner => AutoTuner}
 import com.db.serna.orchestration.cluster_tuning.single.{ClusterMachineAndRecipeTuner => SingleTuner}
+import com.db.serna.orchestration.cluster_tuning.single.refinement.{ClusterMachineAndRecipeTunerRefinement => Refinement}
 import org.slf4j.LoggerFactory
 
 import java.io.File
@@ -132,6 +133,8 @@ object OssMockMain {
     if (a.full) {
       logger.info(s"oss_mock: --full requested; invoking ClusterMachineAndRecipeTuner.main for $date")
       SingleTuner.main(Array(date))
+      logger.info(s"oss_mock: invoking ClusterMachineAndRecipeTunerRefinement.main for $date (b16 reboosting in-place)")
+      Refinement.main(Array("--reference-tuning-date", date))
     }
   }
 
@@ -158,6 +161,9 @@ object OssMockMain {
       logger.info(s"oss_mock: --full requested; invoking ClusterMachineAndRecipeTuner.main for both dates")
       SingleTuner.main(Array(refDate))
       SingleTuner.main(Array(curDate))
+      logger.info(s"oss_mock: invoking ClusterMachineAndRecipeTunerRefinement.main for both dates (b16 reboosting in-place)")
+      Refinement.main(Array("--reference-tuning-date", refDate))
+      Refinement.main(Array("--reference-tuning-date", curDate))
       logger.info(s"oss_mock: invoking ClusterMachineAndRecipeAutoTuner.main with reference=$refDate current=$curDate")
       AutoTuner.main(Array(s"--reference-date=$refDate", s"--current-date=$curDate"))
     }

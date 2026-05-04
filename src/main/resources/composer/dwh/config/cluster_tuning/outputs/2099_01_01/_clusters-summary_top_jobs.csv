@@ -1,4 +1,7 @@
 cluster_name,dag_id,no_of_jobs,num_of_workers,worker_machine_type,master_machine_type,real_used_avg_num_of_workers,real_used_min_workers,real_used_max_workers,total_active_minutes,estimated_cost_eur,TIMER_NAME,TIMER_TIME
-mock-cluster-ss-normal-001,UNKNOWN_DAG_ID,1,10,n2d-highcpu-48,n2d-highcpu-48,4.58,2,6,360.00,88.4400,ZERO_TIMER,00:00
-mock-cluster-ss-synth-002,UNKNOWN_DAG_ID,1,10,n2-highcpu-48,n2-highcpu-48,4.71,4,6,168.00,46.0800,ZERO_TIMER,00:00
-mock-cluster-ss-synth-003,UNKNOWN_DAG_ID,1,2,c3-highcpu-44,c3-highcpu-44,3.41,3,4,49.00,11.0880,ZERO_TIMER,00:00
+mock-cluster-show-ctrl-3,UNKNOWN_DAG_ID,4,2,c3-highcpu-44,c3-highcpu-44,2.00,2,2,300.00,46.2000,ZERO_TIMER,00:00
+mock-cluster-show-ctrl-1,UNKNOWN_DAG_ID,3,2,n2-highcpu-48,n2-highcpu-48,2.00,2,2,300.00,43.2000,ZERO_TIMER,00:00
+mock-cluster-show-ctrl-2,UNKNOWN_DAG_ID,3,2,n2-highcpu-48,n2-highcpu-48,2.00,2,2,300.00,43.2000,ZERO_TIMER,00:00
+mock-cluster-show-holding,UNKNOWN_DAG_ID,2,10,n2d-highcpu-48,n2d-highcpu-48,10.00,10,10,420.00,203.2800,ZERO_TIMER,00:00
+mock-cluster-show-oom,UNKNOWN_DAG_ID,2,10,n2-highcpu-48,n2-highcpu-48,10.00,10,10,360.00,190.0800,ZERO_TIMER,00:00
+mock-cluster-show-needs-execs,UNKNOWN_DAG_ID,1,10,n2d-highcpu-48,n2d-highcpu-48,10.00,10,10,360.00,174.2400,ZERO_TIMER,00:00

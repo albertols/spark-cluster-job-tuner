@@ -17,12 +17,15 @@ class ScenarioSpec extends AnyFunSuite with Matchers {
   private val refDate  = "2099_01_01"
   private val curDate  = "2099_01_02"
 
+  private val showcase = MockScenarios.divergenceShowcase(refDate, curDate)
   private val scenarios: Seq[(String, MockScenario)] = Seq(
-    "minimal"       -> MockScenarios.minimal(testDate),
-    "baseline"      -> MockScenarios.baseline(testDate),
-    "oomHeavy"      -> MockScenarios.oomHeavy(testDate),
-    "autoscaling"   -> MockScenarios.autoscaling(testDate),
-    "syntheticSpan" -> MockScenarios.syntheticSpan(testDate)
+    "minimal"                       -> MockScenarios.minimal(testDate),
+    "baseline"                      -> MockScenarios.baseline(testDate),
+    "oomHeavy"                      -> MockScenarios.oomHeavy(testDate),
+    "autoscaling"                   -> MockScenarios.autoscaling(testDate),
+    "syntheticSpan"                 -> MockScenarios.syntheticSpan(testDate),
+    "divergenceShowcase-reference"  -> showcase.perDate(refDate),
+    "divergenceShowcase-current"    -> showcase.perDate(curDate)
   )
 
   // ── Per-scenario invariants ───────────────────────────────────────────────
@@ -163,6 +166,43 @@ class ScenarioSpec extends AnyFunSuite with Matchers {
       .find(_.name == "mock-recipe-must-boost.json").get
     curMustBoost.avgJobDurationMs should be > refMustBoost.avgJobDurationMs
     curMustBoost.p95JobDurationMs should be > refMustBoost.p95JobDurationMs
+  }
+
+  // ── divergenceShowcase ────────────────────────────────────────────────────
+
+  test("divergenceShowcase: reference and current dates are both populated") {
+    showcase.perDate.keySet shouldBe Set(refDate, curDate)
+    showcase.perDate(refDate).clusters should not be empty
+    showcase.perDate(curDate).clusters should not be empty
+  }
+
+  test("divergenceShowcase: OOM-recurring recipe takes a b16 hit on BOTH dates") {
+    val refOom = showcase.perDate(refDate).clusters.find(_.name == "mock-cluster-show-oom").get.oomEvents
+    val curOom = showcase.perDate(curDate).clusters.find(_.name == "mock-cluster-show-oom").get.oomEvents
+    refOom.map(_.recipe) should contain ("_DQ3_OOM_RECURRING.json")
+    curOom.map(_.recipe) should contain ("_DQ3_OOM_RECURRING.json")
+  }
+
+  test("divergenceShowcase: holding-cluster has b16 in REF only (oomEvents emptied in current)") {
+    val refOom = showcase.perDate(refDate).clusters.find(_.name == "mock-cluster-show-holding").get.oomEvents
+    val curOom = showcase.perDate(curDate).clusters.find(_.name == "mock-cluster-show-holding").get.oomEvents
+    refOom.map(_.recipe) should contain ("_RDM_BOOST_HOLDING.json")
+    curOom shouldBe empty
+  }
+
+  test("divergenceShowcase: needs-execs recipe explodes ~40x on duration in current") {
+    val refRecipe = showcase.perDate(refDate).clusters.find(_.name == "mock-cluster-show-needs-execs").get
+      .recipes.find(_.name == "_DWH_NEEDS_MORE_EXECUTORS.json").get
+    val curRecipe = showcase.perDate(curDate).clusters.find(_.name == "mock-cluster-show-needs-execs").get
+      .recipes.find(_.name == "_DWH_NEEDS_MORE_EXECUTORS.json").get
+    (curRecipe.p95JobDurationMs / refRecipe.p95JobDurationMs) should be >= 30.0
+  }
+
+  test("divergenceShowcase: a NEW recipe appears only on the current date") {
+    val refRecipes = showcase.perDate(refDate).clusters.flatMap(_.recipes).map(_.name).toSet
+    val curRecipes = showcase.perDate(curDate).clusters.flatMap(_.recipes).map(_.name).toSet
+    (curRecipes -- refRecipes) should contain ("_CTRL_NEWCOMER.json")
+    refRecipes should not contain ("_CTRL_NEWCOMER.json")
   }
 
   test("mixedDropAndDegrade incarnations sit inside their respective date windows") {

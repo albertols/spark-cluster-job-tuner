@@ -25,6 +25,27 @@ final case class MemoryHeapOomSignal(
   val description: String = s"Java heap OOM for job $jobId ($recipeFilename) at $latestDriverLogTs"
 }
 
+/**
+ * Synthetic signal — NOT loaded from CSV. Built in-memory by the AutoTuner
+ * from `divergences_current_snapshot` outliers whose paired recipe is
+ * cap-touching (current `p95_run_max_executors` close to the recipe's current
+ * `maxExecutors`). New entries are excluded by the AutoTuner before signals
+ * reach this vitamin.
+ */
+final case class ExecutorScaleSignal(
+                                      clusterName: String,
+                                      recipeFilename: String,
+                                      jobId: String,
+                                      metricName: String,
+                                      zScore: Double,
+                                      currentMaxExecutors: Int,
+                                      p95RunMaxExecutors: Double
+                                    ) extends VitaminSignal {
+  val description: String =
+    s"High duration z=$zScore on $metricName for $recipeFilename — cap-touching " +
+      f"(p95_run_max_executors=$p95RunMaxExecutors%.1f / maxExecutors=$currentMaxExecutors)"
+}
+
 // ── Unresolved entries ──────────────────────────────────────────────────────
 
 /** A diagnostic CSV entry that could not be matched to any recipe in the cluster. */
@@ -79,6 +100,20 @@ final case class MemoryHeapBoost(
 
   val description: String =
     s"spark.executor.memory: $originalMemory -> $boostedMemory (x$boostFactor heap OOM boost, ${state.label})"
+}
+
+final case class ExecutorScaleBoost(
+                                     recipeFilename: String,
+                                     originalMaxExecutors: Int,
+                                     boostedMaxExecutors: Int,
+                                     boostFactor: Double,
+                                     cumulativeFactor: Double = Double.NaN,
+                                     state: BoostState = BoostState.New
+                                   ) extends VitaminBoost {
+  def effectiveCumulativeFactor: Double = if (cumulativeFactor.isNaN) boostFactor else cumulativeFactor
+
+  val description: String =
+    s"spark.dynamicAllocation.maxExecutors: $originalMaxExecutors -> $boostedMaxExecutors (x$boostFactor scale-up, ${state.label})"
 }
 
 // ── Vitamin Trait ───────────────────────────────────────────────────────────
@@ -360,6 +395,141 @@ class MemoryHeapBoostVitamin(val boostFactor: Double = 1.5) extends RefinementVi
     val gb = SimpleJsonParser.parseMemoryGb(current)
     val boosted = math.ceil(gb * factor).toInt
     s"${boosted}g"
+  }
+
+  private def extractExecutorCounts(rc: RecipeConfig): (Int, Int) = {
+    val opts = rc.sparkOptsMap
+    val isDynamic = opts.get("spark.dynamicAllocation.enabled").contains("true")
+    if (isDynamic) {
+      val min = opts.get("spark.dynamicAllocation.minExecutors").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(1)
+      val max = opts.get("spark.dynamicAllocation.maxExecutors").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(min)
+      (min, max)
+    } else {
+      val instances = opts.get("spark.executor.instances").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(1)
+      (instances, instances)
+    }
+  }
+}
+
+// ── Executor Scale-up Vitamin ──────────────────────────────────────────────
+
+/**
+ * Bumps `spark.dynamicAllocation.maxExecutors` (and `total_executor_max_allocated_memory_gb`)
+ * for cap-touching duration outliers detected by the AutoTuner's divergence pipeline.
+ *
+ * Signals are NOT loaded from a CSV — the AutoTuner constructs them in memory from
+ * `divergences_current_snapshot` (filtered to non-new entries with high positive
+ * z-score on a duration metric) and the recipe's current p95_run_max_executors.
+ * The caller injects signals via the `signalsForCluster` lookup so the
+ * `RefinementPipeline` can drive the same New/ReBoost/Holding lifecycle that the
+ * b16 vitamin uses.
+ *
+ * Manual recipes (using `spark.executor.instances`) are skipped — the goal is to
+ * raise the autoscaling ceiling, not to grow a fixed allocation.
+ *
+ * `minExecutors` is intentionally NOT touched: more headroom, not a higher floor.
+ */
+class ExecutorScaleVitamin(
+                            val boostFactor: Double = 1.5,
+                            val signalsForCluster: String => Seq[ExecutorScaleSignal] = _ => Seq.empty
+                          ) extends RefinementVitamin {
+  val name = "executor_scale_up"
+  val csvFileName = "(divergence-driven, no CSV)"
+  val counterKey = "scaledMaxExecutorsJobCount"
+  val listKey = "scaledMaxExecutorsJobList"
+  val boostFieldKey = "appliedExecutorScaleFactor"
+
+  /** No CSV — signals are pre-built. The pipeline calls this once per inputDir; the
+    * dedupe step in `RefinementPipeline.refine` collapses duplicates by recipe. */
+  def loadSignals(inputDir: File, clusterName: String): Seq[VitaminSignal] =
+    signalsForCluster(clusterName)
+
+  /** Single-date / single-tuner path — kept idempotent (no-op when already scaled). */
+  def computeBoosts(signals: Seq[VitaminSignal], recipes: Map[String, RecipeConfig]): Seq[VitaminBoost] = {
+    val scaleSignals = signals.collect { case s: ExecutorScaleSignal => s }
+    scaleSignals.flatMap { sig =>
+      recipes.get(sig.recipeFilename).flatMap { rc =>
+        val (curMin, curMax) = extractExecutorCounts(rc)
+        if (curMin == curMax) None // manual / non-DA recipe — skip
+        else {
+          val existing = rc.extraFields.get(boostFieldKey).flatMap(s => scala.util.Try(s.toDouble).toOption)
+          val alreadyScaled = existing.exists(_ >= boostFactor)
+          if (alreadyScaled) {
+            Some(ExecutorScaleBoost(sig.recipeFilename, curMax, curMax, boostFactor,
+              existing.getOrElse(boostFactor), BoostState.Holding))
+          } else {
+            val boosted = math.max(curMax + 1, math.ceil(curMax * boostFactor).toInt)
+            Some(ExecutorScaleBoost(sig.recipeFilename, curMax, boosted, boostFactor,
+              boostFactor, BoostState.New))
+          }
+        }
+      }
+    }
+  }
+
+  /** Date-aware path mirroring [[MemoryHeapBoostVitamin.computeBoosts]]: New / ReBoost / Holding. */
+  override def computeBoosts(
+                              signals: Seq[VitaminSignal],
+                              recipes: Map[String, RecipeConfig],
+                              currentSignals: Seq[VitaminSignal]
+                            ): Seq[VitaminBoost] = {
+    val current = currentSignals.collect { case s: ExecutorScaleSignal => s }
+    val all = signals.collect { case s: ExecutorScaleSignal => s }
+    val currentRecipeSet = current.map(_.recipeFilename).filter(_.nonEmpty).toSet
+    val anyRecipeSet = all.map(_.recipeFilename).filter(_.nonEmpty).toSet
+
+    val recipesWithPriorTag = recipes.collect {
+      case (name, rc) if rc.extraFields.contains(boostFieldKey) => name
+    }.toSet
+
+    val candidates = (anyRecipeSet ++ recipesWithPriorTag).toSeq.distinct
+
+    candidates.flatMap { recipe =>
+      recipes.get(recipe).flatMap { rc =>
+        val (curMin, curMax) = extractExecutorCounts(rc)
+        if (curMin == curMax) None // manual recipe — skip
+        else {
+          val priorFactor = rc.extraFields.get(boostFieldKey).flatMap(s => scala.util.Try(s.toDouble).toOption)
+          val hasNewSignal = currentRecipeSet.contains(recipe)
+          (priorFactor, hasNewSignal) match {
+            case (None, true) =>
+              val boosted = math.max(curMax + 1, math.ceil(curMax * boostFactor).toInt)
+              Some(ExecutorScaleBoost(recipe, curMax, boosted, boostFactor, boostFactor, BoostState.New))
+            case (Some(prev), true) =>
+              val boosted = math.max(curMax + 1, math.ceil(curMax * boostFactor).toInt)
+              Some(ExecutorScaleBoost(recipe, curMax, boosted, boostFactor, prev * boostFactor, BoostState.ReBoost))
+            case (Some(prev), false) =>
+              Some(ExecutorScaleBoost(recipe, curMax, curMax, boostFactor, prev, BoostState.Holding))
+            case (None, false) =>
+              None
+          }
+        }
+      }
+    }
+  }
+
+  def applyBoosts(boosts: Seq[VitaminBoost], recipes: Map[String, RecipeConfig]): Map[String, RecipeConfig] = {
+    boosts.foldLeft(recipes) {
+      case (cfg, b: ExecutorScaleBoost) =>
+        cfg.get(b.recipeFilename) match {
+          case Some(rc) =>
+            val updatedExtra = rc.extraFields + (boostFieldKey -> b.effectiveCumulativeFactor.toString)
+            if (b.state == BoostState.Holding || b.originalMaxExecutors == b.boostedMaxExecutors) {
+              cfg.updated(b.recipeFilename, rc.copy(extraFields = updatedExtra))
+            } else {
+              val opts = rc.sparkOptsMap
+              val updatedOpts = opts.updated("spark.dynamicAllocation.maxExecutors", b.boostedMaxExecutors.toString)
+              val memGb = SimpleJsonParser.parseMemoryGb(opts.getOrElse("spark.executor.memory", "8g"))
+              cfg.updated(b.recipeFilename, rc.copy(
+                sparkOptsMap = updatedOpts,
+                totalExecutorMaxAllocatedMemoryGb = b.boostedMaxExecutors * memGb,
+                extraFields = updatedExtra
+              ))
+            }
+          case None => cfg
+        }
+      case (cfg, _) => cfg
+    }
   }
 
   private def extractExecutorCounts(rc: RecipeConfig): (Int, Int) = {

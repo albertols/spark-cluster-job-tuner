@@ -2,7 +2,7 @@ package com.db.serna.orchestration.cluster_tuning.auto
 
 import com.db.serna.orchestration.cluster_tuning.single.ClusterMachineAndRecipeTuner.AutoscalingPolicyConfig
 import com.db.serna.orchestration.cluster_tuning.single.{ClusterDiagnosticsProcessor, ClusterMachineAndRecipeTuner, ClusterSummary, CostBiasedStrategy, DefaultTuningStrategy, DriverResourceOverride, GenerationSummary, GenerationSummaryEntry, GenerationSummaryWriter, MachineCatalog, PerformanceBiasedStrategy, QuotaTracker, RecipeMetrics, TuningStrategy, YarnDriverEviction}
-import com.db.serna.orchestration.cluster_tuning.single.refinement.{BoostState, MemoryHeapBoost, MemoryHeapBoostVitamin, RefinementPipeline, RefinementVitamin, SimpleJsonParser, TunedClusterConfig}
+import com.db.serna.orchestration.cluster_tuning.single.refinement.{BoostState, ExecutorScaleBoost, ExecutorScaleSignal, ExecutorScaleVitamin, MemoryHeapBoost, MemoryHeapBoostVitamin, RefinementPipeline, RefinementVitamin, SimpleJsonParser, TunedClusterConfig}
 import org.rogach.scallop._
 import org.slf4j.LoggerFactory
 
@@ -71,6 +71,25 @@ class AutoTunerConf(arguments: Seq[String]) extends ScallopConf(arguments) {
     descr = "Z-score threshold for outlier divergence detection (default: 2.0)"
   )
 
+  val executorScaleFactor: ScallopOption[Double] = opt[Double](
+    default = Some(1.5),
+    descr = "Boost factor applied to spark.dynamicAllocation.maxExecutors when a paired " +
+      "recipe is a duration outlier and is cap-touching. Pass 1.0 to disable.",
+    validate = f => f >= 1.0 && f <= 5.0
+  )
+
+  val scaleZThreshold: ScallopOption[Double] = opt[Double](
+    default = Some(3.0),
+    descr = "Min positive z-score on avg/p95 job duration that triggers an executor scale-up (default: 3.0)",
+    validate = z => z >= 0.0
+  )
+
+  val scaleCapTouchRatio: ScallopOption[Double] = opt[Double](
+    default = Some(0.85),
+    descr = "Cap-touching threshold: scale-up only fires when p95_run_max_executors / current maxExecutors >= this (default: 0.85)",
+    validate = r => r > 0.0 && r <= 1.0
+  )
+
   verify()
 }
 
@@ -98,8 +117,15 @@ object ClusterMachineAndRecipeAutoTuner {
     val b16Factor = conf.b16ReboostingFactor()
     val strategyName = conf.strategy()
     val zThreshold = conf.divergenceZThreshold()
+    val executorScaleFactor = conf.executorScaleFactor()
+    val scaleZThreshold = conf.scaleZThreshold()
+    val scaleCapTouchRatio = conf.scaleCapTouchRatio()
 
-    logger.info(s"AutoTuner starting: reference=$refDate current=$curDate strategy=$strategyName keepHistorical=$keepHistorical b16Factor=$b16Factor")
+    logger.info(
+      s"AutoTuner starting: reference=$refDate current=$curDate strategy=$strategyName " +
+        s"keepHistorical=$keepHistorical b16Factor=$b16Factor executorScaleFactor=$executorScaleFactor " +
+        s"scaleZThreshold=$scaleZThreshold scaleCapTouchRatio=$scaleCapTouchRatio"
+    )
 
     // 1. Load snapshots for both dates
     val refSnapshot = loadSnapshot(refDate)
@@ -168,6 +194,38 @@ object ClusterMachineAndRecipeAutoTuner {
         s"+ ${divergencesPerCluster.size} per-cluster groups."
     )
 
+    // 4b. Build executor-scale signals from the current-snapshot divergences.
+    //     Rule: positive z >= scaleZThreshold on a duration metric, NOT a new entry,
+    //     and cap-touching (p95_run_max_executors / current maxExecutors >= ratio).
+    //     Cap-touching is checked here against the recipe's CURRENT metrics — the
+    //     vitamin will gate further on the recipe's actual maxExecutors when applying.
+    val durationMetrics = Set("avg_job_duration_ms", "p95_job_duration_ms")
+    val scaleSignalsByCluster: Map[String, Seq[ExecutorScaleSignal]] =
+      if (executorScaleFactor > 1.0) {
+        divergencesCurrentSnapshot
+          .filter(d => d.isOutlier && !d.isNewEntry && durationMetrics.contains(d.metricName) && d.zScore >= scaleZThreshold)
+          .flatMap { d =>
+            curSnapshot.metrics.get((d.cluster, d.recipe)).map { m =>
+              ExecutorScaleSignal(
+                clusterName = d.cluster,
+                recipeFilename = d.recipe,
+                jobId = "",
+                metricName = d.metricName,
+                zScore = d.zScore,
+                currentMaxExecutors = 0, // resolved by the vitamin from the parsed recipe
+                p95RunMaxExecutors = m.p95RunMaxExecutors
+              )
+            }
+          }
+          .groupBy(_.clusterName)
+      } else {
+        Map.empty
+      }
+    if (scaleSignalsByCluster.nonEmpty) {
+      val total = scaleSignalsByCluster.valuesIterator.map(_.size).sum
+      logger.info(s"Executor scale-up: $total candidate recipe(s) across ${scaleSignalsByCluster.size} cluster(s) (z>=$scaleZThreshold, capRatio>=$scaleCapTouchRatio)")
+    }
+
     // 5. Load reference output configs for KeepAsIs/PreserveHistorical paths
     val refOutputDir = new File(s"$BasePath/outputs/$refDate")
     val referenceConfigs: Map[String, TunedClusterConfig] = loadReferenceConfigs(refOutputDir)
@@ -208,6 +266,7 @@ object ClusterMachineAndRecipeAutoTuner {
     // when the next eviction arrives.
     val b14StateByCluster = scala.collection.mutable.Map.empty[String, String]
     val b16BoostedRecipes = ArrayBuffer.empty[(String, Seq[MemoryHeapBoost])] // (cluster, boosts)
+    val executorScaleBoostedRecipes = ArrayBuffer.empty[(String, Seq[ExecutorScaleBoost])] // (cluster, boosts)
     var keptClusters = 0
     var boostedClusters = 0
     var freshClusters = 0
@@ -284,6 +343,17 @@ object ClusterMachineAndRecipeAutoTuner {
             val boosts = applyB16Reboosting(clusterName, curOutputDir, b16InputDirs, b16Factor)
             if (boosts.nonEmpty) {
               b16BoostedRecipes += ((clusterName, boosts))
+            }
+          }
+
+          // Apply divergence-driven executor scale-up after b16 (b16 sets memory;
+          // scale-up sets the autoscaling ceiling — order is independent, but
+          // running scale-up second keeps both passes deterministic).
+          if (executorScaleFactor > 1.0) {
+            val signals = scaleSignalsByCluster.getOrElse(clusterName, Seq.empty)
+            val boosts = applyExecutorScaling(clusterName, curOutputDir, signals, executorScaleFactor, scaleCapTouchRatio)
+            if (boosts.nonEmpty) {
+              executorScaleBoostedRecipes += ((clusterName, boosts))
             }
           }
 
@@ -401,6 +471,13 @@ object ClusterMachineAndRecipeAutoTuner {
               mergePreservedRecipesIntoOutputs(clusterName, preservedRecipes, refOutputDir, curOutputDir, refDate)
             }
 
+            // Carry forward prior b16 boost metadata (cumulative factor + boosted
+            // memory + re-derived totals) into the freshly emitted JSON. Without
+            // this, applyB16Reboosting cannot see the recipe was previously boosted
+            // — Holding state would never trigger and the boost would be lost the
+            // first run after the b16 CSV stops reporting the recipe.
+            carryPriorBoostMetadata(clusterName, refOutputDir, curOutputDir)
+
             // Apply b16 reboosting: check both reference and current input dirs.
             // OOM signals from either date must persist to prevent regression.
             if (b16Factor > 1.0) {
@@ -411,6 +488,15 @@ object ClusterMachineAndRecipeAutoTuner {
               val boosts = applyB16Reboosting(clusterName, curOutputDir, b16InputDirs, b16Factor)
               if (boosts.nonEmpty) {
                 b16BoostedRecipes += ((clusterName, boosts))
+              }
+            }
+
+            // Apply divergence-driven executor scale-up.
+            if (executorScaleFactor > 1.0) {
+              val signals = scaleSignalsByCluster.getOrElse(clusterName, Seq.empty)
+              val boosts = applyExecutorScaling(clusterName, curOutputDir, signals, executorScaleFactor, scaleCapTouchRatio)
+              if (boosts.nonEmpty) {
+                executorScaleBoostedRecipes += ((clusterName, boosts))
               }
             }
 
@@ -515,7 +601,8 @@ object ClusterMachineAndRecipeAutoTuner {
       b14BoostedClusters.toSeq, b16BoostedRecipes.toSeq,
       correlations.size, divergences.size,
       b14HoldingClusters.toSeq,
-      b14StateByCluster.toMap
+      b14StateByCluster.toMap,
+      executorScaleBoostedRecipes.toSeq
     )
 
     logger.info(s"AutoTuner finished. Output: ${curOutputDir.getPath}")
@@ -740,6 +827,46 @@ object ClusterMachineAndRecipeAutoTuner {
   }
 
   /**
+   * Carry forward prior b16 boost metadata from the reference output JSON into
+   * the just-emitted current JSON. For each recipe present in BOTH files, copy
+   * `appliedMemoryHeapBoostFactor`, the boosted `spark.executor.memory`, and
+   * re-derive the totals from the current recipe's executor counts.
+   *
+   * This makes the downstream `applyB16Reboosting` correctly classify already-
+   * boosted recipes as `Holding` (or `ReBoost` if a fresh signal arrives), even
+   * when the cluster was re-planned from scratch and the b16 CSV no longer
+   * names the recipe.
+   *
+   * Both `-auto-scale-tuned.json` and `-manually-tuned.json` are processed.
+   */
+  private def carryPriorBoostMetadata(clusterName: String, refOutputDir: File, curOutputDir: File): Unit = {
+    Seq("-auto-scale-tuned.json", "-manually-tuned.json").foreach { suffix =>
+      val refFile = new File(refOutputDir, s"$clusterName$suffix")
+      val curFile = new File(curOutputDir, s"$clusterName$suffix")
+      if (refFile.exists() && curFile.exists()) {
+        try {
+          val refContent = scala.io.Source.fromFile(refFile).mkString
+          val curContent = scala.io.Source.fromFile(curFile).mkString
+          val refConfig = SimpleJsonParser.parse(refContent)
+          val recipesWithPriorBoost: Set[String] = refConfig.recipes.collect {
+            case (name, rc) if rc.extraFields.contains("appliedMemoryHeapBoostFactor") => name
+          }.toSet
+          if (recipesWithPriorBoost.nonEmpty) {
+            val updated = BoostMetadataCarrier.injectPriorBoosts(curContent, refContent, recipesWithPriorBoost)
+            if (updated ne curContent) {
+              ClusterMachineAndRecipeTuner.writeFile(curOutputDir, curFile.getName, updated)
+              logger.info(s"  Carried prior b16 boost metadata for ${recipesWithPriorBoost.size} recipe(s) into $clusterName$suffix")
+            }
+          }
+        } catch {
+          case e: Exception =>
+            logger.warn(s"Failed to carry prior boost metadata into $clusterName$suffix: ${e.getMessage}")
+        }
+      }
+    }
+  }
+
+  /**
    * Apply b16 memory heap OOM reboosting to a cluster's output JSONs.
    *
    * `inputDirs` is ordered [current_date, reference_date, ...]. The order matters:
@@ -788,6 +915,68 @@ object ClusterMachineAndRecipeAutoTuner {
     allBoosts.toSeq
   }
 
+  /**
+   * Apply divergence-driven executor scale-up to a cluster's `-auto-scale-tuned.json`.
+   *
+   * The vitamin gates per recipe based on:
+   *  - prior `appliedExecutorScaleFactor` tag (Holding / ReBoost lifecycle)
+   *  - presence of a fresh signal in `signals`
+   *  - cap-touching ratio (`p95RunMaxExecutors / current maxExecutors >= capTouchRatio`)
+   *
+   * Manual recipes are skipped — see `ExecutorScaleVitamin.computeBoosts`.
+   * Cap-touching is enforced here against the recipe's actual maxExecutors.
+   */
+  private def applyExecutorScaling(
+                                    clusterName: String,
+                                    outputDir: File,
+                                    signals: Seq[ExecutorScaleSignal],
+                                    factor: Double,
+                                    capTouchRatio: Double
+                                  ): Seq[ExecutorScaleBoost] = {
+    val daFile = new File(outputDir, s"$clusterName-auto-scale-tuned.json")
+    if (!daFile.exists()) return Seq.empty
+
+    val allBoosts = ArrayBuffer.empty[ExecutorScaleBoost]
+    try {
+      val config = SimpleJsonParser.parseFile(daFile)
+      // Cap-touching gate: drop signals whose p95_run_max_executors is below the ratio
+      // of the recipe's CURRENT maxExecutors. Recipes tagged from a prior run with no
+      // fresh signal still pass through the vitamin in `Holding` state — that's by
+      // design (the carried boost holds independently of fresh signals).
+      val gatedSignals = signals.filter { s =>
+        config.recipes.get(s.recipeFilename).exists { rc =>
+          val curMax = rc.sparkOptsMap.get("spark.dynamicAllocation.maxExecutors")
+            .flatMap(v => scala.util.Try(v.toInt).toOption).getOrElse(0)
+          curMax > 0 && (s.p95RunMaxExecutors / curMax.toDouble) >= capTouchRatio
+        }
+      }
+      val signalsByCluster: String => Seq[ExecutorScaleSignal] = c =>
+        if (c == clusterName) gatedSignals else Seq.empty
+
+      // Pass TWO dirs (any two; the vitamin ignores the dir and pulls signals from
+      // the in-memory lookup). The pipeline routes to the date-aware 3-arg path only
+      // when `inputDirs.size > 1`, which is what enables the New/ReBoost/Holding
+      // lifecycle. Without two dirs, prior-tagged recipes with no fresh signal would
+      // never be classified as Holding.
+      val vitamins: Seq[RefinementVitamin] = Seq(new ExecutorScaleVitamin(factor, signalsByCluster))
+      val result = RefinementPipeline.refine(config, vitamins, Seq(outputDir, outputDir))
+      if (result.appliedBoosts.nonEmpty) {
+        val refinedJson = RefinementPipeline.toRefinedJson(result)
+        ClusterMachineAndRecipeTuner.writeFile(outputDir, daFile.getName, refinedJson)
+        val scaled = result.appliedBoosts.collect { case b: ExecutorScaleBoost => b }
+        allBoosts ++= scaled
+        val newCount = scaled.count(_.state == BoostState.New)
+        val reBoostCount = scaled.count(_.state == BoostState.ReBoost)
+        val holdingCount = scaled.count(_.state == BoostState.Holding)
+        logger.info(s"  executor scale-up applied to ${daFile.getName}: $newCount new, $reBoostCount re-boost, $holdingCount holding")
+      }
+    } catch {
+      case e: Exception =>
+        logger.warn(s"Failed to apply executor scale-up to $clusterName: ${e.getMessage}")
+    }
+    allBoosts.toSeq
+  }
+
   private def resolveStrategy(name: String): TuningStrategy = name.toLowerCase match {
     case "cost_biased" => CostBiasedStrategy
     case "performance_biased" => PerformanceBiasedStrategy
@@ -815,7 +1004,8 @@ object ClusterMachineAndRecipeAutoTuner {
                                                  correlationCount: Int,
                                                  divergenceCount: Int,
                                                  b14Holding: Seq[(String, String)] = Seq.empty,
-                                                 b14StateByCluster: Map[String, String] = Map.empty
+                                                 b14StateByCluster: Map[String, String] = Map.empty,
+                                                 executorScaleBoosts: Seq[(String, Seq[ExecutorScaleBoost])] = Seq.empty
                                                ): Unit = {
     val trendCounts = allTrends.groupBy(_.trend.label).mapValues(_.size)
     val totalRecipes = allTrends.size
@@ -898,6 +1088,31 @@ object ClusterMachineAndRecipeAutoTuner {
     }
     sb.append("\n")
 
+    val esTotalClusters = executorScaleBoosts.size
+    val esTotalRecipes = executorScaleBoosts.flatMap { case (_, boosts) => boosts.map(_.recipeFilename) }.distinct.size
+    sb.append("-" * 72).append("\n")
+    sb.append(s"  EXECUTOR SCALE-UP  ($esTotalRecipes recipe(s) across $esTotalClusters cluster(s))\n")
+    sb.append("-" * 72).append("\n")
+    if (executorScaleBoosts.isEmpty) {
+      sb.append("  (none)\n")
+    } else {
+      executorScaleBoosts.foreach { case (cluster, boosts) =>
+        val unique = boosts.groupBy(_.recipeFilename).values.map(_.head).toSeq.sortBy(_.recipeFilename)
+        sb.append(s"  $cluster  (${unique.size} recipe(s))\n")
+        unique.foreach { b =>
+          val recipe = b.recipeFilename.stripPrefix("_").stripSuffix(".json")
+          val tag = b.state match {
+            case BoostState.New     => ""
+            case BoostState.ReBoost => f"  [re-boost · cumulative x${b.effectiveCumulativeFactor}%.2f]"
+            case BoostState.Holding => "  [holding]"
+          }
+          sb.append(("    %-60s  spark.dynamicAllocation.maxExecutors: %d -> %d  (x%.1f)%s\n")
+            .format(recipe, b.originalMaxExecutors, b.boostedMaxExecutors, b.boostFactor, tag))
+        }
+      }
+    }
+    sb.append("\n")
+
     sb.append("-" * 72).append("\n")
     sb.append("  STATISTICAL ANALYSIS\n")
     sb.append("-" * 72).append("\n")
@@ -914,7 +1129,7 @@ object ClusterMachineAndRecipeAutoTuner {
       outputDir, refDate, curDate, strategyName, allTrends,
       kept, boosted, fresh, preserved, skipped,
       b14Boosts, b16Boosts, correlationCount, divergenceCount,
-      b14Holding, b14StateByCluster
+      b14Holding, b14StateByCluster, executorScaleBoosts
     )
   }
 
@@ -936,7 +1151,8 @@ object ClusterMachineAndRecipeAutoTuner {
                                                correlationCount: Int,
                                                divergenceCount: Int,
                                                b14Holding: Seq[(String, String)] = Seq.empty,
-                                               b14StateByCluster: Map[String, String] = Map.empty
+                                               b14StateByCluster: Map[String, String] = Map.empty,
+                                               executorScaleBoosts: Seq[(String, Seq[ExecutorScaleBoost])] = Seq.empty
                                              ): Unit = {
     val trendCounts = allTrends.groupBy(_.trend.label).mapValues(_.size)
     val totalRecipes = allTrends.size
@@ -1031,9 +1247,31 @@ object ClusterMachineAndRecipeAutoTuner {
     sb.append(s"${q("improved")}:${trendCounts.getOrElse("improved", 0)},${q("degraded")}:${trendCounts.getOrElse("degraded", 0)},${q("stable")}:${trendCounts.getOrElse("stable", 0)},")
     sb.append(s"${q("new_entries")}:${trendCounts.getOrElse("new_entry", 0)},${q("dropped_entries")}:${trendCounts.getOrElse("dropped_entry", 0)}},\n")
     sb.append(s"  ${q("evolution_actions")}:{${q("kept")}:$kept,${q("boosted")}:$boosted,${q("fresh")}:$fresh,${q("preserved")}:$preserved,${q("skipped")}:$skipped},\n")
+    val esJson: String = executorScaleBoosts.map { case (cluster, boosts) =>
+      val unique = boosts.groupBy(_.recipeFilename).values.map(_.head).toSeq.sortBy(_.recipeFilename)
+      val recipes = unique.map { b =>
+        val recipe = b.recipeFilename.stripPrefix("_").stripSuffix(".json")
+        val propagated = b.state == BoostState.Holding
+        s"{${q("recipe")}:${q(recipe)}," +
+          s"${q("recipe_filename")}:${q(b.recipeFilename)}," +
+          s"${q("state")}:${q(b.state.label)}," +
+          s"${q("propagated")}:$propagated," +
+          s"${q("spark_dynamic_allocation_max_executors")}:{${q("from")}:${b.originalMaxExecutors},${q("to")}:${b.boostedMaxExecutors},${q("factor")}:${"%.2f".format(b.boostFactor)},${q("cumulative_factor")}:${"%.2f".format(b.effectiveCumulativeFactor)}}}"
+      }.mkString(",")
+      s"{${q("cluster")}:${q(cluster)},${q("recipes")}:[$recipes]}"
+    }.mkString(",")
+
+    val esFlatBoosts: Seq[ExecutorScaleBoost] = executorScaleBoosts.flatMap { case (_, boosts) =>
+      boosts.groupBy(_.recipeFilename).values.map(_.head).toSeq
+    }
+    val esNewCount = esFlatBoosts.count(b => b.state == BoostState.New || b.state == BoostState.ReBoost)
+    val esHoldingCount = esFlatBoosts.count(_.state == BoostState.Holding)
+    val esTotalRecipesJson = esFlatBoosts.size
+
     sb.append(s"  ${q("boost_groups")}:[\n")
     sb.append(s"    {${q("code")}:${q("b14")},${q("title")}:${q("Driver Boosts")},${q("kind")}:${q("cluster")},${q("count")}:${b14Boosts.size + b14Holding.size},${q("count_new")}:${b14Boosts.size},${q("count_holding")}:${b14Holding.size},${q("entries")}:[$b14Json]},\n")
-    sb.append(s"    {${q("code")}:${q("b16")},${q("title")}:${q("OOM Reboosting")},${q("kind")}:${q("recipe")},${q("count")}:$b16TotalRecipesJson,${q("count_new")}:$b16NewCount,${q("count_holding")}:$b16HoldingCount,${q("cluster_count")}:${b16Boosts.size},${q("entries")}:[$b16Json]}\n")
+    sb.append(s"    {${q("code")}:${q("b16")},${q("title")}:${q("OOM Reboosting")},${q("kind")}:${q("recipe")},${q("count")}:$b16TotalRecipesJson,${q("count_new")}:$b16NewCount,${q("count_holding")}:$b16HoldingCount,${q("cluster_count")}:${b16Boosts.size},${q("entries")}:[$b16Json]},\n")
+    sb.append(s"    {${q("code")}:${q("executor_scale")},${q("title")}:${q("Executor Scale-up")},${q("kind")}:${q("recipe")},${q("count")}:$esTotalRecipesJson,${q("count_new")}:$esNewCount,${q("count_holding")}:$esHoldingCount,${q("cluster_count")}:${executorScaleBoosts.size},${q("entries")}:[$esJson]}\n")
     sb.append("  ],\n")
     sb.append(s"  ${q("statistical_analysis")}:{${q("correlation_pairs")}:$correlationCount,${q("divergences")}:$divergenceCount}\n")
     sb.append("}\n")

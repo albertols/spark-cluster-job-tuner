@@ -1,0 +1,7 @@
+cluster_name,total_runtime_ms,total_runtime_minutes,total_runtime_hours
+mock-cluster-show-oom,11400000,190,3.166667
+mock-cluster-show-needs-execs,240000000,4000,66.666667
+mock-cluster-show-holding,14400000,240,4
+mock-cluster-show-ctrl-1,9000000,150,2.500000
+mock-cluster-show-ctrl-2,9000000,150,2.500000
+mock-cluster-show-ctrl-3,15000000,250,4.166667

@@ -1,18 +1,18 @@
 {
-  "generated_at": "2026-05-03T17:39:03.118210Z",
+  "generated_at": "2026-05-04T18:17:13.138799Z",
   "date": "2099_01_02",
   "strategy": "default",
   "bias_mode": "cost_performance_balance",
   "topology_preset": "8cx1GBpc",
-  "total_clusters": 3,
-  "total_predicted_nodes": 25,
-  "total_max_nodes": 27,
+  "total_clusters": 4,
+  "total_predicted_nodes": 38,
+  "total_max_nodes": 40,
   "clusters_with_diagnostic_overrides": 0,
   "quota_usage_by_family": {
     "c3": {
-      "used_cores": 88,
+      "used_cores": 0,
       "quota_cores": 500,
-      "pct_used": "17.6"
+      "pct_used": "0.0"
     },
     "c4": {
       "used_cores": 0,
@@ -25,14 +25,14 @@
       "pct_used": "0.0"
     },
     "n2": {
-      "used_cores": 480,
+      "used_cores": 576,
       "quota_cores": 5000,
-      "pct_used": "9.6"
+      "pct_used": "11.5"
     },
     "n2d": {
-      "used_cores": 480,
+      "used_cores": 1056,
       "quota_cores": 3000,
-      "pct_used": "16.0"
+      "pct_used": "35.2"
     },
     "n4": {
       "used_cores": 0,
@@ -47,7 +47,22 @@
   },
   "clusters": [
     {
-      "cluster_name": "mock-cluster-ss-normal-001",
+      "cluster_name": "mock-cluster-show-ctrl-3",
+      "worker_machine_type": "n2d-highcpu-48",
+      "worker_family": "n2d",
+      "num_workers": 2,
+      "max_workers_from_policy": 4,
+      "total_cores": 96,
+      "max_total_cores": 192,
+      "strategy": "default",
+      "bias_mode": "cost_performance_balance",
+      "topology_preset": "8cx1GBpc",
+      "diagnostic_signals": [
+        
+      ]
+    },
+    {
+      "cluster_name": "mock-cluster-show-holding",
       "worker_machine_type": "n2d-highcpu-48",
       "worker_family": "n2d",
       "num_workers": 10,
@@ -62,13 +77,13 @@
       ]
     },
     {
-      "cluster_name": "mock-cluster-ss-synth-002",
+      "cluster_name": "mock-cluster-show-needs-execs",
       "worker_machine_type": "n2-highcpu-48",
       "worker_family": "n2",
-      "num_workers": 10,
-      "max_workers_from_policy": 10,
-      "total_cores": 480,
-      "max_total_cores": 480,
+      "num_workers": 12,
+      "max_workers_from_policy": 12,
+      "total_cores": 576,
+      "max_total_cores": 576,
       "strategy": "default",
       "bias_mode": "cost_performance_balance",
       "topology_preset": "8cx1GBpc",
@@ -77,13 +92,13 @@
       ]
     },
     {
-      "cluster_name": "mock-cluster-ss-synth-003",
-      "worker_machine_type": "c3-highcpu-44",
-      "worker_family": "c3",
-      "num_workers": 2,
-      "max_workers_from_policy": 4,
-      "total_cores": 88,
-      "max_total_cores": 176,
+      "cluster_name": "mock-cluster-show-oom",
+      "worker_machine_type": "n2d-highcpu-48",
+      "worker_family": "n2d",
+      "num_workers": 10,
+      "max_workers_from_policy": 10,
+      "total_cores": 480,
+      "max_total_cores": 480,
       "strategy": "default",
       "bias_mode": "cost_performance_balance",
       "topology_preset": "8cx1GBpc",

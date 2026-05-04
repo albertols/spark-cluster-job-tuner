@@ -497,6 +497,8 @@ function parseRoute() {
     cluster: p.get('cluster') || null,
     recipe: p.get('recipe') || null,
     summary: p.get('summary') || null,
+    divSort: p.get('divSort') || null,
+    divDir: p.get('divDir') || null,
   };
 }
 
@@ -507,6 +509,8 @@ function buildUrl(route) {
   if (route.cluster) p.set('cluster', route.cluster);
   if (route.recipe) p.set('recipe', route.recipe);
   if (route.summary) p.set('summary', route.summary);
+  if (route.divSort) p.set('divSort', route.divSort);
+  if (route.divDir) p.set('divDir', route.divDir);
   const s = p.toString();
   return s ? `?${s}` : window.location.pathname;
 }
@@ -611,6 +615,9 @@ function wireGlobalHandlers() {
   });
   const divFilter = document.getElementById('div-cluster-filter');
   if (divFilter) divFilter.addEventListener('change', () => renderDivergenceTable());
+
+  // Click-to-sort headers on the divergence table.
+  wireDivergenceSortHeaders();
 
   // Cluster-summary historical graphs: lazy-load on first expand.
   const csGraphs = document.getElementById('cluster-summary-graphs-section');
@@ -1009,11 +1016,11 @@ function renderClusterDetailBoosts(clusterName) {
                    : (r && r.propagated === true) ? 'holding'
                    : 'new';
           stateCounts[st] = (stateCounts[st] || 0) + 1;
-          const m = r.spark_executor_memory || {};
+          const m = r.spark_executor_memory || r.spark_dynamic_allocation_max_executors || {};
           const fac = m.factor;
           const cum = m.cumulative_factor;
           let memTxt = '';
-          if (m.from && m.to) {
+          if (m.from != null && m.to != null && m.from !== '' && m.to !== '') {
             memTxt = (st === 'holding')
               ? `${m.to}${fac ? ` ×${fac}` : ''}`
               : `${m.from} → ${m.to}${fac ? ` ×${fac}` : ''}${cum && st === 're-boost' ? ` (cum ×${cum})` : ''}`;
@@ -3328,16 +3335,76 @@ function pickDivergenceSet(view, clusterFilter) {
   return { results: clusterFilter ? all.filter(d => d.cluster === clusterFilter) : all, fallback: null };
 }
 
+// Default sort: z_score desc (interpreted as |z| desc to preserve the original
+// outliers-first ordering). Click any header to override.
+const _DIV_SORT_DEFAULT = { key: 'z_score', dir: 'desc' };
+const _DIV_NUMERIC_KEYS = new Set(['reference', 'current', 'z_score']);
+
+function getDivSort() {
+  const r = parseRoute();
+  if (!r.divSort) return Object.assign({}, _DIV_SORT_DEFAULT);
+  const key = r.divSort;
+  const dir = r.divDir === 'asc' ? 'asc' : 'desc';
+  return { key, dir };
+}
+
+function compareDivergences(a, b, sortKey, dir) {
+  const sign = dir === 'asc' ? 1 : -1;
+  const isDefault = sortKey === 'z_score' && dir === 'desc';
+  // Treat the default "Z-Score desc" specially as |z| desc to preserve the
+  // historic outliers-first behaviour.
+  if (isDefault) return Math.abs(b.z_score) - Math.abs(a.z_score);
+
+  const va = _divFieldValue(a, sortKey);
+  const vb = _divFieldValue(b, sortKey);
+  if (_DIV_NUMERIC_KEYS.has(sortKey)) {
+    // Push null/undefined to the END regardless of direction (new entries with
+    // missing reference cluster at the bottom).
+    const aNull = (va == null || isNaN(va));
+    const bNull = (vb == null || isNaN(vb));
+    if (aNull && !bNull) return 1;
+    if (!aNull && bNull) return -1;
+    if (aNull && bNull) return 0;
+    return sign * (va - vb);
+  }
+  return sign * String(va || '').localeCompare(String(vb || ''), undefined, { sensitivity: 'base' });
+}
+
+function _divFieldValue(d, key) {
+  switch (key) {
+    case 'cluster': return d.cluster;
+    case 'recipe': return d.recipe;
+    case 'metric': return d.metric;
+    case 'reference': return d.is_new_entry ? null : (typeof d.reference === 'number' ? d.reference : null);
+    case 'current': return typeof d.current === 'number' ? d.current : null;
+    case 'z_score': return d.z_score;
+    default: return null;
+  }
+}
+
+function _updateDivSortIndicators(sort) {
+  document.querySelectorAll('#divergence-table th.sortable').forEach(th => {
+    const key = th.dataset.sortKey;
+    const ind = th.querySelector('.sort-indicator');
+    th.classList.toggle('active-sort', key === sort.key);
+    if (ind) {
+      if (key !== sort.key) ind.textContent = '↕';
+      else ind.textContent = sort.dir === 'asc' ? '↑' : '↓';
+    }
+  });
+}
+
 function renderDivergenceTable(view, clusterFilter) {
   view = view || getDivView();
   clusterFilter = clusterFilter == null ? getDivCluster() : clusterFilter;
   const zMin = parseFloat(document.getElementById('z-min').value) || 0;
+  const sort = getDivSort();
   const { results, fallback } = pickDivergenceSet(view, clusterFilter);
   const divs = results
     .filter(d => Math.abs(d.z_score) >= zMin)
-    .sort((a, b) => Math.abs(b.z_score) - Math.abs(a.z_score));
+    .sort((a, b) => compareDivergences(a, b, sort.key, sort.dir));
   const high = divs.filter(d => Math.abs(d.z_score) >= 3).length;
-  console.info(`[Divergences] view=${view}${clusterFilter ? ` cluster=${clusterFilter}` : ''} zMin=${zMin}: ${divs.length} rows, ${high} high-z (|z|>=3)${fallback ? ` fallback=${fallback}` : ''}`);
+  console.info(`[Divergences] view=${view}${clusterFilter ? ` cluster=${clusterFilter}` : ''} zMin=${zMin} sort=${sort.key}/${sort.dir}: ${divs.length} rows, ${high} high-z (|z|>=3)${fallback ? ` fallback=${fallback}` : ''}`);
 
   const tbody = document.querySelector('#divergence-table tbody');
   if (fallback === 'cluster_too_small') {
@@ -3350,6 +3417,7 @@ function renderDivergenceTable(view, clusterFilter) {
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#8b949e;padding:24px">No divergences above threshold</td></tr>';
   }
 
+  _updateDivSortIndicators(sort);
   renderZScoreStripPlot(view, clusterFilter);
 
   // Wire clickable rows → navigate to recipe tuning details
@@ -3363,6 +3431,40 @@ function renderDivergenceTable(view, clusterFilter) {
       e.preventDefault();
       const url = buildUrl(Object.assign({}, parseRoute(), { cluster: row.dataset.cluster, recipe: row.dataset.recipe }));
       window.open(url, '_blank');
+    });
+  });
+}
+
+// Wire header clicks → toggle/select sort. Idempotent: registers once on first
+// render via a flag on the table element.
+function wireDivergenceSortHeaders() {
+  const table = document.getElementById('divergence-table');
+  if (!table || table.dataset.sortHandlersWired === '1') return;
+  table.dataset.sortHandlersWired = '1';
+  table.querySelectorAll('th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sortKey;
+      if (!key) return;
+      const cur = getDivSort();
+      let nextDir;
+      if (cur.key === key) {
+        nextDir = cur.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        // First click: numeric columns default to desc (largest first), strings asc.
+        nextDir = _DIV_NUMERIC_KEYS.has(key) ? 'desc' : 'asc';
+      }
+      const isDefault = key === _DIV_SORT_DEFAULT.key && nextDir === _DIV_SORT_DEFAULT.dir;
+      // Update URL without re-running the full route (sort is a view-only concern;
+      // the analysis JSON is already loaded). `applyRoute` only re-renders on
+      // route changes that affect data/tab/cluster — divSort isn't one of those.
+      const next = Object.assign({}, parseRoute(), {
+        divSort: isDefault ? null : key,
+        divDir: isDefault ? null : nextDir
+      });
+      Object.keys(next).forEach(k => { if (next[k] === null) delete next[k]; });
+      const url = buildUrl(next);
+      history.replaceState(next, '', url);
+      renderDivergenceTable();
     });
   });
 }
@@ -3823,8 +3925,8 @@ function renderBoostOverview() {
   function recipeState(r) {
     if (r && typeof r.state === 'string' && r.state) return r.state;
     if (r && r.propagated === true) return 'holding';
-    const m = r && r.spark_executor_memory;
-    if (m && m.from && m.to && m.from === m.to) return 'holding';
+    const m = r && (r.spark_executor_memory || r.spark_dynamic_allocation_max_executors);
+    if (m && m.from != null && m.to != null && String(m.from) === String(m.to)) return 'holding';
     return 'new';
   }
   function clusterState(e) {
@@ -3849,19 +3951,20 @@ function renderBoostOverview() {
         if (recipes.length === 0) return [];
         const clusterBtn = `<button class="boost-cluster-link" data-cluster="${escapeAttr(e.cluster)}">${escapeHtml(e.cluster)}</button>`;
         const rows = recipes.map(r => {
-          const m = r.spark_executor_memory || {};
+          const m = r.spark_executor_memory || r.spark_dynamic_allocation_max_executors || {};
           const fac = m.factor;
           const cum = m.cumulative_factor;
           const st = recipeState(r);
+          const hasFromTo = m.from != null && m.to != null && m.from !== '' && m.to !== '';
           let memHtml = '';
-          if (m.from && m.to) {
+          if (hasFromTo) {
             if (st === 'holding') {
-              // No arrow when the boost is holding; show only current memory.
-              memHtml = `<span class="delta">${escapeHtml(m.to)}${fac ? ` ×${fac}` : ''}</span>`;
+              // No arrow when the boost is holding; show only current value.
+              memHtml = `<span class="delta">${escapeHtml(String(m.to))}${fac ? ` ×${fac}` : ''}</span>`;
             } else if (st === 're-boost') {
-              memHtml = `<span class="delta">${escapeHtml(m.from)} → ${escapeHtml(m.to)}${fac ? ` ×${fac}` : ''}${cum ? ` <span class="cum">(cum ×${cum})</span>` : ''}</span>`;
+              memHtml = `<span class="delta">${escapeHtml(String(m.from))} → ${escapeHtml(String(m.to))}${fac ? ` ×${fac}` : ''}${cum ? ` <span class="cum">(cum ×${cum})</span>` : ''}</span>`;
             } else {
-              memHtml = `<span class="delta">${escapeHtml(m.from)} → ${escapeHtml(m.to)}${fac ? ` ×${fac}` : ''}</span>`;
+              memHtml = `<span class="delta">${escapeHtml(String(m.from))} → ${escapeHtml(String(m.to))}${fac ? ` ×${fac}` : ''}</span>`;
             }
           }
           return `<div class="boost-recipe-row state-${escapeAttr(st)}">

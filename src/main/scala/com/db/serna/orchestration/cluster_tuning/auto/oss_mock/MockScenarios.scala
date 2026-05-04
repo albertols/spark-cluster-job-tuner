@@ -528,6 +528,225 @@ object MockScenarios {
     e.copy(ts = e.ts.plusMillis(deltaMs))
   }
 
+  private def rebaseOom(o: MockOomEvent, oldWindowStart: Instant, newWindowStart: Instant): MockOomEvent = {
+    val deltaMs = newWindowStart.toEpochMilli - oldWindowStart.toEpochMilli
+    o.copy(ts = o.ts.plusMillis(deltaMs))
+  }
+
+  // ── divergenceShowcase — end-to-end demo for the z-score-driven features ───
+  //
+  // Designed to exercise (and visibly demonstrate in the dashboard) the three
+  // features added on top of the base AutoTuner:
+  //
+  //   1. Compounded b16 OOM boost across runs (carryPriorBoostMetadata + ReBoost):
+  //      `mock-cluster-show-oom` has recipe `_DQ3_OOM_RECURRING.json` that
+  //      takes a b16 OOM in BOTH dates. Its cluster trend goes Degraded
+  //      (duration ↑40%), so the AutoTuner re-plans the cluster fresh; the
+  //      carry restores the prior `appliedMemoryHeapBoostFactor=1.5` from the
+  //      reference output, then `applyB16Reboosting` sees a fresh signal and
+  //      compounds → `factor=2.25`, `spark.executor.memory=18g`, state=re-boost.
+  //
+  //   2. Boost holding when the b16 signal disappears:
+  //      `mock-cluster-show-holding` has `_RDM_BOOST_HOLDING.json` (b16 OOM
+  //      in REF only) and `_RDM_DEGRADED_COMPANION.json` (degraded duration
+  //      in current). The companion forces a cluster re-plan, and the holder
+  //      recipe gets its prior factor=1.5 carried forward; with no fresh
+  //      signal in current's b16, the vitamin classifies it Holding —
+  //      memory stays at 12g, factor preserved.
+  //
+  //   3. Divergence-driven executor scale-up:
+  //      `mock-cluster-show-needs-execs` has `_DWH_NEEDS_MORE_EXECUTORS.json`
+  //      whose p95_job_duration explodes ~40× and p95_run_max_executors stays
+  //      saturated against the planned maxExecutors. The current-snapshot
+  //      z-score on duration crosses the default threshold of 3.0 and the
+  //      vitamin bumps `spark.dynamicAllocation.maxExecutors` by 1.5×.
+  //      A NEW recipe (`_CTRL_NEWCOMER.json`) is added on the current date so
+  //      the dashboard renders the NEW pill and the regression check (new
+  //      entries are NEVER auto-scaled) is visible.
+  //
+  // Fleet stats: 6 clusters, 14 paired recipes + 1 new on the current date.
+  // The control clusters keep the variance low enough that B1's z ≈ 3.9.
+
+  def divergenceShowcase(refDate: String, curDate: String, seed: Long = 1234L): MultiDateScenario = {
+    val (s1, e1) = windowFor(refDate)
+    val (s2, e2) = windowFor(curDate)
+
+    // ── Reference fleet ─────────────────────────────────────────────────────
+    val refClusters: Seq[MockCluster] = Seq(
+      // (1) OOM-recurring cluster: A1 takes b16 in BOTH dates.
+      MockCluster(
+        name = "mock-cluster-show-oom",
+        recipes = Seq(
+          recipeMedium("_DQ3_OOM_RECURRING.json"),
+          recipeLight("_DQ3_OOM_COMPANION.json")
+        ),
+        incarnations = Seq(MockIncarnation(
+          spanStart = s1.plus(2, ChronoUnit.HOURS),
+          spanEnd   = s1.plus(8, ChronoUnit.HOURS)
+        )),
+        oomEvents = Seq(MockOomEvent(
+          jobId   = "mock-job-show-oom-001",
+          recipe  = "_DQ3_OOM_RECURRING.json",
+          ts      = s1.plus(3, ChronoUnit.HOURS),
+          message = "synthetic recurring heap OOM"
+        ))
+      ),
+      // (2) Cap-touching cluster: B1 will explode in current → executor scale-up.
+      MockCluster(
+        name = "mock-cluster-show-needs-execs",
+        recipes = Seq(
+          recipeMedium("_DWH_NEEDS_MORE_EXECUTORS.json")
+        ),
+        incarnations = Seq(MockIncarnation(
+          spanStart = s1.plus(1, ChronoUnit.HOURS),
+          spanEnd   = s1.plus(7, ChronoUnit.HOURS)
+        ))
+      ),
+      // (3) Boost-holding cluster: D1 takes b16 in REF only; D2 is the
+      //     companion that will degrade in current and force a cluster re-plan.
+      MockCluster(
+        name = "mock-cluster-show-holding",
+        recipes = Seq(
+          recipeMedium("_RDM_BOOST_HOLDING.json"),
+          recipeMedium("_RDM_DEGRADED_COMPANION.json")
+        ),
+        incarnations = Seq(MockIncarnation(
+          spanStart = s1.plus(2, ChronoUnit.HOURS),
+          spanEnd   = s1.plus(9, ChronoUnit.HOURS)
+        )),
+        oomEvents = Seq(MockOomEvent(
+          jobId   = "mock-job-show-holding-001",
+          recipe  = "_RDM_BOOST_HOLDING.json",
+          ts      = s1.plus(4, ChronoUnit.HOURS),
+          message = "synthetic one-shot heap OOM"
+        ))
+      ),
+      // (4-6) Control clusters — light recipes only, keep variance low.
+      MockCluster(
+        name = "mock-cluster-show-ctrl-1",
+        recipes = Seq(
+          recipeLight("_CTRL_lookup_1.json"),
+          recipeLight("_CTRL_lookup_2.json"),
+          recipeLight("_CTRL_lookup_3.json")
+        ),
+        incarnations = Seq(MockIncarnation(
+          spanStart = s1.plus(1, ChronoUnit.HOURS),
+          spanEnd   = s1.plus(6, ChronoUnit.HOURS)
+        ))
+      ),
+      MockCluster(
+        name = "mock-cluster-show-ctrl-2",
+        recipes = Seq(
+          recipeLight("_CTRL_aggregate_1.json"),
+          recipeLight("_CTRL_aggregate_2.json"),
+          recipeLight("_CTRL_aggregate_3.json")
+        ),
+        incarnations = Seq(MockIncarnation(
+          spanStart = s1.plus(2, ChronoUnit.HOURS),
+          spanEnd   = s1.plus(7, ChronoUnit.HOURS)
+        ))
+      ),
+      MockCluster(
+        name = "mock-cluster-show-ctrl-3",
+        recipes = Seq(
+          recipeLight("_CTRL_export_1.json"),
+          recipeLight("_CTRL_export_2.json"),
+          recipeLight("_CTRL_export_3.json"),
+          recipeLight("_CTRL_export_4.json")
+        ),
+        incarnations = Seq(MockIncarnation(
+          spanStart = s1.plus(3, ChronoUnit.HOURS),
+          spanEnd   = s1.plus(8, ChronoUnit.HOURS)
+        ))
+      )
+    )
+
+    val ref = MockScenario(
+      name     = "divergenceShowcase-reference",
+      seed     = seed,
+      window   = (s1, e1),
+      clusters = refClusters
+    )
+
+    // ── Current fleet ───────────────────────────────────────────────────────
+    val curClusters: Seq[MockCluster] = refClusters.map { c =>
+      c.name match {
+        case "mock-cluster-show-oom" =>
+          // A1 still OOMs AND its duration ↑40% so the cluster trend goes
+          // Degraded → AutoTuner re-plans → carry restores prior boost →
+          // applyB16Reboosting compounds (factor 1.5 → 2.25, mem 12g → 18g).
+          c.copy(
+            recipes = c.recipes.map { r =>
+              if (r.name == "_DQ3_OOM_RECURRING.json")
+                r.copy(
+                  avgJobDurationMs = r.avgJobDurationMs * 1.40,
+                  p95JobDurationMs = r.p95JobDurationMs * 1.40
+                )
+              else r
+            },
+            incarnations = c.incarnations.map(rebaseIncarnation(_, ref.window._1, s2)),
+            oomEvents    = c.oomEvents.map(rebaseOom(_, ref.window._1, s2))
+          )
+
+        case "mock-cluster-show-needs-execs" =>
+          // B1: 40× p95_job_duration AND p95_run_max_executors saturates the
+          // planned ceiling. After the cluster's degraded re-plan, the
+          // executor scale-up vitamin bumps maxExecutors ×1.5.
+          c.copy(
+            recipes = c.recipes.map { r =>
+              r.copy(
+                avgJobDurationMs   = r.avgJobDurationMs * 40.0,
+                p95JobDurationMs   = r.p95JobDurationMs * 40.0,
+                p95RunMaxExecutors = math.max(r.p95RunMaxExecutors, 14.0),
+                avgExecutorsPerJob = math.max(r.avgExecutorsPerJob, 12.0)
+              )
+            },
+            incarnations = c.incarnations.map(rebaseIncarnation(_, ref.window._1, s2))
+          )
+
+        case "mock-cluster-show-holding" =>
+          // D1 unchanged AND no fresh OOM (oomEvents emptied). D2 ↑40%
+          // forces the cluster's primary action to BoostResources → re-plan
+          // → D1 gets its prior factor carried, no fresh signal → Holding.
+          c.copy(
+            recipes = c.recipes.map { r =>
+              if (r.name == "_RDM_DEGRADED_COMPANION.json")
+                r.copy(
+                  avgJobDurationMs = r.avgJobDurationMs * 1.40,
+                  p95JobDurationMs = r.p95JobDurationMs * 1.40
+                )
+              else r
+            },
+            incarnations = c.incarnations.map(rebaseIncarnation(_, ref.window._1, s2)),
+            oomEvents    = Seq.empty
+          )
+
+        case _ =>
+          // Controls: shift incarnations to the current window, no metric drift.
+          c.copy(incarnations = c.incarnations.map(rebaseIncarnation(_, ref.window._1, s2)))
+      }
+    }
+
+    // Add a brand-new recipe to one control cluster so the divergence "Current
+    // snapshot" tab has a NEW pill to show. Its duration is normal so the
+    // single high-z outlier (B1) stays clean for the demo.
+    val curClustersWithNewcomer: Seq[MockCluster] = curClusters.map { c =>
+      if (c.name == "mock-cluster-show-ctrl-3") {
+        c.copy(recipes = c.recipes :+ recipeLight("_CTRL_NEWCOMER.json"))
+      } else c
+    }
+
+    val cur = MockScenario(
+      name     = "divergenceShowcase-current",
+      seed     = seed,
+      window   = (s2, e2),
+      clusters = curClustersWithNewcomer
+    )
+
+    MultiDateScenario(name = "divergenceShowcase",
+      perDate = Map(refDate -> ref, curDate -> cur))
+  }
+
   // ── CLI lookup ─────────────────────────────────────────────────────────────
 
   /** Single-date scenarios callable by name from the CLI. */
@@ -562,7 +781,8 @@ object MockScenarios {
   val multiDate: Map[String, (String, String, Long) => MultiDateScenario] = Map(
     "multiDateBaseline"      -> (multiDateBaseline _),
     "mixedDropAndDegrade"    -> (mixedDropAndDegrade _),
-    "multiDateSyntheticSpan" -> (multiDateSyntheticSpan _)
+    "multiDateSyntheticSpan" -> (multiDateSyntheticSpan _),
+    "divergenceShowcase"     -> (divergenceShowcase _)
   )
 
   val multiDateNames: Seq[String] = multiDate.keys.toSeq.sorted

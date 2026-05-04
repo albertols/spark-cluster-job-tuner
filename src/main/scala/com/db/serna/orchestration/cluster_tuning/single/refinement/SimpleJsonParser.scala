@@ -59,10 +59,13 @@ object SimpleJsonParser {
         val sparkOpts = extractStringFields(sparkOptsBlock)
         val minMem = extractIntField(block, "total_executor_minimum_allocated_memory_gb").getOrElse(0)
         val maxMem = extractIntField(block, "total_executor_maximum_allocated_memory_gb").getOrElse(0)
-        // Carry forward any previously-applied boost factor so the pipeline can
+        // Carry forward any previously-applied boost factors so the pipeline can
         // detect already-boosted recipes and avoid double-boosting on re-runs.
         val boostFactor = extractDoubleField(block, "appliedMemoryHeapBoostFactor")
-        val extraFields: Map[String, String] = boostFactor.map("appliedMemoryHeapBoostFactor" -> _.toString).toMap
+        val scaleFactor = extractDoubleField(block, "appliedExecutorScaleFactor")
+        val extraFields: Map[String, String] =
+          boostFactor.map("appliedMemoryHeapBoostFactor" -> _.toString).toMap ++
+            scaleFactor.map("appliedExecutorScaleFactor" -> _.toString).toMap
         key -> RecipeConfig(pf, sparkOpts, minMem, maxMem, extraFields)
       }.toOption
     }

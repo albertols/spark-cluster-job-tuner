@@ -1,0 +1,11 @@
+{
+  "metadata":{"reference_date":"2099_01_01","current_date":"2099_01_02","strategy":"default","generated_at":"2026-05-04T18:17:13.162595Z"},
+  "trend_summary":{"total_clusters":6,"total_recipes":16,"improved":0,"degraded":3,"stable":12,"new_entries":1,"dropped_entries":0},
+  "evolution_actions":{"kept":2,"boosted":3,"fresh":1,"preserved":0,"skipped":0},
+  "boost_groups":[
+    {"code":"b14","title":"Driver Boosts","kind":"cluster","count":0,"count_new":0,"count_holding":0,"entries":[]},
+    {"code":"b16","title":"OOM Reboosting","kind":"recipe","count":2,"count_new":1,"count_holding":1,"cluster_count":2,"entries":[{"cluster":"mock-cluster-show-holding","recipes":[{"recipe":"RDM_BOOST_HOLDING","recipe_filename":"_RDM_BOOST_HOLDING.json","state":"holding","propagated":true,"spark_executor_memory":{"from":"12g","to":"12g","factor":1.50,"cumulative_factor":1.50}}]},{"cluster":"mock-cluster-show-oom","recipes":[{"recipe":"DQ3_OOM_RECURRING","recipe_filename":"_DQ3_OOM_RECURRING.json","state":"re-boost","propagated":false,"spark_executor_memory":{"from":"12g","to":"18g","factor":1.50,"cumulative_factor":2.25}}]}]},
+    {"code":"executor_scale","title":"Executor Scale-up","kind":"recipe","count":1,"count_new":1,"count_holding":0,"cluster_count":1,"entries":[{"cluster":"mock-cluster-show-needs-execs","recipes":[{"recipe":"DWH_NEEDS_MORE_EXECUTORS","recipe_filename":"_DWH_NEEDS_MORE_EXECUTORS.json","state":"new","propagated":false,"spark_dynamic_allocation_max_executors":{"from":14,"to":21,"factor":1.50,"cumulative_factor":1.50}}]}]}
+  ],
+  "statistical_analysis":{"correlation_pairs":4,"divergences":4}
+}

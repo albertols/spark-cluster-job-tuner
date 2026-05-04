@@ -1,0 +1,2 @@
+job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name
+mock-job-show-oom-001,mock-cluster-show-oom,_DQ3_OOM_RECURRING.json,2099-01-02T03:00:00Z,ERROR,org.apache.spark.deploy.SparkSubmit,java.lang.OutOfMemoryError,false,false,true,synthetic recurring heap OOM,projects/oss-mock/logs/google.dataproc.agent
