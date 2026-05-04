@@ -1,0 +1,10 @@
+{
+  "metadata":{"reference_date":"2026_04_23","current_date":"2026_04_30","strategy":"default","generated_at":"2026-05-04T15:21:57.784340Z"},
+  "trend_summary":{"total_clusters":1,"total_recipes":1,"improved":1,"degraded":0,"stable":0,"new_entries":0,"dropped_entries":0},
+  "evolution_actions":{"kept":1,"boosted":0,"fresh":0,"preserved":0,"skipped":0},
+  "boost_groups":[
+    {"code":"b14","title":"Driver Boosts","kind":"cluster","count":0,"count_new":0,"count_holding":0,"entries":[]},
+    {"code":"b16","title":"OOM Reboosting","kind":"recipe","count":1,"count_new":1,"count_holding":0,"cluster_count":1,"entries":[{"cluster":"cluster-wf-dmr-load-t-23-05-2305","recipes":[{"recipe":"ETL_m_DQ3_ODS_F_AF_OPE_MERCADO","recipe_filename":"_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json","state":"re-boost","propagated":false,"spark_executor_memory":{"from":"12g","to":"18g","factor":1.50,"cumulative_factor":2.25}}]}]}
+  ],
+  "statistical_analysis":{"correlation_pairs":0,"divergences":0}
+}

@@ -1,0 +1,29 @@
+{
+  "clusterConf": {
+    "cluster-wf-yarn-driver-demo": {
+      "num_workers": 4,
+      "master_machine_type": "n2d-highcpu-48",
+      "worker_machine_type": "n2d-highcpu-48",
+      "autoscaling_policy": "small-workload-autoscaling",
+      "tuner_version": "2026_15_05",
+      "total_no_of_jobs": 1,
+      "cluster_max_total_memory_gb": 384,
+      "cluster_max_total_cores": 192,
+      "accumulated_max_total_memory_per_jobs_gb": 64
+    }
+  },
+  "recipeSparkConf": {
+    "_ETL_m_DRIVER_DEMO_LOAD.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "8",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 64,
+      "total_executor_maximum_allocated_memory_gb": 64
+    }
+  }
+}

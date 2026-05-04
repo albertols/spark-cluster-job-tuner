@@ -1,0 +1,37 @@
+{
+  "clusterConf": {
+    "cluster-wf-yarn-driver-demo": {
+    "applied_driver_promotion": "n2d-highcpu-48 -> n2d-standard-48",
+      "num_workers": 9,
+      "master_machine_type": "n2d-standard-48",
+      "worker_machine_type": "n2d-highcpu-48",
+      "autoscaling_policy": "extra-large-workload-autoscaling",
+      "tuner_version": "2026_22_05",
+      "total_no_of_jobs": 1,
+      "cluster_max_total_memory_gb": 864,
+      "cluster_max_total_cores": 432,
+      "accumulated_max_total_memory_per_jobs_gb": 112,
+      "driver_memory_gb": 8,
+      "driver_cores": 4,
+      "driver_memory_overhead_gb": 2,
+      "diagnostic_reason": "Current-date b14 driver eviction (247). Promoted n2d-highcpu-48 -> n2d-standard-48"
+    }
+  },
+  "recipeSparkConf": {
+    "_ETL_m_DRIVER_DEMO_LOAD.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.dynamicAllocation.enabled": "true",
+        "spark.dynamicAllocation.minExecutors": "8",
+        "spark.dynamicAllocation.maxExecutors": "14",
+        "spark.dynamicAllocation.initialExecutors": "8",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 64,
+      "total_executor_maximum_allocated_memory_gb": 112
+    }
+  }
+}

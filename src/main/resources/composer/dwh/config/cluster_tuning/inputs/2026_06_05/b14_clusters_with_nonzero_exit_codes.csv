@@ -1,0 +1,6 @@
+timestamp,job_id,cluster_name,driver_exit_code,msg
+2026-06-05T01:08:42Z,etl-m-driver-demo-load-20260605-0108,"""cluster-wf-yarn-driver-demo""",247,Container killed by YARN for exceeding memory limits
+2026-06-05T03:22:55Z,etl-m-driver-demo-load-20260605-0322,"""cluster-wf-yarn-driver-demo""",247,Container killed by YARN for exceeding memory limits
+2026-06-05T06:04:17Z,etl-m-driver-demo-load-20260605-0604,"""cluster-wf-yarn-driver-demo""",247,Container killed by YARN for exceeding memory limits
+2026-06-05T08:51:09Z,etl-m-driver-demo-load-20260605-0851,"""cluster-wf-yarn-driver-demo""",247,Container killed by YARN for exceeding memory limits
+2026-06-05T11:37:24Z,etl-m-driver-demo-load-20260605-1137,"""cluster-wf-yarn-driver-demo""",247,Container killed by YARN for exceeding memory limits

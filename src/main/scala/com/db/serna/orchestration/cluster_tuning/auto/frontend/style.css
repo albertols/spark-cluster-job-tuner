@@ -183,6 +183,173 @@ main {
   border-color: #58a6ff;
 }
 
+/* Per-cluster boost chips, surfaced at the top of every cluster card so the
+   user can see at a glance which b14/b16/future boost states apply without
+   opening the detail pane. Mirrors the overview's badge + chip pattern. */
+.cluster-card .cluster-boost-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+  padding-right: 16px; /* leave space for the trend-indicator dot */
+}
+.cluster-card .cluster-boost-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: #11161d;
+  border: 1px solid #2a3340;
+  line-height: 1.4;
+}
+.cluster-card .cluster-boost-chip.b14 { border-left: 2px solid #d29922; }
+.cluster-card .cluster-boost-chip.b16 { border-left: 2px solid #bc8cff; }
+.cluster-card .cluster-boost-chip .bxx-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: #1f2733;
+  color: #c9d1d9;
+  letter-spacing: 0.4px;
+  border: 1px solid #30363d;
+}
+.cluster-card .cluster-boost-chip .boost-state-chip {
+  font-size: 8px;
+  padding: 1px 4px;
+}
+.cluster-card .cluster-boost-chip .cluster-boost-count {
+  font-size: 10px;
+  color: #c9d1d9;
+  font-family: "SF Mono", Menlo, monospace;
+}
+
+/* Cluster-detail boost panel — compact, scrollable, generic over b14/b16/future
+   bNN. Sits between the cluster title and the cluster-conf section. Total panel
+   height capped via max-height; each group's entry list is independently
+   scrollable so the panel stays small even with many boosts. */
+.detail-cluster-boosts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 12px;
+  padding: 6px;
+  border: 1px dashed #21262d;
+  border-radius: 6px;
+  max-height: 160px;
+  overflow: auto;
+}
+.detail-boost-group {
+  flex: 1 1 320px;
+  min-width: 280px;
+  max-width: 100%;
+  background: #11161d;
+  border: 1px solid #2a3340;
+  border-left: 3px solid #6e7681;
+  border-radius: 4px;
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.detail-boost-group.b14 { border-left-color: #d29922; }
+.detail-boost-group.b16 { border-left-color: #bc8cff; }
+.detail-boost-group .detail-boost-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.detail-boost-group .detail-boost-header .bxx-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: #1f2733;
+  color: #c9d1d9;
+  letter-spacing: 0.4px;
+  border: 1px solid #30363d;
+}
+.detail-boost-group .detail-boost-header .boost-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #c9d1d9;
+  font-weight: 600;
+}
+.detail-boost-group .detail-boost-header .boost-count-summary {
+  margin-left: auto;
+  font-size: 10px;
+  color: #c9d1d9;
+  font-weight: 600;
+  font-family: "SF Mono", Menlo, monospace;
+}
+.detail-boost-group .detail-boost-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 90px;
+  overflow: auto;
+  border-top: 1px solid #21262d;
+  padding-top: 3px;
+}
+/* Button reset so the entry rows look like compact text rows but are
+   keyboard-accessible and clickable. Rows route through the delegated handler
+   to either open the recipe modal (b16) or scroll to the cluster-conf section
+   (b14, b14-like cluster-kind boosts). */
+.detail-boost-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+}
+.detail-boost-entry:hover {
+  background: rgba(88,166,255,0.08);
+  border-color: rgba(88,166,255,0.25);
+}
+.detail-boost-entry:focus-visible {
+  outline: 2px solid #58a6ff;
+  outline-offset: 1px;
+}
+.detail-boost-entry .entry-primary {
+  color: #c9d1d9;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.detail-boost-entry .entry-secondary {
+  color: #d29922;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.detail-boost-entry.state-holding .entry-secondary { color: #3fb950; }
+
+/* Brief flash applied to #detail-cluster-conf when a b14 entry is clicked,
+   so the user sees where they were scrolled to. */
+@keyframes flash-highlight-anim {
+  0%   { box-shadow: 0 0 0 2px rgba(210,153,34,0.0); }
+  20%  { box-shadow: 0 0 0 2px rgba(210,153,34,0.6); }
+  100% { box-shadow: 0 0 0 2px rgba(210,153,34,0.0); }
+}
+.flash-highlight { animation: flash-highlight-anim 1.2s ease-out; border-radius: 6px; }
+
 .cluster-card .cluster-name-row {
   display: flex;
   align-items: center;

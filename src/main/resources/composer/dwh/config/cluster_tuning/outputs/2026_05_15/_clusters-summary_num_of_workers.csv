@@ -1,0 +1,2 @@
+cluster_name,dag_id,no_of_jobs,num_of_workers,worker_machine_type,master_machine_type,real_used_avg_num_of_workers,real_used_min_workers,real_used_max_workers,total_active_minutes,estimated_cost_eur,TIMER_NAME,TIMER_TIME
+cluster-wf-yarn-driver-demo,wf_YARN_DRIVER_DEMO_T_03_00,1,4,n2d-highcpu-48,n2d-highcpu-48,0.00,0,0,0.00,0.0000,T_03_00,03:00

@@ -129,3 +129,4 @@ wf_DWH_LOAD_T_04_00__T_04_20,cluster-wf-dwh-load-4b53af6c-0420
 wf_DMR_LOAD_T_09_00__T_23_15,cluster-wf-dmr-load-03d556e9-2315
 wf_LOAD_Infocentro_T_05_30,cluster-wf-load-info-c9c4d332-0530
 wf_LOAD_Infocentro_T_04_00,cluster-wf-load-info-ac79fee8-0400
+wf_YARN_DRIVER_DEMO_T_03_00,cluster-wf-yarn-driver-demo

@@ -921,6 +921,194 @@ function renderSummaryCards() {
 
 // ── Cluster Grid ────────────────────────────────────────────────────────────
 
+/**
+ * Build the per-cluster boost-chip row shown at the top of each cluster card.
+ * Walks `generationSummary.boost_groups` and surfaces every group (b14, b16, future
+ * bNN) that has an entry whose `cluster` matches the requested clusterName, broken
+ * down by state (new / re-boost / holding). Recipe-kind groups aggregate across
+ * recipes; cluster-kind groups emit one chip per state. Returns an empty string when
+ * the cluster has no boosts so the row collapses cleanly.
+ */
+function renderClusterBoostChips(clusterName) {
+  if (!generationSummary || !Array.isArray(generationSummary.boost_groups)) return '';
+  const chips = [];
+  // Stable order across states so the eye sees `new → re-boost → holding`.
+  const stateOrder = ['new', 're-boost', 'holding'];
+  for (const g of generationSummary.boost_groups) {
+    const code = (g.code || '').toLowerCase();
+    const matching = (g.entries || []).filter(e => e.cluster === clusterName);
+    if (matching.length === 0) continue;
+    const isRecipe = matching.some(e => Array.isArray(e.recipes) && e.recipes.length);
+    const stateCounts = { 'new': 0, 're-boost': 0, 'holding': 0 };
+    if (isRecipe) {
+      for (const e of matching) {
+        for (const r of (e.recipes || [])) {
+          const st = (r && typeof r.state === 'string') ? r.state
+                   : (r && r.propagated === true) ? 'holding'
+                   : 'new';
+          stateCounts[st] = (stateCounts[st] || 0) + 1;
+        }
+      }
+    } else {
+      for (const e of matching) {
+        const st = (typeof e.state === 'string' && e.state) ? e.state : 'new';
+        stateCounts[st] = (stateCounts[st] || 0) + 1;
+      }
+    }
+    for (const st of stateOrder) {
+      if (!stateCounts[st]) continue;
+      const countSuffix = stateCounts[st] > 1 ? ` ×${stateCounts[st]}` : '';
+      const tip = `${code.toUpperCase()} · ${st}${countSuffix} for this cluster`;
+      chips.push(
+        `<span class="cluster-boost-chip ${escapeAttr(code)}" title="${escapeAttr(tip)}">` +
+          `<span class="bxx-badge">${escapeHtml(code)}</span>` +
+          `<span class="boost-state-chip chip-${escapeAttr(st)}">${escapeHtml(st)}</span>` +
+          (countSuffix ? `<span class="cluster-boost-count">${escapeHtml(countSuffix)}</span>` : '') +
+        `</span>`
+      );
+    }
+  }
+  return chips.length ? `<div class="cluster-boost-row">${chips.join('')}</div>` : '';
+}
+
+/**
+ * Compact boost panel rendered at the top of the cluster-detail pane. Generic over
+ * b14/b16/future bNN: one per-group box per matching code, with a count summary
+ * (`N new · M holding`) and a scrollable list of entries. Each entry shows the state
+ * chip, the data that matters for that kind (memory transition for recipe-kind,
+ * promotion + reason snippet for cluster-kind), and a tooltip with the full reason.
+ *
+ * Box width is bounded and entry list is independently scrollable so the whole panel
+ * stays small at the top of the detail page even with many boosts.
+ */
+function renderClusterDetailBoosts(clusterName) {
+  const host = document.getElementById('detail-cluster-boosts');
+  if (!host) return;
+  if (!generationSummary || !Array.isArray(generationSummary.boost_groups)) {
+    host.innerHTML = '';
+    return;
+  }
+  const boxes = [];
+  for (const g of generationSummary.boost_groups) {
+    const code = (g.code || '').toLowerCase();
+    const matching = (g.entries || []).filter(e => e.cluster === clusterName);
+    if (matching.length === 0) continue;
+    const isRecipe = matching.some(e => Array.isArray(e.recipes) && e.recipes.length);
+    const stateCounts = { 'new': 0, 're-boost': 0, 'holding': 0 };
+
+    // Build per-entry rows with the data that matters for this kind. Each row carries
+    // the data attributes a delegated click handler uses to navigate.
+    //   recipe-kind (b16) → navigate to the recipe modal for that cluster+recipe
+    //   cluster-kind (b14) → scroll to the in-page Cluster Configuration section
+    //                        which shows master_machine_type / promotion in context
+    const rows = [];
+    if (isRecipe) {
+      for (const e of matching) {
+        for (const r of (e.recipes || [])) {
+          const st = (r && typeof r.state === 'string') ? r.state
+                   : (r && r.propagated === true) ? 'holding'
+                   : 'new';
+          stateCounts[st] = (stateCounts[st] || 0) + 1;
+          const m = r.spark_executor_memory || {};
+          const fac = m.factor;
+          const cum = m.cumulative_factor;
+          let memTxt = '';
+          if (m.from && m.to) {
+            memTxt = (st === 'holding')
+              ? `${m.to}${fac ? ` ×${fac}` : ''}`
+              : `${m.from} → ${m.to}${fac ? ` ×${fac}` : ''}${cum && st === 're-boost' ? ` (cum ×${cum})` : ''}`;
+          }
+          const recipeShort = (r.recipe || '').replace(/^_/, '').replace(/\.json$/, '');
+          const recipeFilename = r.recipe_filename || ('_' + (r.recipe || '') + '.json');
+          rows.push({
+            kind: 'recipe',
+            st,
+            primary: recipeShort,
+            secondary: memTxt,
+            tip: recipeFilename + ' · click to open recipe spark conf',
+            cluster: e.cluster,
+            recipe: recipeFilename
+          });
+        }
+      }
+    } else {
+      for (const e of matching) {
+        const st = (typeof e.state === 'string' && e.state) ? e.state : 'new';
+        stateCounts[st] = (stateCounts[st] || 0) + 1;
+        const promo = e.promotion ? `${e.promotion.from} → ${e.promotion.to}` : '';
+        rows.push({
+          kind: 'cluster',
+          st,
+          primary: promo,
+          secondary: e.reason || '',
+          tip: (e.reason || '') + ' · click to scroll to cluster configuration',
+          cluster: e.cluster
+        });
+      }
+    }
+
+    // Compose count summary like "1 new · 2 holding" (omit zero buckets).
+    const summaryParts = [];
+    if (stateCounts['new']) summaryParts.push(`${stateCounts['new']} new`);
+    if (stateCounts['re-boost']) summaryParts.push(`${stateCounts['re-boost']} re-boost`);
+    if (stateCounts['holding']) summaryParts.push(`${stateCounts['holding']} holding`);
+    const countSummary = summaryParts.join(' · ');
+
+    const rowsHtml = rows.map(r => {
+      const dataAttrs = r.kind === 'recipe'
+        ? `data-action="recipe" data-cluster="${escapeAttr(r.cluster)}" data-recipe="${escapeAttr(r.recipe)}"`
+        : `data-action="cluster-conf" data-cluster="${escapeAttr(r.cluster)}"`;
+      return `
+        <button type="button" class="detail-boost-entry state-${escapeAttr(r.st)}" ${dataAttrs} title="${escapeAttr(r.tip)}">
+          <span class="boost-state-chip chip-${escapeAttr(r.st)}">${escapeHtml(r.st)}</span>
+          <span class="entry-primary">${escapeHtml(r.primary)}</span>
+          ${r.secondary ? `<span class="entry-secondary">${escapeHtml(r.secondary)}</span>` : ''}
+        </button>
+      `;
+    }).join('');
+
+    boxes.push(`
+      <div class="detail-boost-group ${escapeAttr(code)}">
+        <div class="detail-boost-header">
+          <span class="bxx-badge">${escapeHtml(code)}</span>
+          <span class="boost-title">${escapeHtml(g.title || code.toUpperCase())}</span>
+          <span class="boost-count-summary">${escapeHtml(countSummary)}</span>
+        </div>
+        <div class="detail-boost-entries">${rowsHtml}</div>
+      </div>
+    `);
+  }
+  host.innerHTML = boxes.length ? `<div class="detail-cluster-boosts">${boxes.join('')}</div>` : '';
+
+  // Delegated click + auxclick (middle-click to open in new tab) on entry buttons.
+  host.querySelectorAll('.detail-boost-entry').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const action = btn.dataset.action;
+      if (action === 'recipe') {
+        navigate({ cluster: btn.dataset.cluster, recipe: btn.dataset.recipe });
+      } else if (action === 'cluster-conf') {
+        const target = document.getElementById('detail-cluster-conf');
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          target.classList.add('flash-highlight');
+          setTimeout(() => target.classList.remove('flash-highlight'), 1200);
+        }
+      }
+    });
+    btn.addEventListener('auxclick', (ev) => {
+      if (ev.button !== 1) return;
+      ev.preventDefault(); ev.stopPropagation();
+      if (btn.dataset.action === 'recipe') {
+        const url = buildUrl(Object.assign({}, parseRoute(), {
+          cluster: btn.dataset.cluster, recipe: btn.dataset.recipe
+        }));
+        window.open(url, '_blank');
+      }
+    });
+  });
+}
+
 function renderClusterGrid() {
   const search = document.getElementById('cluster-search').value.toLowerCase();
   const trendFilter = document.getElementById('trend-filter').value;
@@ -945,11 +1133,13 @@ function renderClusterGrid() {
       return `<span class="pill ${r.trend}" title="${escapeAttr(r.recipe)}: ${r.trend} (${r.action})">${escapeHtml(displayName)}</span>`;
     }).join('');
     const extra = c.recipes.length > 6 ? `<span class="pill stable">+${c.recipes.length - 6} more</span>` : '';
+    const boostRow = renderClusterBoostChips(c.cluster);
 
     return `<div class="cluster-card" data-cluster="${escapeAttr(c.cluster)}"
                  onmouseenter="showClusterTooltip(event, '${escapeAttr(c.cluster)}')"
                  onmouseleave="hideTooltip()">
       <span class="trend-indicator ${c.overall_trend}"></span>
+      ${boostRow}
       <div class="cluster-name-row">
         <div class="cluster-name" title="${escapeAttr(c.cluster)}">${escapeHtml(c.cluster)}</div>
         ${copyIcon(c.cluster)}
@@ -1095,6 +1285,9 @@ async function showClusterDetailRaw(clusterName) {
   document.getElementById('detail-cluster-name').innerHTML =
     `<span>${escapeHtml(clusterName)} <span style="color:#8b949e">(${cluster.overall_trend})</span></span>` +
     copyIcon(clusterName);
+
+  // Boost summary box at the top — compact, scrollable, generic over b14/b16/future bNN.
+  renderClusterDetailBoosts(clusterName);
 
   // Cluster conf comparison (loads asynchronously)
   document.getElementById('detail-cluster-conf').innerHTML =

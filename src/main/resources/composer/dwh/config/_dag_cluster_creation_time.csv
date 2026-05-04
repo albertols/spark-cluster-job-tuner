@@ -144,3 +144,4 @@ wf_LOAD_Infocentro_T_04_00.py,cluster-wf-load-info-ac79fee8-0400,T_04_00_MJ,05:0
 wf_LOAD_Infocentro_T_04_00.py,cluster-wf-load-info-ac79fee8-0400,T_04_00_QS,05:00,55
 wf_LOAD_Infocentro_T_04_00.py,cluster-wf-load-info-ac79fee8-0400,T_04_00_SA,05:00,55
 wf_LOAD_Infocentro_T_04_00.py,cluster-wf-load-info-ac79fee8-0400,T_04_00_VL,05:00,55
+wf_YARN_DRIVER_DEMO_T_03_00.py,cluster-wf-yarn-driver-demo,T_03_00,03:00,1
