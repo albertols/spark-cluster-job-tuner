@@ -226,6 +226,33 @@ object ClusterMachineAndRecipeAutoTuner {
           if (primaryAction == PreserveHistorical) preservedClusters += 1 else keptClusters += 1
           emitReferenceConfigs(clusterName, refOutputDir, curOutputDir, preservedRecipes, refDate)
 
+          // Compute cost_timeline from current-date b20/b21 data and inject it
+          // into the just-emitted JSON files. The reference JSON may have been
+          // produced before b20/b21 CSVs existed, so we always recompute from
+          // the current snapshot's spans/events. Machine types are read from the
+          // reference config (what is actually deployed).
+          val curSpansKept = curSnapshot.clusterSpans.getOrElse(clusterName, Seq.empty)
+          val curEventsKept = curSnapshot.autoscalerEvents.getOrElse(clusterName, Seq.empty)
+          if (curSpansKept.nonEmpty || curEventsKept.nonEmpty) {
+            val refConfig = referenceConfigs.get(clusterName)
+            val workerName = refConfig.flatMap(_.clusterConfFields.find(_._1 == "worker_machine_type").map(_._2.replaceAll("\"", "")))
+            val masterName = refConfig.flatMap(_.clusterConfFields.find(_._1 == "master_machine_type").map(_._2.replaceAll("\"", "")))
+            val workerMachine = workerName.flatMap(MachineCatalog.byName).getOrElse(defaultMachine)
+            val masterMachine = masterName.flatMap(MachineCatalog.byName).getOrElse(defaultMachine)
+            val numWorkersStr = refConfig.flatMap(_.clusterConfFields.find(_._1 == "num_workers").map(_._2.replaceAll("\"", "")))
+            val fallbackWorkers = numWorkersStr.flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(2)
+            val breakdownKept = ClusterMachineAndRecipeTuner.computeClusterCost(
+              spans           = curSpansKept,
+              events          = curEventsKept,
+              worker          = workerMachine,
+              master          = masterMachine,
+              fallbackWorkers = fallbackWorkers
+            )
+            breakdownKept.costTimelineJson.foreach { ctJson =>
+              injectCostTimelineIntoOutputs(clusterName, curOutputDir, ctJson)
+            }
+          }
+
           // Apply b16 reboosting even for kept/preserved clusters: OOM signals
           // from reference_date must persist to prevent regression into OOM.
           if (b16Factor > 1.0) {
@@ -531,6 +558,47 @@ object ClusterMachineAndRecipeAutoTuner {
             KeptRecipeCarrier.tagPreservedRecipes(content, preservedRecipes, refDate)
           else content
         ClusterMachineAndRecipeTuner.writeFile(curOutputDir, s"$clusterName$suffix", tagged)
+      }
+    }
+  }
+
+  /**
+   * Inject a `cost_timeline` JSON fragment into already-written per-cluster JSONs.
+   * Used by the KeepAsIs/PreserveHistorical path to attach current-date b20/b21
+   * cost data to reference configs that were copied verbatim.
+   *
+   * If the JSON already contains a `cost_timeline` key it is replaced; otherwise
+   * the fragment is appended as a new top-level field.
+   */
+  private def injectCostTimelineIntoOutputs(
+                                             clusterName: String,
+                                             outputDir: File,
+                                             costTimelineJson: String
+                                           ): Unit = {
+    val q = '"'
+    Seq("-auto-scale-tuned.json", "-manually-tuned.json").foreach { suffix =>
+      val file = new File(outputDir, s"$clusterName$suffix")
+      if (file.exists()) {
+        val content = scala.io.Source.fromFile(file).mkString
+        val ctKey = s"${q}cost_timeline${q}"
+        val updated = if (content.contains(ctKey)) {
+          // Replace existing cost_timeline value (regex: "cost_timeline" : <json-object>)
+          // This is a simple heuristic; the JSON is machine-generated and well-formed.
+          content.replaceFirst(
+            """"cost_timeline"\s*:\s*\{[^}]*(?:\{[^}]*\}[^}]*)*\}""",
+            s"${q}cost_timeline${q}: $costTimelineJson"
+          )
+        } else {
+          // Insert before the final closing brace
+          val idx = content.lastIndexOf('}')
+          if (idx > 0) {
+            val before = content.substring(0, idx).stripTrailing()
+            val needsComma = before.nonEmpty && !before.endsWith("{") && !before.endsWith(",")
+            val comma = if (needsComma) "," else ""
+            before + comma + "\n  " + ctKey + ": " + costTimelineJson + "\n}"
+          } else content
+        }
+        ClusterMachineAndRecipeTuner.writeFile(outputDir, s"$clusterName$suffix", updated)
       }
     }
   }

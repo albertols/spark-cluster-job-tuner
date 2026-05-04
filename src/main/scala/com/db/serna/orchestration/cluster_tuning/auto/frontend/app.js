@@ -372,7 +372,7 @@ async function loadClusterJson(date, clusterName) {
 
   for (const p of unique) {
     try {
-      const r = await fetch(p);
+      const r = await fetch(p, { cache: 'no-store' });
       if (r.ok) {
         const j = await r.json();
         clusterJsonCache[key] = j;
