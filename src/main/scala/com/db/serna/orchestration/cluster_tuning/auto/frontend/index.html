@@ -39,7 +39,11 @@
         <h2>Pick an analysis run</h2>
         <p class="landing-help">Choose which <code>_auto_tuner_analysis.json</code> to explore. You can return here anytime to pick another run.</p>
       </div>
-      <button id="landing-refresh" class="landing-refresh" title="Re-scan outputs directory">&#x21bb; Refresh</button>
+      <div class="landing-actions">
+        <button id="new-single-tuning" class="cta-primary" title="Run the per-date tuner against a fresh date">+ New single tuning</button>
+        <button id="new-auto-tuning" class="cta-primary" title="Compare a new date against a prior tuned date">+ New auto tuning</button>
+        <button id="landing-refresh" class="landing-refresh" title="Re-scan outputs directory">&#x21bb; Refresh</button>
+      </div>
     </div>
     <div id="landing-grid" class="landing-grid"></div>
     <div id="landing-empty" class="empty-msg" style="display:none;padding:40px;text-align:center;"></div>
@@ -181,5 +185,7 @@
 <div id="doc-popover" class="doc-popover" style="display:none;"></div>
 
 <script src="app.js"></script>
+<script src="tuner-api.js"></script>
+<script src="wizard.js"></script>
 </body>
 </html>

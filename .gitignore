@@ -92,3 +92,6 @@ fabric.properties
 /.idea/
 
 todo/
+
+# Per-developer wizard overlay for the auto-tuner dashboard (gcpProjectId override).
+src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/config.local.json

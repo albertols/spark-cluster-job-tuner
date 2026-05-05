@@ -2167,3 +2167,316 @@ h3.section-heading {
 .ipc-pair[data-expanded] .ipc-side { width: 100%; }
 .ipc-pair[data-expanded="reference"] { grid-template-columns: 1fr; }
 .ipc-pair[data-expanded="current"]   { grid-template-columns: 1fr; }
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/* Tuning Wizard (modal-hosted, Phase 1: UI-only "guided CLI")                */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+.landing-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.cta-primary {
+  background: #1f6feb;
+  border: 1px solid #1f6feb;
+  color: #ffffff;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.cta-primary:hover  { background: #388bfd; border-color: #388bfd; }
+.cta-primary:active { transform: translateY(1px); }
+
+/* Make the wizard modal a touch wider than the default recipe-conf modal. */
+#modal-overlay.wiz-modal #modal { max-width: 1080px; width: 95vw; }
+#modal-overlay.wiz-modal .modal-body { padding: 0; }
+
+.wiz-root { display: flex; flex-direction: column; min-height: 60vh; }
+
+.wiz-breadcrumb {
+  display: flex; gap: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid #30363d;
+  background: #0d1117;
+}
+.wiz-breadcrumb .crumb {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 6px 8px;
+  color: #8b949e;
+  font-size: 12px;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  position: relative;
+}
+.wiz-breadcrumb .crumb-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: #21262d;
+  color: #8b949e;
+  font-size: 11px;
+  font-weight: 600;
+}
+.wiz-breadcrumb .crumb.is-active        { color: #f0f6fc; border-bottom-color: #58a6ff; }
+.wiz-breadcrumb .crumb.is-active .crumb-num { background: #1f6feb; color: #fff; }
+.wiz-breadcrumb .crumb.is-done .crumb-num   { background: #238636; color: #fff; }
+.wiz-breadcrumb .crumb.is-done              { color: #c9d1d9; }
+.wiz-breadcrumb .crumb-sep { color: #30363d; font-size: 14px; padding: 0 4px; }
+
+.wiz-step { flex: 1; padding: 18px; overflow-y: auto; max-height: 70vh; }
+.wiz-step h3 { margin-top: 0; color: #f0f6fc; font-size: 16px; }
+.wiz-step p.help { color: #8b949e; font-size: 12px; margin: 6px 0 14px; }
+
+.wiz-footer {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px;
+  border-top: 1px solid #30363d;
+  background: #0d1117;
+}
+.wiz-footer .left  { display: flex; gap: 8px; }
+.wiz-footer .right { display: flex; gap: 8px; }
+.wiz-btn {
+  background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
+  padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.wiz-btn:hover { background: #30363d; border-color: #58a6ff; }
+.wiz-btn.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; font-weight: 600; }
+.wiz-btn.primary:hover { background: #388bfd; border-color: #388bfd; }
+.wiz-btn.primary:disabled,
+.wiz-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.wiz-btn.danger { color: #f85149; }
+.wiz-btn.ghost  { background: transparent; }
+
+/* Step 1 — mode picker cards */
+.wiz-mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.wiz-mode-card {
+  border: 1px solid #30363d; border-radius: 8px; padding: 16px;
+  background: #161b22; cursor: pointer; transition: border-color 0.15s, background 0.15s;
+}
+.wiz-mode-card:hover { border-color: #58a6ff; }
+.wiz-mode-card.selected { border-color: #1f6feb; background: rgba(31,111,235,0.08); }
+.wiz-mode-card h4 { margin: 0 0 6px 0; color: #f0f6fc; font-size: 14px; }
+.wiz-mode-card .desc { color: #8b949e; font-size: 12px; line-height: 1.5; }
+
+.wiz-form-row { display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: center; margin: 10px 0; }
+.wiz-form-row label { color: #c9d1d9; font-size: 12px; font-weight: 500; }
+.wiz-form-row input[type="text"],
+.wiz-form-row input[type="number"],
+.wiz-form-row select {
+  background: #0d1117; border: 1px solid #30363d; color: #c9d1d9;
+  padding: 6px 10px; border-radius: 5px; font-size: 12px; font-family: inherit;
+}
+.wiz-form-row input:focus, .wiz-form-row select:focus { outline: none; border-color: #58a6ff; }
+.wiz-form-row input.is-invalid { border-color: #f85149; }
+.wiz-form-row .hint { color: #8b949e; font-size: 11px; margin-top: 2px; }
+.wiz-form-row .err  { color: #f85149; font-size: 11px; margin-top: 2px; }
+
+/* Step 2 — SQL+CSV per-bNN cards */
+.wiz-projid {
+  background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+  padding: 12px 14px; margin-bottom: 14px;
+  display: grid; grid-template-columns: 200px 1fr auto; gap: 10px; align-items: center;
+}
+.wiz-projid label { color: #c9d1d9; font-size: 12px; font-weight: 500; }
+.wiz-projid input {
+  background: #0d1117; border: 1px solid #30363d; color: #c9d1d9;
+  padding: 6px 10px; border-radius: 5px; font-size: 12px; font-family: monospace;
+  min-width: 280px;
+}
+.wiz-projid .hint { grid-column: 1 / -1; color: #8b949e; font-size: 11px; }
+
+.wiz-bnn-card {
+  background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+  margin-bottom: 10px; overflow: hidden;
+}
+.wiz-bnn-head {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center;
+  padding: 10px 14px; cursor: pointer;
+}
+.wiz-bnn-head:hover { background: #1c2128; }
+.wiz-bnn-head .title { color: #f0f6fc; font-size: 13px; font-weight: 600; }
+.wiz-bnn-head .desc  { color: #8b949e; font-size: 11px; margin-top: 2px; }
+.wiz-bnn-card .req-badge {
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
+}
+.wiz-bnn-card .req-badge.req  { background: rgba(248,81,73,0.15); color: #f85149; }
+.wiz-bnn-card .req-badge.opt  { background: rgba(212,167,44,0.15); color: #d4a72c; }
+
+.wiz-bnn-body { padding: 12px 14px; border-top: 1px solid #30363d; display: none; }
+.wiz-bnn-card.is-open .wiz-bnn-body { display: block; }
+.wiz-bnn-card.is-open .wiz-bnn-disclosure { transform: rotate(90deg); }
+.wiz-bnn-disclosure { display: inline-block; transition: transform 0.15s; color: #8b949e; }
+
+.wiz-sql-pane {
+  position: relative;
+  background: #0d1117; border: 1px solid #30363d; border-radius: 5px;
+  padding: 0;
+  margin: 8px 0;
+}
+.wiz-sql-pane pre {
+  margin: 0; padding: 12px;
+  max-height: 280px; overflow: auto;
+  font: 11px/1.5 ui-monospace, "SF Mono", Consolas, monospace;
+  color: #c9d1d9; white-space: pre;
+}
+.wiz-sql-actions {
+  position: absolute; top: 6px; right: 6px;
+  display: flex; gap: 4px;
+}
+.wiz-sql-actions .wiz-btn { padding: 3px 8px; font-size: 11px; }
+
+.wiz-drop {
+  border: 2px dashed #30363d; border-radius: 6px;
+  padding: 24px; margin-top: 8px;
+  text-align: center; color: #8b949e; font-size: 12px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.wiz-drop.is-active   { border-color: #58a6ff; background: rgba(88,166,255,0.05); color: #f0f6fc; }
+.wiz-drop.is-valid    { border-color: #3fb950; background: rgba(63,185,80,0.05); color: #c9d1d9; }
+.wiz-drop.is-invalid  { border-color: #f85149; background: rgba(248,81,73,0.05); color: #c9d1d9; }
+.wiz-drop .ok-chip    { color: #3fb950; font-weight: 600; }
+.wiz-drop .err-chip   { color: #f85149; font-weight: 600; }
+.wiz-drop .hint       { color: #8b949e; font-size: 11px; margin-top: 6px; }
+.wiz-drop input[type="file"] { display: none; }
+.wiz-drop label { color: #58a6ff; cursor: pointer; text-decoration: underline; }
+.wiz-drop .reset {
+  margin-top: 8px; background: transparent; border: 1px solid #30363d; color: #8b949e;
+  padding: 3px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;
+}
+.wiz-drop .reset:hover { color: #c9d1d9; border-color: #58a6ff; }
+
+.wiz-banner {
+  padding: 8px 12px; border-radius: 5px; font-size: 12px; margin: 8px 0;
+}
+.wiz-banner.warn { background: rgba(212,167,44,0.10); border: 1px solid rgba(212,167,44,0.4); color: #d4a72c; }
+.wiz-banner.info { background: rgba(88,166,255,0.08); border: 1px solid rgba(88,166,255,0.3); color: #58a6ff; }
+.wiz-banner.err  { background: rgba(248,81,73,0.10);  border: 1px solid rgba(248,81,73,0.4);  color: #f85149; }
+
+.wiz-date-tabs {
+  display: inline-flex; gap: 0;
+  border: 1px solid #30363d; border-radius: 6px; overflow: hidden;
+  margin-bottom: 12px;
+}
+.wiz-date-tabs button {
+  background: #0d1117; border: none; color: #8b949e;
+  padding: 6px 14px; font-size: 12px; cursor: pointer;
+  font-family: monospace;
+}
+.wiz-date-tabs button.active { background: #1f6feb; color: #fff; }
+.wiz-date-tabs button:hover:not(.active) { background: #1c2128; color: #c9d1d9; }
+
+/* Step 3 — params */
+.wiz-param {
+  display: grid; grid-template-columns: 240px 220px 1fr; gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #21262d;
+}
+.wiz-param:last-of-type { border-bottom: none; }
+.wiz-param .pname { color: #c9d1d9; font-size: 12px; font-weight: 500; }
+.wiz-param .pname code { color: #58a6ff; font-size: 11px; background: transparent; padding: 0; }
+.wiz-param input, .wiz-param select {
+  background: #0d1117; border: 1px solid #30363d; color: #c9d1d9;
+  padding: 5px 8px; border-radius: 4px; font-size: 12px; font-family: inherit;
+}
+.wiz-param input.is-invalid { border-color: #f85149; }
+.wiz-param .pdescr { color: #8b949e; font-size: 11px; line-height: 1.5; }
+.wiz-param .pdescr .err { color: #f85149; }
+
+.wiz-strategy-table {
+  width: 100%; border-collapse: collapse; margin: 14px 0;
+  font-size: 12px;
+}
+.wiz-strategy-table th, .wiz-strategy-table td {
+  padding: 6px 10px; border-bottom: 1px solid #21262d; text-align: left;
+}
+.wiz-strategy-table th { color: #8b949e; font-weight: 500; background: #161b22; }
+.wiz-strategy-table td { color: #c9d1d9; font-family: monospace; font-size: 11px; }
+.wiz-strategy-table td:first-child { color: #c9d1d9; font-family: inherit; font-size: 12px; }
+.wiz-strategy-table .col-active { background: rgba(31,111,235,0.12); color: #f0f6fc; }
+.wiz-strategy-table .col-active.head { color: #58a6ff; }
+
+/* Step 4 — run instructions */
+.wiz-run-panel {
+  background: #161b22; border: 1px solid #30363d; border-left: 3px solid #58a6ff;
+  border-radius: 6px; padding: 14px;
+  margin-bottom: 14px;
+}
+.wiz-run-panel h4 {
+  margin: 0 0 6px 0; color: #f0f6fc; font-size: 13px; font-weight: 600;
+  display: flex; align-items: center; gap: 8px;
+}
+.wiz-run-panel h4 .step-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #1f6feb; color: #fff; font-size: 11px; font-weight: 700;
+}
+.wiz-run-panel .panel-help { color: #8b949e; font-size: 12px; margin-bottom: 10px; }
+
+.wiz-download-row {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 8px;
+}
+.wiz-dl-btn {
+  background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
+  padding: 4px 10px; border-radius: 5px; font-size: 11px; cursor: pointer;
+  text-decoration: none; display: inline-block; font-family: monospace;
+}
+.wiz-dl-btn:hover { background: #30363d; border-color: #58a6ff; }
+.wiz-dl-btn.all { background: #1f6feb; border-color: #1f6feb; color: #fff; font-family: inherit; font-weight: 600; }
+.wiz-dl-btn.all:hover { background: #388bfd; }
+
+.wiz-codeblock {
+  position: relative;
+  background: #0d1117; border: 1px solid #30363d; border-radius: 5px;
+  margin: 8px 0;
+}
+.wiz-codeblock pre {
+  margin: 0; padding: 12px;
+  font: 11px/1.5 ui-monospace, "SF Mono", Consolas, monospace;
+  color: #c9d1d9;
+  overflow-x: auto;
+  white-space: pre;
+}
+.wiz-codeblock .copy {
+  position: absolute; top: 6px; right: 6px;
+  padding: 3px 8px; font-size: 11px;
+  background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
+  border-radius: 4px; cursor: pointer;
+}
+.wiz-codeblock .copy:hover { background: #30363d; border-color: #58a6ff; }
+.wiz-codeblock.copied .copy { background: #238636; border-color: #238636; color: #fff; }
+
+.wiz-runner-tabs {
+  display: inline-flex; border: 1px solid #30363d; border-radius: 6px;
+  overflow: hidden; margin-bottom: 8px;
+}
+.wiz-runner-tabs button {
+  background: #0d1117; border: none; color: #8b949e;
+  padding: 5px 14px; font-size: 11px; cursor: pointer; font-family: inherit;
+}
+.wiz-runner-tabs button.active { background: #1f6feb; color: #fff; }
+
+.wiz-required { color: #f85149; font-weight: 600; }
+.wiz-warn     { color: #d4a72c; }
+.wiz-ok       { color: #3fb950; }
+.wiz-mut      { color: #8b949e; }
+
+.wiz-resume-bar {
+  background: rgba(212,167,44,0.10);
+  border: 1px solid rgba(212,167,44,0.4);
+  color: #d4a72c;
+  padding: 10px 14px; font-size: 12px;
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+}
+.wiz-resume-bar .actions { display: flex; gap: 6px; }
+.wiz-resume-bar button {
+  background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
+  padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;
+}
+.wiz-resume-bar button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }

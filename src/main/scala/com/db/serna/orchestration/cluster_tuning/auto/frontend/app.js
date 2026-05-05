@@ -232,6 +232,15 @@ async function loadConfig() {
     );
     return;
   }
+  // Optional per-developer overlay (git-ignored). Wizard's "Save projectId"
+  // produces this file; absence is normal.
+  try {
+    const localResp = await fetch('config.local.json', { cache: 'no-store' });
+    if (localResp.ok) {
+      const local = await localResp.json();
+      config = Object.assign({}, config, local);
+    }
+  } catch (_) { /* absent → keep base config */ }
   if (!config.outputsPath) {
     showFatalError('config.json is missing <code>outputsPath</code>.', '');
     config = null;
