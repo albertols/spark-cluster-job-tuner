@@ -455,14 +455,20 @@ object ClusterMachineAndRecipeTuner {
                          )
 
   object Config {
+    // Resolved at every call so the dashboard's TunerService can override via
+    // `-DclusterTuning.basePath=…` before invoking run(). Default preserves the
+    // historical IntelliJ-from-project-root behaviour.
+    private def basePath: String =
+      System.getProperty("clusterTuning.basePath", "src/main/resources/composer/dwh/config/cluster_tuning")
+
     // Companion object for Config to provide a helper to construct Config dynamically
     def apply(useFlattened: Boolean, date: String): Config = {
       // Ensure the date format is valid before creating directories
       require(date.matches("\\d{4}_\\d{2}_\\d{2}"), "The date must be in YYYY_MM_DD format (e.g., 2025_12_20).")
 
       // Dynamically set input and output directories based on the provided `date`
-      val inputDir = new File(s"src/main/resources/composer/dwh/config/cluster_tuning/inputs/$date")
-      val outputDir = new File(s"src/main/resources/composer/dwh/config/cluster_tuning/outputs/$date")
+      val inputDir = new File(s"$basePath/inputs/$date")
+      val outputDir = new File(s"$basePath/outputs/$date")
 
       // Return the Config instance
       Config(
@@ -470,6 +476,20 @@ object ClusterMachineAndRecipeTuner {
         date = date,
         inputDir = inputDir,
         outputDir = outputDir,
+        defaultMaster = MachineCatalog.byName("e2-standard-8").get,
+        defaultWorker = MachineCatalog.byName("e2-standard-8").get
+      )
+    }
+
+    /** Programmatic override used by the dashboard's TunerService, which has
+     *  already resolved `inputsPath`/`outputsPath` from `config.json`. */
+    def applyAt(useFlattened: Boolean, date: String, baseInputsDir: File, baseOutputsDir: File): Config = {
+      require(date.matches("\\d{4}_\\d{2}_\\d{2}"), "The date must be in YYYY_MM_DD format (e.g., 2025_12_20).")
+      Config(
+        useFlattened = useFlattened,
+        date = date,
+        inputDir = new File(baseInputsDir, date),
+        outputDir = new File(baseOutputsDir, date),
         defaultMaster = MachineCatalog.byName("e2-standard-8").get,
         defaultWorker = MachineCatalog.byName("e2-standard-8").get
       )

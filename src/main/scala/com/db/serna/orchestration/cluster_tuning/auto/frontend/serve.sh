@@ -4,9 +4,15 @@
 #
 # Usage:
 #   ./serve.sh
-#       Reads ./config.json next to this script, resolves outputsPath, and
+#       Static-only (Phase 1). Reads ./config.json, resolves outputsPath, and
 #       serves from the smallest directory that contains both this frontend
 #       dir and the outputs dir. Opens the landing page.
+#
+#   ./serve.sh --api
+#       API mode (Phase 2). Boots the Scala TunerService which serves the
+#       static files AND exposes /api/* endpoints for the wizard's "Start
+#       Tuning" button. Tries `java -jar target/spark-cluster-job-tuner-server.jar`
+#       first; falls back to `mvn -Pserve exec:java` if the JAR isn't built yet.
 #
 #   ./serve.sh /path/to/outputs/<curDate>_auto_tuned
 #       Back-compat: serves from the PARENT of that dir and opens
@@ -16,6 +22,48 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PORT="${PORT:-8080}"
+
+# ─── --api mode: launch TunerService ────────────────────────────────────────
+if [ "${1:-}" = "--api" ]; then
+  shift
+  # Walk up to find the project root (the dir that contains pom.xml).
+  PROJECT_ROOT="$SCRIPT_DIR"
+  while [ "$PROJECT_ROOT" != "/" ] && [ ! -f "$PROJECT_ROOT/pom.xml" ]; do
+    PROJECT_ROOT="$(dirname "$PROJECT_ROOT")"
+  done
+  if [ ! -f "$PROJECT_ROOT/pom.xml" ]; then
+    echo "Error: could not find project root (pom.xml) above $SCRIPT_DIR" >&2
+    exit 1
+  fi
+
+  JAR="$PROJECT_ROOT/target/spark-cluster-job-tuner-server.jar"
+  OPEN_URL="http://127.0.0.1:$PORT/"
+
+  echo "Booting TunerService on $OPEN_URL"
+  echo "  Project root: $PROJECT_ROOT"
+  echo "  Frontend dir: $SCRIPT_DIR"
+  if command -v open &>/dev/null;       then ( sleep 1.2 && open "$OPEN_URL" ) &
+  elif command -v xdg-open &>/dev/null; then ( sleep 1.2 && xdg-open "$OPEN_URL" ) &
+  fi
+
+  cd "$PROJECT_ROOT"
+  if [ -f "$JAR" ]; then
+    echo "  Mode: java -jar $(basename "$JAR")"
+    exec java -jar "$JAR" \
+      --port="$PORT" --host=127.0.0.1 \
+      --frontend-dir="$SCRIPT_DIR" \
+      "$@"
+  else
+    echo "  Mode: mvn -Pserve exec:java  (build the fat JAR with 'mvn -Pserve package' to skip Maven on subsequent boots)"
+    if ! command -v mvn &>/dev/null; then
+      echo "Error: neither $JAR nor mvn is available." >&2
+      echo "Build the fat JAR with:  mvn -Pserve package" >&2
+      exit 1
+    fi
+    exec mvn -q -Pserve exec:java \
+      -Dexec.args="--port=$PORT --host=127.0.0.1 --frontend-dir=$SCRIPT_DIR $*"
+  fi
+fi
 
 # ─── Back-compat: explicit output dir ───────────────────────────────────────
 if [ $# -ge 1 ]; then

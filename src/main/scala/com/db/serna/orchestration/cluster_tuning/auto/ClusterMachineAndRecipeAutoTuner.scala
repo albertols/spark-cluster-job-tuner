@@ -104,7 +104,12 @@ class AutoTunerConf(arguments: Seq[String]) extends ScallopConf(arguments) {
  */
 object ClusterMachineAndRecipeAutoTuner {
   private val logger = LoggerFactory.getLogger(getClass)
-  private val BasePath = "src/main/resources/composer/dwh/config/cluster_tuning"
+
+  // Resolved at every read so the dashboard's TunerService can override via
+  // `-DclusterTuning.basePath=…` before invoking run(). Default preserves the
+  // historical IntelliJ-from-project-root behaviour.
+  private[auto] def BasePath: String =
+    System.getProperty("clusterTuning.basePath", "src/main/resources/composer/dwh/config/cluster_tuning")
 
   def main(args: Array[String]): Unit = {
     val conf = new AutoTunerConf(args)

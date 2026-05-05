@@ -6,13 +6,67 @@ touching CLI flags from memory.
 Available from the landing page as **+ New single tuning** and **+ New auto
 tuning**.
 
-## Status: Phase 1 (UI-only)
+## Modes
 
-The wizard runs entirely in the browser against the existing static-file server
-(`./serve.sh`, which is `python3 -m http.server` under the hood). It does **not**
-launch the tuner — instead it produces validated CSVs and a ready-to-go IntelliJ
-run configuration. Phase 2 will add a Scala HTTP server and a real **Start
-Tuning** button.
+The dashboard runs in one of two modes:
+
+### Static (Phase 1) — `./serve.sh`
+
+Backed by `python3 -m http.server`. The wizard validates CSVs in the browser
+and produces:
+
+* Per-CSV download buttons.
+* A bash snippet that lands files at `<inputsPath>/<date>/`.
+* A ready-to-drop IntelliJ run-config XML for `.idea/runConfigurations/`.
+
+You then run the tuner from IntelliJ and click **Refresh dashboard**.
+
+### API (Phase 2) — `./serve.sh --api`
+
+Backed by `TunerService` (a JDK `com.sun.net.httpserver` HTTP server in
+[`server/TunerService.scala`](server/TunerService.scala)). The wizard's Step 4
+gains a **Start Tuning** button that:
+
+1. Persists `gcpProjectId` overrides to `config.local.json`.
+2. Creates `<inputsPath>/<date>/` server-side.
+3. Streams the staged CSVs to disk via `PUT /api/inputs/<date>/csv?name=…`.
+4. POSTs `/api/runs/{single,auto}` with the parameters from Step 3.
+5. Long-polls `/api/runs/<runId>/log?since=N&waitMs=8000` and streams every
+   log4j2 line into a live log box.
+6. On completion, navigates straight to the new analysis.
+
+Single-run gate: the server returns 409 if a run is already in flight.
+
+## Phase 3 — Fat JAR (`mvn -Pserve package`)
+
+The `serve` Maven profile (in [`pom.xml`](../../../../../../../../../../pom.xml))
+adds `scala-maven-plugin` + `exec-maven-plugin` + `maven-shade-plugin` and
+produces a single self-contained jar:
+
+```
+mvn -Pserve package
+# → target/spark-cluster-job-tuner-server.jar
+```
+
+This jar embeds Scala, log4j2, Scallop, and the compiled tuner classes. Two
+ways to run it:
+
+```
+# HTTP service (same as ./serve.sh --api but standalone — no Maven needed)
+java -jar target/spark-cluster-job-tuner-server.jar
+
+# One-shot CLI — useful for cron / CI / scripted runs
+java -jar target/spark-cluster-job-tuner-server.jar --cli auto \
+  --reference-date=2026_04_30 --current-date=2026_05_29 \
+  --strategy=cost_biased --b16-rebooting-factor=1.5
+```
+
+`./serve.sh --api` automatically prefers the jar over `mvn exec:java` if
+present, so a one-time `mvn -Pserve package` saves the Maven boot cost on
+every subsequent dashboard launch.
+
+The default IntelliJ build is **unchanged** — the `serve` profile is opt-in and
+only activates the Scala compile / shade plugins when explicitly selected.
 
 ## Flow
 
@@ -97,19 +151,27 @@ The wizard never writes to `config.json` directly — it produces a
 `app.js` (`loadConfig()`) and the wizard read this overlay on next load.
 `.gitignore` covers it.
 
-## Phase 2 (deferred)
+## Backend: how Phase 2 wires through
 
-The next iteration will add:
+* [`server/TunerService.scala`](server/TunerService.scala) — `main()` boots the
+  HTTP server (default 127.0.0.1:8080, localhost-only). Routes:
+  `GET /api/health`, `GET/PUT /api/config`,
+  `GET /api/inputs`, `POST /api/inputs/<date>`, `PUT /api/inputs/<date>/csv?name=bNN.csv`,
+  `POST /api/runs/{single,auto}`, `GET /api/runs/<id>`, `GET /api/runs/<id>/log?since=N`,
+  `DELETE /api/runs/<id>`. Static files served from the frontend dir.
+* [`server/RunRegistry.scala`](server/RunRegistry.scala) — single-run gate
+  (`tryClaim`) + per-run capped log buffer with a `since=N` cursor for
+  long-poll.
+* [`server/RunLogAppender.scala`](server/RunLogAppender.scala) — log4j2
+  programmatic `AbstractAppender` attached to the root logger for the duration
+  of `run()` and detached in `finally`. No `System.out` redirect.
+* [`server/JsonIO.scala`](server/JsonIO.scala) — hand-rolled JSON
+  reader/writer (~250 LoC, no jackson dep).
 
-* `auto/frontend/server/TunerService.scala` using the JDK built-in
-  `com.sun.net.httpserver` (zero new runtime deps). Endpoints:
-  `GET /api/health`, `GET/PUT /api/config`, `POST /api/inputs/<date>`,
-  `PUT /api/inputs/<date>/csv?name=bNN.csv`, `POST /api/runs/single`,
-  `POST /api/runs/auto`, `GET /api/runs/<id>/events` (long-poll).
-* `pom.xml` profile `serve` adding `scala-maven-plugin` + `exec-maven-plugin`
-  so `serve.sh --api` can boot the Scala server.
-* Wizard's tuner-api.js becomes a real client; Step 4 grows a **Start Tuning**
-  button with a live log pane.
-* `Config.applyAt(...)` overload in `ClusterMachineAndRecipeTuner` to pass
-  resolved paths instead of relying on cwd-relative defaults.
-* log4j2 programmatic appender for per-run log capture.
+The tuners themselves accept a `-DclusterTuning.basePath=…` system property
+which the server sets to the resolved `inputsPath`/`outputsPath` from
+`config.json` before invoking `run()`. The single tuner also gained a
+[`Config.applyAt`](../../single/ClusterMachineAndRecipeTuner.scala) overload
+so the server can pass exact `inputsBase` / `outputsBase` directories without
+relying on cwd. Default `Config.apply` is unchanged — existing IntelliJ + CLI
+flows keep working bit-for-bit.

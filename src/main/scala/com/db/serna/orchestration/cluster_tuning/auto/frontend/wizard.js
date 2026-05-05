@@ -1046,11 +1046,226 @@ const Wizard = (() => {
 
     root.innerHTML =
       `<h3>Run instructions</h3>` +
-      `<p class="help">All set. Below are the artifacts you need to actually invoke the tuner. ` +
-      `Once it finishes (in IntelliJ), come back here and refresh the dashboard.</p>` +
+      `<p class="help">All set. The wizard probes for the TunerService API; if it's up you can launch the run with one click. ` +
+      `If not, the IntelliJ + bash artifacts below let you run locally.</p>` +
+      `<div id="wiz-api-panel-host"></div>` +
       dl + land + runner + after;
 
     wireRunStep(root, date, isAuto);
+    // Probe the API and render the launch panel asynchronously.
+    renderApiPanel(root, date, isAuto);
+  }
+
+  // ── API-mode launch panel (Phase 2) ───────────────────────────────────────
+
+  async function renderApiPanel(root, date, isAuto) {
+    const host = root.querySelector("#wiz-api-panel-host");
+    if (!host) return;
+    host.innerHTML =
+      `<div class="wiz-run-panel" style="border-left-color:#8b949e;">` +
+        `<h4><span class="step-num" style="background:#8b949e;">0</span> One-click launch <span class="wiz-mut">(probing API…)</span></h4>` +
+        `<div class="panel-help">Checking whether <code>serve.sh --api</code> is up at <code>/api/health</code>…</div>` +
+      `</div>`;
+
+    const ok = (typeof TunerApi !== "undefined") ? await TunerApi.health() : false;
+    if (!ok) {
+      host.innerHTML =
+        `<div class="wiz-run-panel" style="border-left-color:#8b949e;">` +
+          `<h4><span class="step-num" style="background:#8b949e;">0</span> One-click launch <span class="wiz-mut">(API mode unavailable)</span></h4>` +
+          `<div class="panel-help">Boot the dashboard with <code>./serve.sh --api</code> to enable a real <strong>Start Tuning</strong> button here. ` +
+          `For now, follow the IntelliJ instructions in panel 3 below.</div>` +
+        `</div>`;
+      return;
+    }
+
+    host.innerHTML = renderApiLaunchPanel(date, isAuto);
+    wireApiLaunchPanel(host, date, isAuto);
+  }
+
+  function renderApiLaunchPanel(date, isAuto) {
+    const stagedCount = countStaged(date);
+    const totalRequired = BNN.filter(b => b.required).length;
+    const validRequired = BNN.filter(b => b.required).filter(b =>
+      (state.stagedMeta[date] || {})[b.key] && state.stagedMeta[date][b.key].valid
+    ).length;
+    return `<div class="wiz-run-panel">` +
+      `<h4><span class="step-num">0</span> Start Tuning <span class="wiz-mut">(API mode)</span></h4>` +
+      `<div class="panel-help">The TunerService is reachable. The wizard will:</div>` +
+      `<ol class="wiz-mut" style="font-size:12px;line-height:1.7;">` +
+        `<li>Save the projectId override (if changed) to <code>config.local.json</code>.</li>` +
+        `<li>Create <code>${escapeHtml((typeof config !== "undefined" && config && config.inputsPath) || "")}/${escapeHtml(date)}/</code>.</li>` +
+        `<li>Upload the ${stagedCount} staged CSV(s) for <code>${escapeHtml(date)}</code>.</li>` +
+        `<li>POST to <code>/api/runs/${isAuto ? "auto" : "single"}</code> with the parameters from Step 3.</li>` +
+        `<li>Stream the run log into the box below.</li>` +
+      `</ol>` +
+      `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">` +
+        `<button class="wiz-btn primary" id="wiz-start" ${validRequired < totalRequired ? "disabled" : ""}>► Start Tuning</button>` +
+        `<button class="wiz-btn" id="wiz-cancel-run" style="display:none;">Cancel run</button>` +
+        `<span class="wiz-mut" id="wiz-run-status"></span>` +
+      `</div>` +
+      `<div class="wiz-codeblock" id="wiz-log-box" style="display:none;margin-top:10px;">` +
+        `<button class="copy">Copy</button>` +
+        `<pre style="max-height:340px;overflow:auto;" id="wiz-log-pre"></pre>` +
+      `</div>` +
+    `</div>`;
+  }
+
+  function countStaged(date) {
+    const f = state.stagedFiles[date] || {};
+    return BNN.filter(b => f[b.key]).length;
+  }
+
+  function wireApiLaunchPanel(host, date, isAuto) {
+    const startBtn  = host.querySelector("#wiz-start");
+    const cancelBtn = host.querySelector("#wiz-cancel-run");
+    const statusEl  = host.querySelector("#wiz-run-status");
+    const logBox    = host.querySelector("#wiz-log-box");
+    const logPre    = host.querySelector("#wiz-log-pre");
+    const copyBtn   = host.querySelector("#wiz-log-box .copy");
+
+    if (copyBtn) copyBtn.onclick = () => {
+      copyText(logPre.textContent, copyBtn);
+    };
+
+    if (!startBtn) return;
+    let stopStream = null;
+    let inFlightRunId = null;
+
+    startBtn.onclick = async () => {
+      startBtn.disabled = true;
+      statusEl.textContent = "preparing…";
+      logBox.style.display = "";
+      logPre.textContent = "";
+      const append = (line) => {
+        logPre.textContent += line + "\n";
+        logPre.scrollTop = logPre.scrollHeight;
+      };
+
+      try {
+        // 1) Persist projectId override if it differs from the loaded config.
+        const cfgNow = (typeof config !== "undefined" && config && config.gcpProjectId) || "";
+        if (state.projectId && state.projectId !== cfgNow) {
+          append(`▶ persisting projectId override → config.local.json`);
+          await TunerApi.persistConfig({ gcpProjectId: state.projectId });
+        }
+
+        // 2) mkdir.
+        append(`▶ POST /api/inputs/${date}`);
+        await TunerApi.mkdirInput(date);
+
+        // 3) Upload staged CSVs.
+        const files = state.stagedFiles[date] || {};
+        const keys = BNN.filter(b => files[b.key]).map(b => b.key);
+        for (const k of keys) {
+          const b = BNN.find(x => x.key === k);
+          const f = files[k];
+          append(`▶ PUT /api/inputs/${date}/csv?name=${b.csv}  (${formatBytes(f.size)})`);
+          await TunerApi.uploadCsv(date, b.csv, f);
+        }
+
+        // 4) Kick off the run.
+        const params = buildRunParams(isAuto);
+        append(`▶ POST /api/runs/${isAuto ? "auto" : "single"}  ${JSON.stringify(params)}`);
+        const startResp = isAuto
+          ? await TunerApi.startAuto(params)
+          : await TunerApi.startSingle(params);
+        inFlightRunId = startResp.runId;
+        statusEl.textContent = `running · runId=${inFlightRunId}`;
+        cancelBtn.style.display = "";
+
+        // 5) Long-poll the log.
+        stopStream = TunerApi.streamRun(inFlightRunId, {
+          onLine: (l) => append(l),
+          onStatus: (s) => { statusEl.textContent = `${s} · runId=${inFlightRunId}`; },
+          onDone: (resp) => {
+            cancelBtn.style.display = "none";
+            startBtn.disabled = false;
+            startBtn.textContent = "► Start another";
+            if (resp.status === "done") {
+              statusEl.innerHTML = `<span class="wiz-ok">✓ done</span> · runId=${escapeHtml(inFlightRunId)}`;
+              append(`✓ Run ${inFlightRunId} completed.`);
+              renderRunComplete(host, date, isAuto);
+            } else if (resp.status === "failed") {
+              statusEl.innerHTML = `<span class="err-chip">✗ failed</span> · runId=${escapeHtml(inFlightRunId)}`;
+              if (resp.error) append(`✗ ${resp.error}`);
+            } else if (resp.status === "cancelled") {
+              statusEl.innerHTML = `<span class="wiz-warn">⚠ cancelled</span> · runId=${escapeHtml(inFlightRunId)}`;
+            }
+          },
+          onError: (e) => append(`! polling error: ${e.message || e}`),
+        });
+      } catch (e) {
+        startBtn.disabled = false;
+        statusEl.innerHTML = `<span class="err-chip">✗ ${escapeHtml(e.message || String(e))}</span>`;
+        append(`✗ ${e.message || e}`);
+        if (e.body && e.body.error === "run_in_progress") {
+          append(`  ↳ existing run in progress: ${e.body.currentRunId}. Wait for it to finish or DELETE it.`);
+        }
+      }
+    };
+
+    if (cancelBtn) cancelBtn.onclick = async () => {
+      if (!inFlightRunId) return;
+      try { await TunerApi.cancelRun(inFlightRunId); } catch (_) { /* ignore */ }
+      if (stopStream) stopStream();
+      statusEl.innerHTML = `<span class="wiz-warn">⚠ cancelling…</span>`;
+    };
+  }
+
+  function renderRunComplete(host, date, isAuto) {
+    const refresh = document.createElement("div");
+    refresh.style.marginTop = "8px";
+    refresh.innerHTML =
+      `<button class="wiz-btn primary" id="wiz-open-analysis">Open the new analysis →</button>`;
+    host.querySelector(".wiz-run-panel").appendChild(refresh);
+    const btn = host.querySelector("#wiz-open-analysis");
+    if (btn) btn.onclick = async () => {
+      try {
+        if (typeof discoverAnalyses === "function") {
+          discoveredEntries = await discoverAnalyses();
+        }
+      } catch (_) { /* ignore */ }
+      clearSession();
+      cleanup();
+      closeModalSilently();
+      // Heuristic: tuner writes outputs to <date>_auto_tuned for auto mode, <date> for single.
+      const targetDir = isAuto ? `${date}_auto_tuned` : date;
+      if (typeof navigate === "function") navigate({ data: targetDir });
+    };
+  }
+
+  function buildRunParams(isAuto) {
+    if (isAuto) {
+      const out = {
+        referenceDate: state.dates.ref,
+        currentDate:   state.dates.cur,
+      };
+      AUTO_PARAMS.forEach(p => {
+        const v = state.params[p.name];
+        if (v === undefined || v === null) return;
+        if (p.kind === "bool") out[p.name] = !!v;
+        else out[p.name] = v;
+      });
+      return out;
+    }
+    const out = {
+      date: state.dates.ref,
+      flattened: !!state.flattened,
+    };
+    SINGLE_PARAMS.forEach(p => {
+      if (p.name === "flattened") return;
+      const v = state.params[p.name];
+      if (v === undefined || v === null) return;
+      out[p.name] = v;
+    });
+    return out;
+  }
+
+  function formatBytes(n) {
+    if (typeof n !== "number") return "";
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n/1024).toFixed(1)} KB`;
+    return `${(n/(1024*1024)).toFixed(1)} MB`;
   }
 
   function renderDownloadPanel(isAuto) {
