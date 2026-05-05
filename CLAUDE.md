@@ -33,7 +33,9 @@ orchestration/cluster_tuning/
     refinement/                        # Post-tuning JSON refinement (RefinementVitamins, SimpleJsonParser)
   auto/                                # Multi-date AutoTuner across snapshots
     ClusterMachineAndRecipeAutoTuner.scala  # main(), pairs reference vs current snapshots, classifies trends
-    TrendDetector.scala / StatisticalAnalysis.scala / PerformanceEvolver.scala / KeptRecipeCarrier.scala
+    TrendDetector.scala / StatisticalAnalysis.scala / PerformanceEvolver.scala
+    KeptRecipeCarrier.scala            # raw-JSON merge of preserve_historical recipe blocks
+    BoostMetadataCarrier.scala         # raw-JSON injection of prior b16 boost metadata into freshly-replanned configs (Holding/ReBoost lifecycle)
     AutoTunerModels.scala / AutoTunerJsonOutput.scala
     oss_mock/                          # Synthetic CSV fixtures (OssMockMain, MockGen, MockScenarios)
     frontend/                          # Static dashboard (index.html, app.js, style.css, config.json, serve.sh)
@@ -59,7 +61,7 @@ local/utils/    CleanClusterAndRecipeNames    # Local-dev helper
 | Object | Path | Purpose |
 | --- | --- | --- |
 | `ClusterMachineAndRecipeTuner` | `single/` | Per-date tuner. Args: `<YYYY_MM_DD> [flattened=false] [--strategy=…] [--topology=…]` |
-| `ClusterMachineAndRecipeAutoTuner` | `auto/` | Multi-date analysis. Scallop CLI: `--reference-date`, `--current-date`, `--strategy`, `--keep-historical-tuning`, `--b16-rebooting-factor`, `--divergence-z-threshold` |
+| `ClusterMachineAndRecipeAutoTuner` | `auto/` | Multi-date analysis. Scallop CLI: `--reference-date`, `--current-date`, `--strategy`, `--keep-historical-tuning`, `--b16-rebooting-factor`, `--divergence-z-threshold`, `--executor-scale-factor` (default 1.5, pass 1.0 to disable z-score scale-up), `--scale-z-threshold` (default 3.0), `--scale-cap-touch-ratio` (default 0.5) |
 | `OssMockMain` | `auto/oss_mock/` | Synthetic fixtures. Args: `--scenario=…`, `--date=…` or `--reference-date=… --current-date=…`, `--seed=…`, `--full` |
 | `TuningOutputDiff` | `diff/` | Diff two output directories |
 | `ClusterMachineAndRecipeTunerRefinement` | `single/refinement/` | Post-process tuned JSON configs |
@@ -72,6 +74,12 @@ local/utils/    CleanClusterAndRecipeNames    # Local-dev helper
 - **Machine priority:** N2-32 > N2D-32 > E2-32 (priority 1/2/3); 32-core machines get a -0.10 score bonus. C3/C4 capped at 1 cluster each. N4/N4D excluded by default.
 - **Tuning modes:** Manual (`spark.executor.instances`) and Auto-scale (`spark.dynamicAllocation.*`).
 - **b14 quirk:** `cluster_name` field is triple-double-quoted in the BigQuery CSV export — strip with `.replaceAll("\"", "")`.
+- **Boost lifecycle (date-aware):** `BoostState.{New, ReBoost, Holding}` in `single/refinement/RefinementVitamins.scala`. AutoTuner's `applyB16Reboosting` and `applyExecutorScaling` route signals through this lifecycle so a recipe boosted in a prior run *holds* the boost when no fresh signal exists, and *re-boosts* (compounded factor) when a fresh signal recurs. The single tuner only emits `New`.
+- **B16 boost compound across re-plans:** `auto/BoostMetadataCarrier` injects `appliedMemoryHeapBoostFactor` + boosted `spark.executor.memory` + re-derived totals from the reference output JSON into a freshly-replanned current JSON BEFORE `applyB16Reboosting` runs. Without this carry, `BoostResources`/`GenerateFresh` would silently lose prior boosts. Anchored on the recipe key (NOT block content), so two recipes with byte-identical baseline blocks don't collide. `SimpleJsonParser` round-trips both `appliedMemoryHeapBoostFactor` and `appliedExecutorScaleFactor` in `extraFields`.
+- **Z-score executor scale-up:** `ExecutorScaleVitamin` in `single/refinement/RefinementVitamins.scala` raises `spark.dynamicAllocation.maxExecutors` (×1.5 default) when a paired recipe is a duration outlier on `divergences_current_snapshot` (z ≥ 3.0 default), is **not** a new entry, and is cap-touching (`p95_run_max_executors / maxExecutors ≥ 0.5`). Manual recipes are skipped. `minExecutors` is intentionally untouched. Lifecycle uses the same New/ReBoost/Holding states; cumulative factor stamped as `appliedExecutorScaleFactor` per recipe.
+- **AutoTuner generation summary's `boost_groups`:** structured array of `{code, title, kind, count, count_new, count_holding, cluster_count, source?, entries}` consumed by the frontend. Codes today: `b14` (driver eviction), `b16` (heap OOM), `executor_scale` (z-score derived; `source: "derived"`, title `Z-score Executor SCALE-UP`, badge rendered as `z-score`). Adding a new vitamin = add a new entry here AND a CSS color in `frontend/style.css` for `.cluster-card .cluster-boost-chip.<code>` / `.detail-boost-group.<code>` / `.boost-card.<code>`.
+- **Frontend divergences table:** `#divergence-table` is now click-sortable per column (Cluster / Recipe / Metric / Reference / Current / Z-Score). Sort state round-trips via `?divSort=…&divDir=…` URL params; default render (no params) preserves the historic `|z| desc` ordering. New entries cluster at one end on numeric sorts.
+- **OssMockMain `--full`:** for both single-date and multi-date scenarios, the orchestrator now runs `SingleTuner` → `ClusterMachineAndRecipeTunerRefinement` → (multi-date only) `AutoTuner`. The Refinement step is what stamps `appliedMemoryHeapBoostFactor` into the per-date outputs; without it the AutoTuner has nothing to carry.
 - **Cache utils:** `MemorySizingUtils` exposes three views (JVM estimate, RDD storage info, executor storage accounting delta). `ExecutorTrackingListener` emits ISO-formatted JSON logs with `event_type` first.
 
 ## In-repo documentation

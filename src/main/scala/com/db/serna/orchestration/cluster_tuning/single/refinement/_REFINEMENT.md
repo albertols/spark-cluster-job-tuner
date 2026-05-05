@@ -96,13 +96,28 @@ This file is grouped by vitamin name, with the full CSV source path and all unma
 
 ## Available Vitamins
 
-| Vitamin | CSV Source | Spark Property | Trigger | Status |
-|---------|-----------|---------------|---------|--------|
+| Vitamin | Source | Spark Property | Trigger | Status |
+|---------|--------|---------------|---------|--------|
 | `MemoryHeapBoostVitamin` | `b16_oom_job_driver_exceptions.csv` | `spark.executor.memory` | `java.lang.OutOfMemoryError: Java heap space` | Active |
+| `ExecutorScaleVitamin` | **Derived** — `divergences_current_snapshot` from the AutoTuner (NOT a CSV) | `spark.dynamicAllocation.maxExecutors` | High positive z-score on `avg/p95_job_duration_ms` for a paired (non-new) recipe whose `p95_run_max_executors` is cap-touching | Active (AutoTuner only) |
 | `MemoryOverheadBoostVitamin` | `b17` (future) | `spark.executor.memoryOverhead` | Container killed (off-heap) | Planned |
 | `GCPressureBoostVitamin` | `b19` (future) | `spark.executor.memory` + GC opts | GC time > 10% of task time | Planned |
 | `ShuffleSpillBoostVitamin` | `b18` (future) | `spark.sql.shuffle.partitions` | Excessive shuffle spill to disk | Planned |
 | `BroadcastTimeoutBoostVitamin` | `b20` (future) | `spark.sql.broadcastTimeout` | BroadcastExchangeExec timeout | Planned |
+
+`ExecutorScaleVitamin` is the first vitamin whose signal source is **derived** (in-memory, divergence-driven) rather than CSV-driven. The vitamin's `loadSignals(inputDir, clusterName)` ignores `inputDir` and pulls signals from a constructor-injected `signalsForCluster` lookup populated by the AutoTuner. It is wired only in the AutoTuner path (not in the standalone refinement app's pipeline).
+
+## Boost State Lifecycle
+
+When the pipeline is fed multiple input directories (the AutoTuner's `[curDate, refDate]` pattern) it routes signals through the date-aware 3-arg `computeBoosts` overload, producing one of three states per recipe:
+
+| State | Trigger | What `applyBoosts` does |
+|---|---|---|
+| `New` | recipe has no prior factor in `extraFields` AND a fresh signal exists in current_date | apply factor, update spark setting, update derived totals, stamp factor |
+| `ReBoost` | recipe has a prior factor AND a fresh signal in current_date | factor stacks (`prior × factor`); spark setting × factor on top of the already-boosted value; totals re-derived; stamped cumulative factor |
+| `Holding` | recipe has a prior factor AND no fresh signal in current_date | spark setting and totals untouched; cumulative factor preserved (the boost is succeeding) |
+
+Single-tuner / single-inputDir runs only ever emit `New` (the legacy 2-arg `computeBoosts` does not have date awareness). The AutoTuner's `applyB16Reboosting` and `applyExecutorScaling` always pass two input dirs to force the date-aware path — see `_AUTO_TUNING.md` for the full flow including the `BoostMetadataCarrier` step that makes `Holding` / `ReBoost` work even when the cluster is re-planned from scratch.
 
 ## Output Changes
 
@@ -126,18 +141,25 @@ Added to `clusterConf` — one counter per vitamin type:
 
 ### Recipe-level: boost factor
 
-Added per affected recipe alongside `parallelizationFactor`:
+Added per affected recipe alongside `parallelizationFactor`. Each vitamin owns its own field so multiple boosts can coexist on the same recipe (and round-trip through `SimpleJsonParser.extractRecipes` into `RecipeConfig.extraFields`):
 
 ```json
 "_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json": {
   "parallelizationFactor": 5,
-  "appliedMemoryHeapBoostFactor": 1.5,
+  "appliedMemoryHeapBoostFactor": 2.25,
+  "appliedExecutorScaleFactor": 1.5,
   "sparkOptsMap": {
-    "spark.executor.memory": "12g",
+    "spark.executor.memory": "18g",
+    "spark.dynamicAllocation.maxExecutors": "21",
     ...
   }
 }
 ```
+
+| Field | Owner | Stored value |
+|---|---|---|
+| `appliedMemoryHeapBoostFactor` | `MemoryHeapBoostVitamin` | Cumulative factor (e.g. 1.5 → 2.25 → 3.375 across `New` → `ReBoost` → `ReBoost`). On `Holding` runs the value is preserved as-is. |
+| `appliedExecutorScaleFactor` | `ExecutorScaleVitamin` | Same shape, applied to `spark.dynamicAllocation.maxExecutors`. Lives only on DA recipes (manual recipes are skipped). |
 
 ## CLI Usage
 
@@ -167,18 +189,29 @@ classDiagram
     class RefinementVitamin {
         <<trait>>
         +name: String
+        +csvFileName: String
         +counterKey: String
         +listKey: String
         +boostFieldKey: String
         +loadSignals(inputDir, clusterName): Seq~VitaminSignal~
         +computeBoosts(signals, recipes): Seq~VitaminBoost~
+        +computeBoosts(signals, recipes, currentSignals): Seq~VitaminBoost~  «date-aware 3-arg overload»
         +applyBoosts(boosts, recipes): Map
     }
 
     class MemoryHeapBoostVitamin {
         +boostFactor: Double
         +name = "b16_memory_heap_boost"
-        +counterKey = "boostedMemoryHeapJobCount"
+        +csvFileName = "b16_oom_job_driver_exceptions.csv"
+        +boostFieldKey = "appliedMemoryHeapBoostFactor"
+    }
+
+    class ExecutorScaleVitamin {
+        +boostFactor: Double
+        +signalsForCluster: String =~ Seq~ExecutorScaleSignal~
+        +name = "executor_scale_up"
+        +csvFileName = "(divergence-driven, no CSV)"
+        +boostFieldKey = "appliedExecutorScaleFactor"
     }
 
     class MemoryOverheadBoostVitamin {
@@ -187,6 +220,7 @@ classDiagram
     }
 
     RefinementVitamin <|-- MemoryHeapBoostVitamin
+    RefinementVitamin <|-- ExecutorScaleVitamin
     RefinementVitamin <|-- MemoryOverheadBoostVitamin
 
     class VitaminSignal {
@@ -200,18 +234,44 @@ classDiagram
         +recipeFilename: String
     }
 
+    class BoostState {
+        <<sealed trait>>
+        New
+        ReBoost
+        Holding
+    }
+
     MemoryHeapBoostVitamin ..> MemoryHeapOomSignal
     MemoryHeapBoostVitamin ..> MemoryHeapBoost
+    ExecutorScaleVitamin ..> ExecutorScaleSignal
+    ExecutorScaleVitamin ..> ExecutorScaleBoost
     VitaminSignal <|-- MemoryHeapOomSignal
+    VitaminSignal <|-- ExecutorScaleSignal
     VitaminBoost <|-- MemoryHeapBoost
+    VitaminBoost <|-- ExecutorScaleBoost
+    MemoryHeapBoost --> BoostState
+    ExecutorScaleBoost --> BoostState
 ```
 
 ## File Layout
 
 ```
 refinement/
-  ClusterMachineAndRecipeTunerRefinement.scala   # Main app + Scallop CLI
-  RefinementVitamins.scala                        # Trait + signals + boosts + pipeline
-  SimpleJsonParser.scala                          # JSON reader for tuned configs
+  ClusterMachineAndRecipeTunerRefinement.scala   # Standalone app + Scallop CLI (b16 only by default)
+  RefinementVitamins.scala                        # RefinementVitamin trait + BoostState lifecycle
+                                                  #   Signals: MemoryHeapOomSignal, ExecutorScaleSignal
+                                                  #   Boosts:  MemoryHeapBoost, ExecutorScaleBoost
+                                                  #   Vitamins: MemoryHeapBoostVitamin (CSV), ExecutorScaleVitamin (derived)
+                                                  #   RefinementPipeline.refine() — multi-dir signal aggregation,
+                                                  #   dedupe by recipe (curDate wins), 2-arg vs 3-arg routing
+                                                  #   RefinementPipeline.toRefinedJson() — serializer that round-trips
+                                                  #   extraFields (boost factors)
+  SimpleJsonParser.scala                          # JSON reader for tuned configs;
+                                                  #   carries appliedMemoryHeapBoostFactor + appliedExecutorScaleFactor
+                                                  #   into RecipeConfig.extraFields
   _REFINEMENT.md                                  # This file
 ```
+
+### Where `ExecutorScaleVitamin` is wired
+
+It is **not** part of `ClusterMachineAndRecipeTunerRefinement`'s default `buildVitaminPipeline()` — running the standalone refinement app is still b16-only. The AutoTuner instantiates it directly inside `applyExecutorScaling` (closure over the per-cluster signal map), runs `RefinementPipeline.refine` with two input dirs (forces date-aware path), and writes the refined JSON back. See `_AUTO_TUNING.md` § "Z-score-driven executor scale-up".

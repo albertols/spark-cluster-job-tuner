@@ -40,6 +40,33 @@ OssMockMain
   --full
 ```
 
+End-to-end demo of the z-score-driven features (b16 compounding/holding + executor scale-up + sortable divergences table):
+
+```
+OssMockMain
+  --reference-date=2099_01_01
+  --current-date=2099_01_02
+  --scenario=divergenceShowcase
+  --full
+```
+
+### What `--full` runs
+
+For **single-date** scenarios:
+
+1. Write all CSVs under `inputs/<date>/`
+2. `ClusterMachineAndRecipeTuner.main(<date>)` → baseline per-cluster JSONs in `outputs/<date>/`
+3. `ClusterMachineAndRecipeTunerRefinement.main(--reference-tuning-date <date>)` → applies b16 boosts in-place (this is what stamps `appliedMemoryHeapBoostFactor` so subsequent AutoTuner runs have something to carry)
+
+For **multi-date** scenarios:
+
+1. Write CSVs for both `<refDate>/` and `<curDate>/`
+2. `SingleTuner` → `Refinement` for `<refDate>` (so the reference output JSONs already carry b16 boosts)
+3. `SingleTuner` → `Refinement` for `<curDate>`
+4. `ClusterMachineAndRecipeAutoTuner.main(--reference-date=<refDate> --current-date=<curDate>)` → `BoostMetadataCarrier` carry, b16 reboost lifecycle, z-score executor scale-up
+
+Without the Refinement step in (3), the reference JSONs would have no `appliedMemoryHeapBoostFactor` tag and the AutoTuner's carry/Holding/ReBoost path would never visibly fire.
+
 ## Available scenarios
 
 | Name | Clusters | Recipes | Diagnostics | Autoscaling | Use for |
