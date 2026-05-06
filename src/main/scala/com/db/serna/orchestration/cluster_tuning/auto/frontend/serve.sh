@@ -29,14 +29,20 @@ if [ "${1:-}" = "--api" ]; then
   force_rebuild=0
   # Pass --rebuild (or -rebuild) anywhere to force `mvn package` even when
   # the slim jar is current.
-  filtered_args=()
+  #
+  # macOS Bash 3.2 + `set -u` doesn't tolerate `"${empty_array[@]}"`, even via
+  # the `${arr[@]+...}` idiom on some patch levels. Use a length check + a
+  # plain string buffer to stay portable. (We don't expect args containing
+  # whitespace here — every flag is `--key=value`.)
+  rebuild_filtered_args=""
   for a in "$@"; do
     case "$a" in
       --rebuild|-rebuild) force_rebuild=1 ;;
-      *) filtered_args+=("$a") ;;
+      *) rebuild_filtered_args="$rebuild_filtered_args $a" ;;
     esac
   done
-  set -- "${filtered_args[@]}"
+  # shellcheck disable=SC2086
+  set -- $rebuild_filtered_args
 
   # Walk up to find the project root (the dir that contains pom.xml).
   PROJECT_ROOT="$SCRIPT_DIR"
