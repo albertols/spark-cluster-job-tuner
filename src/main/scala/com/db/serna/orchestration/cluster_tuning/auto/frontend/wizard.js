@@ -644,17 +644,10 @@ const Wizard = (() => {
    * Returns false if the user is still on Step 2 (e.g. retry-able failure).
    */
   async function tryAutoProvisionAndAdvance() {
-    const apiUp = (typeof TunerApi !== "undefined") ? await TunerApi.health() : false;
-    if (!apiUp) {
-      // Static-mode: nothing to upload server-side. Step 4 keeps the bash
-      // snippet for the user to land files manually.
-      state.step++; render(false);
-      return true;
-    }
-
     const date = state.mode === "auto" ? state.dates.cur : state.dates.ref;
     const files = state.stagedFiles[date] || {};
     const stagedKeys = BNN.filter(b => files[b.key]).map(b => b.key);
+
     // No staged CSVs (e.g. user resumed and only has metadata) — nothing to
     // provision; jump straight to params and let them iterate.
     if (stagedKeys.length === 0) {
@@ -662,20 +655,34 @@ const Wizard = (() => {
       return true;
     }
 
-    // 1) Persist projectId override if it differs from the loaded config.
-    //    This is best-effort — non-fatal on failure (we surface the error
-    //    but still let the user proceed with uploads).
+    // Path 1: API mode — push CSVs to TunerService.
+    const apiUp = (typeof TunerApi !== "undefined") ? await TunerApi.health() : false;
+    if (apiUp) return await provisionViaApi(date, stagedKeys, files);
+
+    // Path 2: Static mode — try the browser's File System Access API. Lets
+    // the user pick the inputs folder once, then we create the date subdir
+    // and write each CSV directly to disk. Chrome/Edge/Brave/Opera support;
+    // Firefox/Safari fall through to Path 3.
+    if (canUseFsAccess()) {
+      return await provisionViaFsAccess(date, stagedKeys, files);
+    }
+
+    // Path 3: Pure static — no browser FS access. Skip; Step 4 keeps the
+    // bash snippet + per-file downloads for the manual flow.
+    state.step++; render(false);
+    return true;
+  }
+
+  async function provisionViaApi(date, stagedKeys, files) {
     const cfgProj = (typeof config !== "undefined" && config && config.gcpProjectId) || "";
     const projChanged = state.projectId && state.projectId !== cfgProj;
-
-    // Build the operation list shown to the user.
     const ops = [];
     if (projChanged) {
-      ops.push({ id: "config", label: `Persist projectId override → config.local.json`, fn: () =>
+      ops.push({ id: "config", label: `Persist projectId override → <code>config.local.json</code>`, fn: () =>
         TunerApi.persistConfig({ gcpProjectId: state.projectId })
       });
     }
-    ops.push({ id: "mkdir", label: `Create directory  ${escapeHtml(((typeof config !== "undefined" && config && config.inputsPath) || "") + "/" + date + "/")}`, fn: () =>
+    ops.push({ id: "mkdir", label: `Create directory  <code>${escapeHtml(((typeof config !== "undefined" && config && config.inputsPath) || "") + "/" + date + "/")}</code>`, fn: () =>
       TunerApi.mkdirInput(date)
     });
     stagedKeys.forEach(k => {
@@ -687,8 +694,81 @@ const Wizard = (() => {
         fn: () => TunerApi.uploadCsv(date, b.csv, f),
       });
     });
+    return await runProvisioningOps(ops, /* mode */ "api");
+  }
 
-    return await runProvisioningOps(ops);
+  // ── File System Access API path (static mode, Chrome/Edge/Brave/Opera) ────
+
+  function canUseFsAccess() {
+    return typeof window !== "undefined"
+      && typeof window.showDirectoryPicker === "function";
+  }
+
+  async function provisionViaFsAccess(date, stagedKeys, files) {
+    // Show an explainer panel first; the picker can only be opened from a
+    // user-initiated event handler in some browsers, so we anchor the click
+    // here.
+    const root = document.getElementById("wiz-step-content");
+    if (!root) return false;
+
+    root.innerHTML =
+      `<h3>Provisioning inputs <span class="wiz-mut">(static mode · browser FS Access)</span></h3>` +
+      `<p class="help">The TunerService API isn't running, but your browser supports the File System Access API. ` +
+      `Pick your project's <strong>inputs root</strong> folder once and the wizard will create the <code>${escapeHtml(date)}/</code> subdirectory and drop the staged CSVs into it — same outcome as API mode, just without the run launch.</p>` +
+      `<div class="wiz-banner info" style="margin-top:6px;">` +
+        `<strong>What to pick:</strong> the directory configured as <code>inputsPath</code> in <code>config.json</code>` +
+        ((typeof config !== "undefined" && config && config.inputsPath) ? ` — currently <code>${escapeHtml(config.inputsPath)}</code>` : "") +
+        `. (Your browser will ask permission once per session.)` +
+      `</div>` +
+      `<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">` +
+        `<button class="wiz-btn primary" id="wiz-fs-pick">📂 Pick inputs folder…</button>` +
+        `<button class="wiz-btn" id="wiz-fs-skip" title="Skip and continue with the manual download flow">Skip and continue (manual flow)</button>` +
+        `<button class="wiz-btn ghost" id="wiz-fs-back">← Back to Inputs</button>` +
+      `</div>`;
+
+    return new Promise((resolve) => {
+      const pick = root.querySelector("#wiz-fs-pick");
+      const skip = root.querySelector("#wiz-fs-skip");
+      const back = root.querySelector("#wiz-fs-back");
+      back.onclick = () => { state.step = STEPS.findIndex(s => s.key === "inputs"); render(false); resolve(true); };
+      skip.onclick = () => { state.step++; render(false); resolve(true); };
+      pick.onclick = async () => {
+        let inputsHandle;
+        try {
+          inputsHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+        } catch (e) {
+          // User cancelled the picker — stay on this panel so they can retry.
+          return;
+        }
+        const ops = [];
+        ops.push({
+          id: "fs-mkdir",
+          label: `Create directory  <code>${escapeHtml(date)}/</code>  inside the picked folder`,
+          fn: async () => {
+            state._fsDateHandle = await inputsHandle.getDirectoryHandle(date, { create: true });
+            return state._fsDateHandle;
+          },
+        });
+        stagedKeys.forEach(k => {
+          const b = BNN.find(x => x.key === k);
+          const f = files[k];
+          ops.push({
+            id: "fs-" + k,
+            label: `Write  <code>${escapeHtml(b.csv)}</code>  <span class="wiz-mut">(${formatBytes(f.size)})</span>`,
+            fn: async () => {
+              const dirH = state._fsDateHandle;
+              if (!dirH) throw new Error("Lost directory handle — re-pick the folder.");
+              const fileH = await dirH.getFileHandle(b.csv, { create: true });
+              const writable = await fileH.createWritable();
+              await writable.write(f);
+              await writable.close();
+            },
+          });
+        });
+        const ok = await runProvisioningOps(ops, /* mode */ "fs");
+        resolve(ok);
+      };
+    });
   }
 
   /**
@@ -697,22 +777,29 @@ const Wizard = (() => {
    * keeps the user on the progress UI with Retry / Back-to-inputs / Continue
    * anyway buttons.
    */
-  async function runProvisioningOps(ops) {
+  async function runProvisioningOps(ops, mode) {
+    mode = mode || "api";
     const root = document.getElementById("wiz-step-content");
     if (!root) return false;
     const states = ops.map(() => "pending"); // pending | running | done | failed
     const errors = ops.map(() => null);
 
+    const headerLabel = mode === "fs"
+      ? "Provisioning inputs <span class=\"wiz-mut\">(static mode · browser FS Access)</span>"
+      : "Provisioning inputs <span class=\"wiz-mut\">(API mode)</span>";
+    const helpText = mode === "fs"
+      ? "The wizard is creating the date subdirectory and writing your staged CSVs straight to disk via the browser's File System Access API. If anything fails, the exact error appears below."
+      : "The wizard is creating the input directory and uploading your staged CSVs to the TunerService. If anything fails, you'll see the exact error and a Retry button.";
+
     const draw = () => {
       const rows = ops.map((op, i) => renderProvRow(op, states[i], errors[i], i)).join("");
       root.innerHTML =
-        `<h3>Provisioning inputs <span class="wiz-mut">(API mode)</span></h3>` +
-        `<p class="help">The wizard is creating the input directory and uploading your staged CSVs to the TunerService. ` +
-        `If anything fails, you'll see the exact error and a Retry button.</p>` +
+        `<h3>${headerLabel}</h3>` +
+        `<p class="help">${helpText}</p>` +
         `<div class="wiz-prov-list">${rows}</div>` +
         `<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">` +
           `<button class="wiz-btn" id="wiz-prov-back">← Back to Inputs</button>` +
-          `<button class="wiz-btn ghost" id="wiz-prov-skip" title="Skip uploads and continue with the static-mode flow">Skip and continue (static fallback)</button>` +
+          `<button class="wiz-btn ghost" id="wiz-prov-skip" title="Skip and continue with the manual flow">Skip and continue (manual flow)</button>` +
         `</div>`;
       const back = root.querySelector("#wiz-prov-back");
       const skip = root.querySelector("#wiz-prov-skip");
@@ -736,6 +823,8 @@ const Wizard = (() => {
       await runFrom(i);
     };
 
+    const humanizer = mode === "fs" ? humanizeFsError : humanizeApiError;
+
     const runFrom = async (start) => {
       for (let i = start; i < ops.length; i++) {
         states[i] = "running";
@@ -746,7 +835,7 @@ const Wizard = (() => {
           draw();
         } catch (e) {
           states[i] = "failed";
-          errors[i] = humanizeApiError(e, ops[i]);
+          errors[i] = humanizer(e, ops[i]);
           draw();
           return false;
         }
@@ -794,6 +883,46 @@ const Wizard = (() => {
         `<button class="wiz-btn" data-retry="${idx}">Retry</button>` +
       `</div>` +
     `</div>`;
+  }
+
+  function humanizeFsError(e, op) {
+    const name = e && e.name;
+    const msg  = (e && e.message) || String(e);
+    if (name === "NotAllowedError" || name === "SecurityError") {
+      return {
+        title: "Permission denied by the browser.",
+        message: msg,
+        suggestions: [
+          "Click 'Pick inputs folder…' again and accept the permission prompt.",
+          "Some browsers block File System Access API on file:// origins — use serve.sh's HTTP origin (http://localhost:8080).",
+        ],
+      };
+    }
+    if (name === "AbortError") {
+      return {
+        title: "You cancelled the picker.",
+        message: msg,
+        suggestions: ["Click 'Pick inputs folder…' again and choose the inputsPath directory."],
+      };
+    }
+    if (name === "InvalidStateError" || name === "InvalidModificationError") {
+      return {
+        title: "Filesystem state error.",
+        message: msg,
+        suggestions: [
+          "Make sure no other process holds the target file open.",
+          "Close any IDE / file explorer tabs that might lock the file and click Retry.",
+        ],
+      };
+    }
+    return {
+      title: "File System Access API failed.",
+      message: msg,
+      suggestions: [
+        "Confirm your browser supports the API (Chrome / Edge / Brave / Opera).",
+        "Try the 'Skip and continue (manual flow)' option to fall back to the bash + downloads flow.",
+      ],
+    };
   }
 
   function humanizeApiError(e, op) {
@@ -1529,11 +1658,14 @@ const Wizard = (() => {
     const label = isAuto ? `Current date inputs (${date})` : `Inputs (${date})`;
     const files = state.stagedFiles[date] || {};
     const stagedKeys = BNN.filter(b => files[b.key]).map(b => b.key);
+    const provisioned = !!(state.provisionedDates && state.provisionedDates[date]);
     const refNote = isAuto
       ? `<div class="panel-help"><strong>Reference date <code>${escapeHtml(state.dates.ref)}</code></strong>: read from disk, no download needed.</div>`
       : "";
     let body;
-    if (!stagedKeys.length) {
+    if (provisioned) {
+      body = `<div class="wiz-banner info" style="margin-top:6px;"><span class="wiz-ok">✓</span> CSVs already on disk for <code>${escapeHtml(date)}</code> (provisioned at Step 2 → Step 3). No manual download needed.</div>`;
+    } else if (!stagedKeys.length) {
       body = `<div class="panel-help"><strong>${escapeHtml(label)}</strong>: no CSVs staged in this session.</div>`;
     } else {
       const buttons = stagedKeys.map(k => {
@@ -1550,7 +1682,9 @@ const Wizard = (() => {
     }
     return `<div class="wiz-run-panel">` +
       `<h4><span class="step-num">1</span> Save staged CSVs</h4>` +
-      `<div class="panel-help">Each click downloads a CSV to your browser's default download folder.</div>` +
+      (provisioned
+        ? `<div class="panel-help">Step 2 → Step 3 already wrote the CSVs to your inputs path; no further action needed here.</div>`
+        : `<div class="panel-help">Each click downloads a CSV to your browser's default download folder.</div>`) +
       refNote +
       body +
     `</div>`;
@@ -1558,6 +1692,13 @@ const Wizard = (() => {
 
   function renderLandPanel(date) {
     const inputsRel = (typeof config !== "undefined" && config && config.inputsPath) || "<inputsPath from config.json>";
+    const provisioned = !!(state.provisionedDates && state.provisionedDates[date]);
+    if (provisioned) {
+      return `<div class="wiz-run-panel">` +
+        `<h4><span class="step-num">2</span> Land the files <span class="wiz-ok">✓ done</span></h4>` +
+        `<div class="panel-help">CSVs are already on disk under <code>${escapeHtml(inputsRel)}/${escapeHtml(date)}/</code>. Skip ahead to step 3.</div>` +
+      `</div>`;
+    }
     const csvList = BNN
       .filter(b => state.stagedFiles[date] && state.stagedFiles[date][b.key])
       .map(b => `~/Downloads/${b.csv}`)

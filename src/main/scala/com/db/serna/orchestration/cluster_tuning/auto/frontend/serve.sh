@@ -37,32 +37,49 @@ if [ "${1:-}" = "--api" ]; then
   fi
 
   JAR="$PROJECT_ROOT/target/spark-cluster-job-tuner-server.jar"
+  LIB="$PROJECT_ROOT/target/lib"
   OPEN_URL="http://127.0.0.1:$PORT/"
 
   echo "Booting TunerService on $OPEN_URL"
   echo "  Project root: $PROJECT_ROOT"
   echo "  Frontend dir: $SCRIPT_DIR"
+
+  # First boot — or anyone who blew away target/ — will be missing the slim
+  # jar and/or its sibling lib/ folder. Build them automatically rather than
+  # asking the user to run a separate command.
+  needs_build=0
+  if [ ! -f "$JAR" ]; then needs_build=1; fi
+  if [ ! -d "$LIB" ] || [ -z "$(ls -A "$LIB" 2>/dev/null)" ]; then needs_build=1; fi
+  if [ "$needs_build" = "1" ]; then
+    if ! command -v mvn &>/dev/null; then
+      echo "Error: target/spark-cluster-job-tuner-server.jar (or target/lib/) is missing and Maven is not on PATH." >&2
+      echo "Install Maven, or build manually with: mvn -Pserve package" >&2
+      exit 1
+    fi
+    echo "  First boot — building project (mvn -Pserve package)…"
+    cd "$PROJECT_ROOT"
+    if ! mvn -q -Pserve package -DskipTests; then
+      echo "Error: mvn -Pserve package failed." >&2
+      echo "Re-run with 'mvn -Pserve package -e' from $PROJECT_ROOT to see the full stack trace." >&2
+      exit 1
+    fi
+    if [ ! -f "$JAR" ] || [ ! -d "$LIB" ]; then
+      echo "Error: build succeeded but $JAR or $LIB is still missing — check pom.xml's serve profile." >&2
+      exit 1
+    fi
+    echo "  Build complete."
+  fi
+
   if command -v open &>/dev/null;       then ( sleep 1.2 && open "$OPEN_URL" ) &
   elif command -v xdg-open &>/dev/null; then ( sleep 1.2 && xdg-open "$OPEN_URL" ) &
   fi
 
   cd "$PROJECT_ROOT"
-  if [ -f "$JAR" ]; then
-    echo "  Mode: java -jar $(basename "$JAR")"
-    exec java -jar "$JAR" \
-      --port="$PORT" --host=127.0.0.1 \
-      --frontend-dir="$SCRIPT_DIR" \
-      "$@"
-  else
-    echo "  Mode: mvn -Pserve exec:java  (build the fat JAR with 'mvn -Pserve package' to skip Maven on subsequent boots)"
-    if ! command -v mvn &>/dev/null; then
-      echo "Error: neither $JAR nor mvn is available." >&2
-      echo "Build the fat JAR with:  mvn -Pserve package" >&2
-      exit 1
-    fi
-    exec mvn -q -Pserve exec:java \
-      -Dexec.args="--port=$PORT --host=127.0.0.1 --frontend-dir=$SCRIPT_DIR $*"
-  fi
+  echo "  Mode: java -jar $(basename "$JAR")"
+  exec java -jar "$JAR" \
+    --port="$PORT" --host=127.0.0.1 \
+    --frontend-dir="$SCRIPT_DIR" \
+    "$@"
 fi
 
 # ─── Back-compat: explicit output dir ───────────────────────────────────────
