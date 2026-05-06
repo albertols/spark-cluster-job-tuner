@@ -59,12 +59,15 @@ object TunerService {
   def main(args: Array[String]): Unit = {
     val mode = args.headOption.getOrElse("--server")
     mode match {
-      case "--server" | "server" => runServer(args.drop(if (args.headOption.contains("--server") || args.headOption.contains("server")) 1 else 0))
-      case "--cli"    | "cli"    => runCli(args.drop(1))
-      case "--help"   | "-h"     => printHelp(); sys.exit(0)
+      case "--server" | "-server" | "server" =>
+        runServer(args.drop(1))
+      case "--cli" | "-cli" | "cli" =>
+        runCli(args.drop(1))
+      case "--help" | "-help" | "-h" =>
+        printHelp(); sys.exit(0)
       case other =>
         // No mode flag — assume server mode; the rest are server flags.
-        if (other.startsWith("--")) runServer(args)
+        if (other.startsWith("-")) runServer(args)
         else { System.err.println(s"Unknown mode: $other"); printHelp(); sys.exit(1) }
     }
   }

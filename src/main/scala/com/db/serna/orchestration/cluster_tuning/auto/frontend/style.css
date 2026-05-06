@@ -915,6 +915,27 @@ main {
   text-transform: uppercase;
   font-size: 10px;
 }
+.project-chip.editable { cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.project-chip.editable:hover { border-color: #58a6ff; background: #262d3a; color: #c9d1d9; }
+.project-chip .project-chip-pencil { margin-left: 6px; opacity: 0.5; font-size: 10px; }
+.project-chip.editable:hover .project-chip-pencil { opacity: 1; color: #58a6ff; }
+.project-chip.editing {
+  background: #0d1117; border-color: #58a6ff; padding: 2px 4px 2px 12px; cursor: default;
+}
+.project-chip.editing::before { margin-right: 4px; }
+.project-chip-input {
+  background: transparent; border: none; outline: none;
+  color: #f0f6fc; font: inherit; font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 11px; min-width: 220px; padding: 0 4px;
+}
+.project-chip-save, .project-chip-cancel {
+  background: transparent; border: 1px solid #30363d; color: #c9d1d9;
+  border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer; margin-left: 4px;
+}
+.project-chip-save        { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+.project-chip-save:hover  { background: #388bfd; border-color: #388bfd; }
+.project-chip-cancel:hover{ background: #21262d; border-color: #f85149; color: #f85149; }
+.project-chip-save:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* Landing page */
 .landing { padding: 8px 0; }
@@ -2480,3 +2501,19 @@ h3.section-heading {
   padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;
 }
 .wiz-resume-bar button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+
+/* Step 2 → Step 3 provisioning progress (Phase 2 auto-upload) */
+.wiz-prov-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.wiz-prov-row {
+  display: grid; grid-template-columns: 28px 1fr; gap: 8px;
+  padding: 8px 10px; border: 1px solid #21262d; border-radius: 5px;
+  background: #0d1117; align-items: start;
+}
+.wiz-prov-row.running { border-color: #58a6ff; background: rgba(88,166,255,0.04); }
+.wiz-prov-row.done    { border-color: #238636; background: rgba(63,185,80,0.05); }
+.wiz-prov-row.failed  { border-color: #f85149; background: rgba(248,81,73,0.06); }
+.wiz-prov-icon { font-size: 16px; line-height: 1.2; text-align: center; }
+.wiz-prov-label { color: #c9d1d9; font-size: 12px; }
+.wiz-prov-label code { color: #58a6ff; background: transparent; padding: 0; font-size: 11px; }
+.wiz-prov-spin { display: inline-block; color: #58a6ff; animation: wiz-spin 1.2s linear infinite; }
+@keyframes wiz-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

@@ -72,11 +72,16 @@ const TunerApi = (() => {
       headers: { "Content-Type": "text/csv" },
       body: file,
     });
+    const text = await r.text().catch(() => "");
+    let body = null;
+    if (text) { try { body = JSON.parse(text); } catch (_) { body = text; } }
     if (!r.ok) {
-      const t = await r.text().catch(() => "");
-      throw new Error(`uploadCsv ${name} → ${r.status} ${t}`);
+      const err = new Error(`PUT ${url} → ${r.status}`);
+      err.status = r.status;
+      err.body = body;
+      throw err;
     }
-    return r.json();
+    return body;
   }
 
   // ── Runs ──────────────────────────────────────────────────────────────────

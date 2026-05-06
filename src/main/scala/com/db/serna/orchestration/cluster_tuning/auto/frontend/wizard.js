@@ -202,10 +202,17 @@ const Wizard = (() => {
   let state = null;
 
   function freshState(mode) {
+    const today = todayYmd();
     return {
       mode,                              // "single" | "auto"
       step: 0,
-      dates: { ref: "", cur: "" },        // ref used for both modes (single uses ref only)
+      // ref is used for both modes (single uses ref only; auto stages cur).
+      // Default the field that the user is going to type into to today; the
+      // other stays blank (auto-mode ref is picked from a dropdown).
+      dates: {
+        ref: mode === "single" ? today : "",
+        cur: mode === "auto"   ? today : "",
+      },
       flattened: true,                    // single only
       projectId: (typeof config !== "undefined" && config && config.gcpProjectId) || "",
       params: paramDefaults(mode),
@@ -215,6 +222,13 @@ const Wizard = (() => {
       // For Auto mode: which date is currently active in the per-date tabs.
       activeUploadDate: null,
     };
+  }
+
+  function todayYmd() {
+    const d = new Date();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}_${m}_${day}`;
   }
 
   function paramDefaults(mode) {
@@ -369,7 +383,20 @@ const Wizard = (() => {
     const back = document.getElementById("wiz-back");
     if (back) back.onclick = () => { state.step--; render(false); };
     const next = document.getElementById("wiz-next");
-    if (next) next.onclick = () => { if (validateCurrentStep()) { state.step++; render(false); } };
+    if (next) next.onclick = async () => {
+      if (!validateCurrentStep()) return;
+      const stepKey = STEPS[state.step].key;
+      // On the Inputs → Params transition, auto-upload staged CSVs to the
+      // server (when API is up) so the user never has to mkdir / mv in a
+      // terminal. If the API is down, we silently advance — Step 4's bash
+      // snippet stays as the static-mode fallback.
+      if (stepKey === "inputs") {
+        const advanced = await tryAutoProvisionAndAdvance();
+        if (!advanced) return; // user clicked Cancel in the progress dialog
+        return;
+      }
+      state.step++; render(false);
+    };
     const finish = document.getElementById("wiz-finish");
     if (finish) finish.onclick = () => {
       clearSession();
@@ -608,6 +635,227 @@ const Wizard = (() => {
         curErr.style.display = msg ? "" : "none";
       }
     }
+  }
+
+  // ── Step 2 → Step 3 transition: provision the input dir + upload CSVs ─────
+
+  /**
+   * Returns true if the wizard advanced to Step 3 (or the user cancelled).
+   * Returns false if the user is still on Step 2 (e.g. retry-able failure).
+   */
+  async function tryAutoProvisionAndAdvance() {
+    const apiUp = (typeof TunerApi !== "undefined") ? await TunerApi.health() : false;
+    if (!apiUp) {
+      // Static-mode: nothing to upload server-side. Step 4 keeps the bash
+      // snippet for the user to land files manually.
+      state.step++; render(false);
+      return true;
+    }
+
+    const date = state.mode === "auto" ? state.dates.cur : state.dates.ref;
+    const files = state.stagedFiles[date] || {};
+    const stagedKeys = BNN.filter(b => files[b.key]).map(b => b.key);
+    // No staged CSVs (e.g. user resumed and only has metadata) — nothing to
+    // provision; jump straight to params and let them iterate.
+    if (stagedKeys.length === 0) {
+      state.step++; render(false);
+      return true;
+    }
+
+    // 1) Persist projectId override if it differs from the loaded config.
+    //    This is best-effort — non-fatal on failure (we surface the error
+    //    but still let the user proceed with uploads).
+    const cfgProj = (typeof config !== "undefined" && config && config.gcpProjectId) || "";
+    const projChanged = state.projectId && state.projectId !== cfgProj;
+
+    // Build the operation list shown to the user.
+    const ops = [];
+    if (projChanged) {
+      ops.push({ id: "config", label: `Persist projectId override → config.local.json`, fn: () =>
+        TunerApi.persistConfig({ gcpProjectId: state.projectId })
+      });
+    }
+    ops.push({ id: "mkdir", label: `Create directory  ${escapeHtml(((typeof config !== "undefined" && config && config.inputsPath) || "") + "/" + date + "/")}`, fn: () =>
+      TunerApi.mkdirInput(date)
+    });
+    stagedKeys.forEach(k => {
+      const b = BNN.find(x => x.key === k);
+      const f = files[k];
+      ops.push({
+        id: "csv-" + k,
+        label: `Upload  <code>${escapeHtml(b.csv)}</code>  <span class="wiz-mut">(${formatBytes(f.size)})</span>`,
+        fn: () => TunerApi.uploadCsv(date, b.csv, f),
+      });
+    });
+
+    return await runProvisioningOps(ops);
+  }
+
+  /**
+   * Replaces the step content with a progress UI and runs the ops one at a
+   * time. On all-green: advances state.step++ and returns true. On error:
+   * keeps the user on the progress UI with Retry / Back-to-inputs / Continue
+   * anyway buttons.
+   */
+  async function runProvisioningOps(ops) {
+    const root = document.getElementById("wiz-step-content");
+    if (!root) return false;
+    const states = ops.map(() => "pending"); // pending | running | done | failed
+    const errors = ops.map(() => null);
+
+    const draw = () => {
+      const rows = ops.map((op, i) => renderProvRow(op, states[i], errors[i], i)).join("");
+      root.innerHTML =
+        `<h3>Provisioning inputs <span class="wiz-mut">(API mode)</span></h3>` +
+        `<p class="help">The wizard is creating the input directory and uploading your staged CSVs to the TunerService. ` +
+        `If anything fails, you'll see the exact error and a Retry button.</p>` +
+        `<div class="wiz-prov-list">${rows}</div>` +
+        `<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">` +
+          `<button class="wiz-btn" id="wiz-prov-back">← Back to Inputs</button>` +
+          `<button class="wiz-btn ghost" id="wiz-prov-skip" title="Skip uploads and continue with the static-mode flow">Skip and continue (static fallback)</button>` +
+        `</div>`;
+      const back = root.querySelector("#wiz-prov-back");
+      const skip = root.querySelector("#wiz-prov-skip");
+      if (back) back.onclick = () => { state.step = STEPS.findIndex(s => s.key === "inputs"); render(false); };
+      if (skip) skip.onclick = () => { state.step++; render(false); };
+      // Per-row retry handlers
+      root.querySelectorAll("[data-retry]").forEach(btn => {
+        btn.onclick = () => {
+          const i = parseInt(btn.dataset.retry, 10);
+          retryFrom(i);
+        };
+      });
+      // Refresh footer Next state — disable Next until we successfully advance.
+      refreshNextEnabled();
+    };
+
+    const retryFrom = async (i) => {
+      // Reset states from i onwards.
+      for (let j = i; j < ops.length; j++) { states[j] = "pending"; errors[j] = null; }
+      draw();
+      await runFrom(i);
+    };
+
+    const runFrom = async (start) => {
+      for (let i = start; i < ops.length; i++) {
+        states[i] = "running";
+        draw();
+        try {
+          await ops[i].fn();
+          states[i] = "done";
+          draw();
+        } catch (e) {
+          states[i] = "failed";
+          errors[i] = humanizeApiError(e, ops[i]);
+          draw();
+          return false;
+        }
+      }
+      // All ops succeeded — record so Step 4 skips redundant uploads.
+      const date = state.mode === "auto" ? state.dates.cur : state.dates.ref;
+      if (!state.provisionedDates) state.provisionedDates = {};
+      state.provisionedDates[date] = true;
+      persistSession();
+      state.step++;
+      render(false);
+      return true;
+    };
+
+    draw();
+    return await runFrom(0);
+  }
+
+  function renderProvRow(op, status, err, idx) {
+    const icon =
+      status === "done"    ? `<span class="wiz-ok">✓</span>` :
+      status === "running" ? `<span class="wiz-prov-spin">⟳</span>` :
+      status === "failed"  ? `<span class="err-chip">✗</span>` :
+                             `<span class="wiz-mut">·</span>`;
+    const errBlock = (status === "failed" && err) ? renderProvError(err, idx) : "";
+    return `<div class="wiz-prov-row ${status}">` +
+      `<div class="wiz-prov-icon">${icon}</div>` +
+      `<div class="wiz-prov-body">` +
+        `<div class="wiz-prov-label">${op.label}</div>` +
+        errBlock +
+      `</div>` +
+    `</div>`;
+  }
+
+  function renderProvError(err, idx) {
+    return `<div class="wiz-banner err" style="margin-top:6px;">` +
+      `<div><strong>${escapeHtml(err.title)}</strong></div>` +
+      `<div style="margin-top:2px;">${escapeHtml(err.message)}</div>` +
+      (err.suggestions && err.suggestions.length
+        ? `<ul style="margin:6px 0 0 18px;font-size:11px;">` +
+            err.suggestions.map(s => `<li>${escapeHtml(s)}</li>`).join("") +
+          `</ul>`
+        : "") +
+      `<div style="margin-top:8px;display:flex;gap:6px;">` +
+        `<button class="wiz-btn" data-retry="${idx}">Retry</button>` +
+      `</div>` +
+    `</div>`;
+  }
+
+  function humanizeApiError(e, op) {
+    const status = e && e.status;
+    const body   = e && e.body;
+    const msg    = (body && body.error) || (e && e.message) || String(e);
+
+    // Shape-match common failure modes.
+    if (status === 409 && body && body.error === "run_in_progress") {
+      return {
+        title: "Another tuning run is already in flight.",
+        message: `The TunerService accepts only one run at a time. Active run: ${body.currentRunId}.`,
+        suggestions: [
+          "Wait for it to finish (watch /api/runs/<id>/log).",
+          "Or cancel it via DELETE /api/runs/<id> and retry.",
+        ],
+      };
+    }
+    if (status === 400) {
+      return {
+        title: "Server rejected the request (400 Bad Request).",
+        message: msg,
+        suggestions: ["Check the date format (YYYY_MM_DD) and the CSV filename in Step 2."],
+      };
+    }
+    if (status === 413) {
+      return {
+        title: "File too large.",
+        message: msg,
+        suggestions: ["The TunerService caps uploads at 1 GB. Filter the CSV in BigQuery and re-export."],
+      };
+    }
+    if (status === 500) {
+      return {
+        title: "Server error (500).",
+        message: msg,
+        suggestions: [
+          "Check the serve.sh --api console for a stack trace.",
+          "Likely causes: filesystem permissions on the inputs path, or a typo in config.json.",
+        ],
+      };
+    }
+    // Likely network: server crashed, port closed, CORS, etc.
+    if (!status) {
+      return {
+        title: "Could not reach the TunerService.",
+        message: msg,
+        suggestions: [
+          "Confirm `./serve.sh --api` is still running in your terminal.",
+          "Try opening /api/health in another tab — it should return {\"ok\":true}.",
+          "If the server crashed, restart it and click Retry.",
+        ],
+      };
+    }
+    return {
+      title: `Operation failed (${op.id}).`,
+      message: msg,
+      suggestions: [
+        "Check the serve.sh --api console for details.",
+        "Verify the inputs directory is writable by the JVM user.",
+      ],
+    };
   }
 
   // ── Step 2: Inputs ────────────────────────────────────────────────────────
@@ -1088,13 +1336,15 @@ const Wizard = (() => {
     const validRequired = BNN.filter(b => b.required).filter(b =>
       (state.stagedMeta[date] || {})[b.key] && state.stagedMeta[date][b.key].valid
     ).length;
+    const provisioned = !!(state.provisionedDates && state.provisionedDates[date]);
+    const provLine = provisioned
+      ? `<li><span class="wiz-ok">✓</span> Inputs are already on the server (provisioned at Step 2→3).</li>`
+      : `<li>Persist projectId, create <code>${escapeHtml(((typeof config !== "undefined" && config && config.inputsPath) || "") + "/" + date + "/")}</code>, and upload the ${stagedCount} staged CSV(s) <span class="wiz-mut">(skipped at Step 2→3)</span>.</li>`;
     return `<div class="wiz-run-panel">` +
       `<h4><span class="step-num">0</span> Start Tuning <span class="wiz-mut">(API mode)</span></h4>` +
       `<div class="panel-help">The TunerService is reachable. The wizard will:</div>` +
       `<ol class="wiz-mut" style="font-size:12px;line-height:1.7;">` +
-        `<li>Save the projectId override (if changed) to <code>config.local.json</code>.</li>` +
-        `<li>Create <code>${escapeHtml((typeof config !== "undefined" && config && config.inputsPath) || "")}/${escapeHtml(date)}/</code>.</li>` +
-        `<li>Upload the ${stagedCount} staged CSV(s) for <code>${escapeHtml(date)}</code>.</li>` +
+        provLine +
         `<li>POST to <code>/api/runs/${isAuto ? "auto" : "single"}</code> with the parameters from Step 3.</li>` +
         `<li>Stream the run log into the box below.</li>` +
       `</ol>` +
@@ -1142,25 +1392,31 @@ const Wizard = (() => {
       };
 
       try {
-        // 1) Persist projectId override if it differs from the loaded config.
-        const cfgNow = (typeof config !== "undefined" && config && config.gcpProjectId) || "";
-        if (state.projectId && state.projectId !== cfgNow) {
-          append(`▶ persisting projectId override → config.local.json`);
-          await TunerApi.persistConfig({ gcpProjectId: state.projectId });
-        }
-
-        // 2) mkdir.
-        append(`▶ POST /api/inputs/${date}`);
-        await TunerApi.mkdirInput(date);
-
-        // 3) Upload staged CSVs.
-        const files = state.stagedFiles[date] || {};
-        const keys = BNN.filter(b => files[b.key]).map(b => b.key);
-        for (const k of keys) {
-          const b = BNN.find(x => x.key === k);
-          const f = files[k];
-          append(`▶ PUT /api/inputs/${date}/csv?name=${b.csv}  (${formatBytes(f.size)})`);
-          await TunerApi.uploadCsv(date, b.csv, f);
+        // The Step 2 → 3 transition already provisioned the inputs dir and
+        // uploaded the CSVs (and persisted projectId). Re-do those steps only
+        // if the user took the "Skip and continue" escape hatch on the
+        // provisioning UI — track that via state.provisionedDates.
+        const provisioned = !!(state.provisionedDates && state.provisionedDates[date]);
+        if (!provisioned) {
+          const cfgNow = (typeof config !== "undefined" && config && config.gcpProjectId) || "";
+          if (state.projectId && state.projectId !== cfgNow) {
+            append(`▶ persisting projectId override → config.local.json`);
+            await TunerApi.persistConfig({ gcpProjectId: state.projectId });
+          }
+          append(`▶ POST /api/inputs/${date}`);
+          await TunerApi.mkdirInput(date);
+          const files = state.stagedFiles[date] || {};
+          const keys = BNN.filter(b => files[b.key]).map(b => b.key);
+          for (const k of keys) {
+            const b = BNN.find(x => x.key === k);
+            const f = files[k];
+            append(`▶ PUT /api/inputs/${date}/csv?name=${b.csv}  (${formatBytes(f.size)})`);
+            await TunerApi.uploadCsv(date, b.csv, f);
+          }
+          if (!state.provisionedDates) state.provisionedDates = {};
+          state.provisionedDates[date] = true;
+        } else {
+          append(`▶ inputs already provisioned for ${date} (Step 2→3 transition)`);
         }
 
         // 4) Kick off the run.
@@ -1353,7 +1609,7 @@ ${moveStanza}
         `<div class="wiz-form-row"><label>Working directory</label>` +
           renderCodeBlock("$PROJECT_DIR$", true) +
         `</div>` +
-        `<button class="wiz-btn primary" id="wiz-dl-intellij">↓ Download IntelliJ run config (.xml)</button>` +
+        `<button class="wiz-btn primary" id="wiz-dl-intellij">↓ Download IntelliJ run config (.run.xml)</button>` +
         `<details style="margin-top:10px;"><summary class="wiz-mut" style="cursor:pointer;">Preview XML</summary>` +
         renderCodeBlock(xml) + `</details>` +
       `</div>` +
@@ -1406,9 +1662,9 @@ ${moveStanza}
         : "com.db.serna.orchestration.cluster_tuning.single.ClusterMachineAndRecipeTuner";
       const xml = buildIntellijXml(isAuto, mainClass, buildArgsString(isAuto));
       const tag = isAuto ? "auto" : "single";
-      const fname = `${tag}_tune_${(date || "").replace(/_/g, "")}.xml`;
+      const fname = `${tag}_tune_${(date || "").replace(/_/g, "")}.run.xml`;
       triggerDownload(fname, xml, "application/xml");
-      alert(`Saved ${fname}.\n\nMove it into your project's .idea/runConfigurations/ folder; IntelliJ picks it up automatically (you may need to refresh the run-config dropdown).`);
+      alert(`Saved ${fname}.\n\nMove it into your project's .idea/runConfigurations/ folder; IntelliJ recognises *.run.xml files as shared run configs and will surface it in the run-config dropdown automatically.`);
     };
     // Runner tabs.
     root.querySelectorAll("#wiz-runner-tabs button").forEach(b => {
@@ -1497,7 +1753,9 @@ ${moveStanza}
     <option name="MAIN_CLASS_NAME" value="${escapeXml(mainClass)}" />
     <module name="spark-cluster-job-tuner" />
     <option name="PROGRAM_PARAMETERS" value="${escapeXml(programArgs)}" />
+    <option name="VM_PARAMETERS" value="-Dlog4j.configurationFile=src/main/resources/log4j2.xml" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <option name="INCLUDE_PROVIDED_SCOPE" value="true" />
     <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
     <option name="ALTERNATIVE_JRE_PATH" value="" />
     <method v="2">

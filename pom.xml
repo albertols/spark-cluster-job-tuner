@@ -111,6 +111,13 @@
                         </configuration>
                     </plugin>
                     <plugin>
+                        <!--
+                          Per project policy: the produced jar contains only this
+                          project's own classes + resources. Third-party deps
+                          (Spark, Scala-lib, log4j, Scallop) are NOT bundled —
+                          the canonical run path is `mvn -Pserve exec:java`,
+                          which resolves the runtime classpath from Maven.
+                        -->
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-shade-plugin</artifactId>
                         <version>3.6.0</version>
@@ -122,15 +129,33 @@
                                     <createDependencyReducedPom>false</createDependencyReducedPom>
                                     <shadedArtifactAttached>false</shadedArtifactAttached>
                                     <minimizeJar>false</minimizeJar>
+                                    <!-- Include the project artifact ONLY. -->
+                                    <artifactSet>
+                                        <includes>
+                                            <include>${project.groupId}:${project.artifactId}</include>
+                                        </includes>
+                                    </artifactSet>
                                     <transformers>
                                         <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                             <mainClass>com.db.serna.orchestration.cluster_tuning.auto.frontend.server.TunerService</mainClass>
                                         </transformer>
-                                        <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                                     </transformers>
                                     <filters>
                                         <filter>
-                                            <artifact>*:*</artifact>
+                                            <artifact>${project.groupId}:${project.artifactId}</artifact>
+                                            <!--
+                                              Project classes ship under
+                                              com/db/serna/orchestration/**; resources
+                                              live under composer/dwh/config/** and a
+                                              few sibling roots inside src/main/resources.
+                                              Drop signature files (defensive).
+                                            -->
+                                            <includes>
+                                                <include>com/db/serna/orchestration/**</include>
+                                                <include>composer/**</include>
+                                                <include>log4j2.xml</include>
+                                                <include>META-INF/MANIFEST.MF</include>
+                                            </includes>
                                             <excludes>
                                                 <exclude>META-INF/*.SF</exclude>
                                                 <exclude>META-INF/*.DSA</exclude>

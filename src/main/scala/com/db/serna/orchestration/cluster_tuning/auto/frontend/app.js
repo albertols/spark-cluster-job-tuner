@@ -884,9 +884,75 @@ function populateCorrelationFilters() {
 
 function renderProjectChip() {
   const chip = document.getElementById('project-chip');
-  if (!chip || !config || !config.gcpProjectId) return;
-  chip.textContent = config.gcpProjectId;
+  if (!chip || !config) return;
+  const value = config.gcpProjectId || '';
+  // Click-to-edit: in display mode the chip shows the value; clicking flips to
+  // an input + Save/Cancel. Save persists via TunerApi if the API is up,
+  // otherwise produces a downloadable config.local.json that the user drops
+  // next to config.json.
   chip.style.display = 'inline-flex';
+  chip.classList.add('editable');
+  chip.innerHTML =
+    `<span class="project-chip-value" title="Click to edit">${escapeHtml(value || 'click to set GCP project ID')}</span>` +
+    `<span class="project-chip-pencil" title="Click to edit">✎</span>`;
+  chip.onclick = () => enterProjectChipEdit(chip, value);
+}
+
+function enterProjectChipEdit(chip, currentValue) {
+  chip.onclick = null;
+  chip.classList.add('editing');
+  chip.innerHTML =
+    `<input class="project-chip-input" type="text" value="${escapeHtml(currentValue || '')}" placeholder="your-gcp-project-id" spellcheck="false">` +
+    `<button class="project-chip-save" type="button" title="Save">Save</button>` +
+    `<button class="project-chip-cancel" type="button" title="Cancel">×</button>`;
+  const input = chip.querySelector('.project-chip-input');
+  const saveBtn = chip.querySelector('.project-chip-save');
+  const cancelBtn = chip.querySelector('.project-chip-cancel');
+  input.focus();
+  input.select();
+
+  const cancel = () => {
+    chip.classList.remove('editing');
+    renderProjectChip();
+  };
+  const save = async () => {
+    const v = input.value.trim();
+    if (!v) { cancel(); return; }
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+    try {
+      const apiUp = (typeof TunerApi !== 'undefined') ? await TunerApi.health() : false;
+      if (apiUp) {
+        await TunerApi.persistConfig({ gcpProjectId: v });
+      } else {
+        // Static-mode fallback: produce a downloadable overlay file.
+        const blob = new Blob([JSON.stringify({ gcpProjectId: v }, null, 2) + "\n"], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'config.local.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        alert('API mode is not active.\n\nDownloaded config.local.json — drop it next to config.json (it is git-ignored) and reload the dashboard.');
+      }
+      config.gcpProjectId = v;
+    } catch (e) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save';
+      alert(`Failed to save: ${e && e.message || e}`);
+      return;
+    }
+    chip.classList.remove('editing');
+    renderProjectChip();
+  };
+  saveBtn.onclick = save;
+  cancelBtn.onclick = cancel;
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter')  { e.preventDefault(); save(); }
+    if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+  };
 }
 
 function showFatalError(title, body) {
