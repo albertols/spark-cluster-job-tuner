@@ -26,6 +26,18 @@ PORT="${PORT:-8080}"
 # ─── --api mode: launch TunerService ────────────────────────────────────────
 if [ "${1:-}" = "--api" ]; then
   shift
+  force_rebuild=0
+  # Pass --rebuild (or -rebuild) anywhere to force `mvn package` even when
+  # the slim jar is current.
+  filtered_args=()
+  for a in "$@"; do
+    case "$a" in
+      --rebuild|-rebuild) force_rebuild=1 ;;
+      *) filtered_args+=("$a") ;;
+    esac
+  done
+  set -- "${filtered_args[@]}"
+
   # Walk up to find the project root (the dir that contains pom.xml).
   PROJECT_ROOT="$SCRIPT_DIR"
   while [ "$PROJECT_ROOT" != "/" ] && [ ! -f "$PROJECT_ROOT/pom.xml" ]; do
@@ -44,19 +56,33 @@ if [ "${1:-}" = "--api" ]; then
   echo "  Project root: $PROJECT_ROOT"
   echo "  Frontend dir: $SCRIPT_DIR"
 
-  # First boot — or anyone who blew away target/ — will be missing the slim
-  # jar and/or its sibling lib/ folder. Build them automatically rather than
-  # asking the user to run a separate command.
-  needs_build=0
-  if [ ! -f "$JAR" ]; then needs_build=1; fi
-  if [ ! -d "$LIB" ] || [ -z "$(ls -A "$LIB" 2>/dev/null)" ]; then needs_build=1; fi
+  # Rebuild when:
+  #   - the slim jar is missing
+  #   - target/lib/ is missing or empty
+  #   - any source under com/db/serna/orchestration is newer than the jar
+  #   - pom.xml is newer than the jar
+  #   - --rebuild was passed
+  needs_build=$force_rebuild
+  if [ ! -f "$JAR" ]; then needs_build=1; reason="jar missing"; fi
+  if [ "$needs_build" = "0" ] && { [ ! -d "$LIB" ] || [ -z "$(ls -A "$LIB" 2>/dev/null)" ]; }; then
+    needs_build=1; reason="target/lib/ missing or empty"
+  fi
+  if [ "$needs_build" = "0" ] && [ -f "$JAR" ]; then
+    if [ "$PROJECT_ROOT/pom.xml" -nt "$JAR" ]; then
+      needs_build=1; reason="pom.xml is newer than jar"
+    elif [ -n "$(find "$PROJECT_ROOT/src/main/scala/com/db/serna/orchestration" -name '*.scala' -newer "$JAR" -print -quit 2>/dev/null)" ]; then
+      needs_build=1; reason="Scala sources are newer than jar"
+    fi
+  fi
+  if [ "$force_rebuild" = "1" ]; then needs_build=1; reason="--rebuild flag"; fi
+
   if [ "$needs_build" = "1" ]; then
     if ! command -v mvn &>/dev/null; then
-      echo "Error: target/spark-cluster-job-tuner-server.jar (or target/lib/) is missing and Maven is not on PATH." >&2
+      echo "Error: rebuild required ($reason) but Maven is not on PATH." >&2
       echo "Install Maven, or build manually with: mvn -Pserve package" >&2
       exit 1
     fi
-    echo "  First boot — building project (mvn -Pserve package)…"
+    echo "  Rebuilding ($reason) — mvn -Pserve package -DskipTests…"
     cd "$PROJECT_ROOT"
     if ! mvn -q -Pserve package -DskipTests; then
       echo "Error: mvn -Pserve package failed." >&2
