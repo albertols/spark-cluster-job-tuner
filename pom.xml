@@ -73,7 +73,7 @@
       Build with:    mvn -Pserve package
       Run server:    java -jar target/spark-cluster-job-tuner-server.jar
                      (or)  mvn -Pserve exec:java
-      One-shot CLI:  java -jar target/spark-cluster-job-tuner-server.jar --cli auto --reference-date=… --current-date=…
+      One-shot CLI:  java -jar target/spark-cluster-job-tuner-server.jar -cli auto -reference-date=… -current-date=…
     -->
     <profiles>
         <profile>
