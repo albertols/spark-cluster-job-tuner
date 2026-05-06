@@ -108,16 +108,40 @@ object TunerService {
     val server = HttpServer.create(new InetSocketAddress(cfg.host, cfg.port), 0)
     server.setExecutor(boundedExecutor("tuner-http", 8))
     server.createContext("/api/", new ApiHandler(cfg))
+
     // The wizard fetches the bNN.sql files via `../../log_analytics/<file>`
     // which (with the page served at /) URL-collapses to `/log_analytics/...`.
-    // Map that path to the resolved log_analytics dir on disk.
     if (cfg.sqlDir.isDirectory) {
-      server.createContext("/log_analytics/", new StaticHandler(cfg.sqlDir))
+      server.createContext("/log_analytics/", new StaticHandler(cfg.sqlDir, allowDirListing = true))
     } else {
       logger.warn(s"sqlDir not found (${cfg.sqlDir.getAbsolutePath}); /log_analytics/* will 404. " +
         "Pass --sql-dir=PATH if your log_analytics folder lives elsewhere.")
     }
-    server.createContext("/",     new StaticHandler(cfg.frontendDir))
+
+    // app.js's `loadConfig()` resolves `outputsPath` / `inputsPath` against
+    // window.location.href. The relative path in config.json typically starts
+    // with many `../` segments which the URL constructor collapses to a path
+    // under `/`. Mount the inputs/outputs dirs at exactly those URL paths so
+    // discoverAnalyses(), the landing-page inputs tree, per-cluster JSON
+    // fetches, and CSV previews all work.
+    val (inputsUrl, outputsUrl) = readPathsFromConfigJson(cfg.frontendDir) match {
+      case Some((inP, outP)) =>
+        (collapseRelToUrl(inP), collapseRelToUrl(outP))
+      case None =>
+        // Fallback to the conventional repo layout.
+        val def_ = "/resources/composer/dwh/config/cluster_tuning"
+        (s"${def_}/inputs/", s"${def_}/outputs/")
+    }
+    if (cfg.inputsBase.isDirectory) {
+      logger.info(s"Mounting $inputsUrl  →  ${cfg.inputsBase.getAbsolutePath}")
+      server.createContext(inputsUrl, new StaticHandler(cfg.inputsBase, allowDirListing = true))
+    }
+    if (cfg.outputsBase.isDirectory) {
+      logger.info(s"Mounting $outputsUrl →  ${cfg.outputsBase.getAbsolutePath}")
+      server.createContext(outputsUrl, new StaticHandler(cfg.outputsBase, allowDirListing = true))
+    }
+
+    server.createContext("/", new StaticHandler(cfg.frontendDir))
     server.start()
 
     val rootUrl = s"http://${cfg.host}:${cfg.port}/"
@@ -130,6 +154,49 @@ object TunerService {
     }))
 
     Thread.currentThread().join() // wait until killed
+  }
+
+  /** Read inputsPath + outputsPath from frontendDir/config.json (with overlay). */
+  private def readPathsFromConfigJson(frontendDir: File): Option[(String, String)] = {
+    val baseFile  = new File(frontendDir, "config.json")
+    val localFile = new File(frontendDir, "config.local.json")
+    if (!baseFile.isFile) return None
+    try {
+      val merged = scala.collection.mutable.LinkedHashMap.empty[String, Any]
+      JsonIO.parseObject(new String(Files.readAllBytes(baseFile.toPath), StandardCharsets.UTF_8))
+        .foreach { case (k, v) => merged.put(k, v) }
+      if (localFile.isFile) {
+        try {
+          JsonIO.parseObject(new String(Files.readAllBytes(localFile.toPath), StandardCharsets.UTF_8))
+            .foreach { case (k, v) => merged.put(k, v) }
+        } catch { case NonFatal(_) => () }
+      }
+      val in = JsonIO.strOpt(merged, "inputsPath")
+      val out = JsonIO.strOpt(merged, "outputsPath")
+      (in, out) match {
+        case (Some(i), Some(o)) => Some((i, o))
+        case _                  => None
+      }
+    } catch {
+      case NonFatal(e) =>
+        logger.warn(s"Could not read config.json paths: ${e.getMessage}")
+        None
+    }
+  }
+
+  /**
+   * Mirror what `new URL(relPath + "/", "http://host/")` gives the browser.
+   * Drops every `..` and `.` segment — `..` segments above root collapse to
+   * nothing under the URL's authority, so we just strip them.
+   * Returns a path with leading + trailing `/`.
+   */
+  private def collapseRelToUrl(relPath: String): String = {
+    val parts = relPath
+      .split("/")
+      .iterator
+      .filter(p => p.nonEmpty && p != "." && p != "..")
+      .toList
+    "/" + parts.mkString("/") + "/"
   }
 
   private def parseServerArgs(args: Array[String]): ServiceConfig = {
@@ -180,11 +247,18 @@ object TunerService {
 
   // ── Static file handler ──────────────────────────────────────────────────
 
-  private final class StaticHandler(root: File) extends HttpHandler {
+  private final class StaticHandler(root: File, allowDirListing: Boolean = false) extends HttpHandler {
     private val rootCanon = root.getCanonicalFile
     override def handle(ex: HttpExchange): Unit = withErrorHandling(ex) {
       val rawPath = ex.getRequestURI.getPath
-      val rel = rawPath.stripPrefix("/")
+      // Strip the context's mount prefix so a request at /log_analytics/b13.sql
+      // (mounted at /log_analytics/) resolves to <root>/b13.sql, not the
+      // duplicated <root>/log_analytics/b13.sql.
+      val ctxPath = ex.getHttpContext.getPath
+      val afterCtx =
+        if (ctxPath != "/" && rawPath.startsWith(ctxPath)) rawPath.substring(ctxPath.length)
+        else rawPath
+      val rel = afterCtx.stripPrefix("/")
       val file =
         if (rel.isEmpty) new File(rootCanon, "index.html")
         else new File(rootCanon, URLDecoder.decode(rel, StandardCharsets.UTF_8.name()))
@@ -194,13 +268,30 @@ object TunerService {
         sendText(ex, 403, "Forbidden")
         return
       }
-      val target =
-        if (canon.isDirectory) new File(canon, "index.html").getCanonicalFile
-        else canon
-      if (!target.isFile) {
+      // Directory listing — needed for the dashboard's discoverAnalyses
+      // fallback when no _analyses_index.json is present, and for the
+      // landing-page inputs tree.
+      if (canon.isDirectory) {
+        val indexFile = new File(canon, "index.html")
+        if (indexFile.isFile) {
+          serveFile(ex, indexFile)
+          return
+        }
+        if (allowDirListing) {
+          serveDirListing(ex, canon, rawPath)
+          return
+        }
         sendText(ex, 404, s"Not found: $rawPath")
         return
       }
+      if (!canon.isFile) {
+        sendText(ex, 404, s"Not found: $rawPath")
+        return
+      }
+      serveFile(ex, canon)
+    }
+
+    private def serveFile(ex: HttpExchange, target: File): Unit = {
       val mime = mimeFor(target.getName)
       val len  = target.length()
       ex.getResponseHeaders.set("Content-Type", mime)
@@ -209,6 +300,37 @@ object TunerService {
       val out = ex.getResponseBody
       try Files.copy(target.toPath, out) finally out.close()
     }
+
+    /**
+     * Mimic python http.server's HTML directory listing — the dashboard's
+     * `parseDirListing` regex (`<a href="…/">`) parses exactly this shape.
+     */
+    private def serveDirListing(ex: HttpExchange, dir: File, requestPath: String): Unit = {
+      val sb = new StringBuilder
+      sb.append("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Index of ")
+        .append(escapeHtmlText(requestPath)).append("</title></head><body><h1>Index of ")
+        .append(escapeHtmlText(requestPath)).append("</h1><hr><ul>")
+      val entries = Option(dir.listFiles()).getOrElse(Array.empty[File]).sortBy(_.getName)
+      sb.append("<li><a href=\"../\">../</a></li>")
+      entries.foreach { f =>
+        val name = f.getName
+        if (!name.startsWith(".")) {
+          val href = if (f.isDirectory) name + "/" else name
+          sb.append("<li><a href=\"").append(escapeHtmlText(href)).append("\">")
+            .append(escapeHtmlText(href)).append("</a></li>")
+        }
+      }
+      sb.append("</ul><hr></body></html>")
+      val bytes = sb.toString.getBytes(StandardCharsets.UTF_8)
+      ex.getResponseHeaders.set("Content-Type", "text/html; charset=utf-8")
+      ex.getResponseHeaders.set("Cache-Control", "no-store")
+      ex.sendResponseHeaders(200, bytes.length.toLong)
+      val out = ex.getResponseBody
+      try out.write(bytes) finally out.close()
+    }
+
+    private def escapeHtmlText(s: String): String =
+      s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
   }
 
   private def mimeFor(name: String): String = name.toLowerCase match {
