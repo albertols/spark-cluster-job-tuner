@@ -2211,7 +2211,7 @@ h3.section-heading {
 .cta-primary:active { transform: translateY(1px); }
 
 /* Make the wizard modal a touch wider than the default recipe-conf modal. */
-#modal-overlay.wiz-modal #modal { max-width: 1080px; width: 95vw; }
+#modal-overlay.wiz-modal #modal { max-width: 1380px; width: 96vw; max-height: 94vh; }
 #modal-overlay.wiz-modal .modal-body { padding: 0; }
 
 .wiz-root { display: flex; flex-direction: column; min-height: 60vh; }
@@ -2247,7 +2247,7 @@ h3.section-heading {
 .wiz-breadcrumb .crumb.is-done              { color: #c9d1d9; }
 .wiz-breadcrumb .crumb-sep { color: #30363d; font-size: 14px; padding: 0 4px; }
 
-.wiz-step { flex: 1; padding: 18px; overflow-y: auto; max-height: 70vh; }
+.wiz-step { flex: 1; padding: 18px; overflow-y: auto; max-height: 78vh; }
 .wiz-step h3 { margin-top: 0; color: #f0f6fc; font-size: 16px; }
 .wiz-step p.help { color: #8b949e; font-size: 12px; margin: 6px 0 14px; }
 
@@ -2329,9 +2329,12 @@ h3.section-heading {
 .wiz-bnn-card .req-badge.opt  { background: rgba(212,167,44,0.15); color: #d4a72c; }
 
 .wiz-bnn-body { padding: 12px 14px; border-top: 1px solid #30363d; display: none; }
-.wiz-bnn-card.is-open .wiz-bnn-body { display: block; }
+.wiz-bnn-card.is-open .wiz-bnn-body { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: 14px; align-items: start; }
 .wiz-bnn-card.is-open .wiz-bnn-disclosure { transform: rotate(90deg); }
 .wiz-bnn-disclosure { display: inline-block; transition: transform 0.15s; color: #8b949e; }
+@media (max-width: 920px) {
+  .wiz-bnn-card.is-open .wiz-bnn-body { grid-template-columns: 1fr; }
+}
 
 .wiz-sql-pane {
   position: relative;

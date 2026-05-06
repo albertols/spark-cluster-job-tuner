@@ -82,24 +82,39 @@
                 <finalName>spark-cluster-job-tuner-server</finalName>
                 <plugins>
                     <plugin>
+                        <!--
+                          Canonical scala-maven-plugin 4.x binding: run in
+                          `process-resources` (BEFORE the default `compile`
+                          phase) and call `add-source` so the plugin registers
+                          src/main/scala (which Maven's default sourceDirectory
+                          does not include). Without this, mvn package only
+                          copies resources and the slim jar ships with no
+                          .class files.
+                        -->
                         <groupId>net.alchim31.maven</groupId>
                         <artifactId>scala-maven-plugin</artifactId>
                         <version>4.9.2</version>
                         <executions>
                             <execution>
-                                <id>scala-compile</id>
-                                <phase>compile</phase>
-                                <goals><goal>compile</goal></goals>
+                                <id>scala-compile-first</id>
+                                <phase>process-resources</phase>
+                                <goals>
+                                    <goal>add-source</goal>
+                                    <goal>compile</goal>
+                                </goals>
                             </execution>
                             <execution>
                                 <id>scala-test-compile</id>
-                                <phase>test-compile</phase>
+                                <phase>process-test-resources</phase>
                                 <goals><goal>testCompile</goal></goals>
                             </execution>
                         </executions>
                         <configuration>
                             <scalaVersion>${scala.version.major}.${scala.version.minor}</scalaVersion>
                             <recompileMode>incremental</recompileMode>
+                            <args>
+                                <arg>-deprecation</arg>
+                            </args>
                         </configuration>
                     </plugin>
                     <plugin>

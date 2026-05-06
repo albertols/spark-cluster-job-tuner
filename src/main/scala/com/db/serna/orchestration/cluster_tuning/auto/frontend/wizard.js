@@ -735,7 +735,16 @@ const Wizard = (() => {
       pick.onclick = async () => {
         let inputsHandle;
         try {
-          inputsHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+          // id makes the browser remember the user's last pick under this name,
+          // so subsequent clicks default to the inputs folder. startIn is a
+          // best-effort hint for the very first pick (the picker can't open at
+          // an arbitrary path; "documents" is closest to a project tree on
+          // macOS / Linux).
+          inputsHandle = await window.showDirectoryPicker({
+            mode: "readwrite",
+            id: "spark-tuner-inputs",
+            startIn: "documents",
+          });
         } catch (e) {
           // User cancelled the picker — stay on this panel so they can retry.
           return;
@@ -1220,6 +1229,13 @@ const Wizard = (() => {
       const reset = stateEl.querySelector(`[data-action="reset-${b.key}"]`);
       if (reset) reset.onclick = () => resetBnn(b, date, dropEl, cardEl);
     }
+    // Auto-collapse this card and scroll the next still-open one into view —
+    // keeps the user's eye on the next thing to do.
+    setTimeout(() => {
+      cardEl.classList.remove("is-open");
+      const next = cardEl.parentElement && cardEl.parentElement.querySelector(".wiz-bnn-card.is-open");
+      if (next) next.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 350);
     refreshNextEnabled();
   }
 
@@ -1664,7 +1680,21 @@ const Wizard = (() => {
       : "";
     let body;
     if (provisioned) {
-      body = `<div class="wiz-banner info" style="margin-top:6px;"><span class="wiz-ok">✓</span> CSVs already on disk for <code>${escapeHtml(date)}</code> (provisioned at Step 2 → Step 3). No manual download needed.</div>`;
+      const meta = state.stagedMeta[date] || {};
+      const written = BNN
+        .filter(b => meta[b.key] && meta[b.key].valid)
+        .map(b => {
+          const m = meta[b.key];
+          const rows = (typeof m.rows === "number") ? `, ${m.rows.toLocaleString("en-US")} rows` : "";
+          return `<li><code>${escapeHtml(b.csv)}</code> <span class="wiz-mut">(${m.headerCount} cols${rows})</span></li>`;
+        })
+        .join("");
+      const inputsRel = (typeof config !== "undefined" && config && config.inputsPath) || "<inputsPath from config.json>";
+      body =
+        `<div class="wiz-banner info" style="margin-top:6px;">` +
+          `<div><span class="wiz-ok">✓</span> Wrote <strong>${BNN.filter(b => meta[b.key] && meta[b.key].valid).length}</strong> CSV(s) to <code>${escapeHtml(inputsRel)}/${escapeHtml(date)}/</code>:</div>` +
+          (written ? `<ul style="margin:6px 0 0 18px;font-size:12px;">${written}</ul>` : "") +
+        `</div>`;
     } else if (!stagedKeys.length) {
       body = `<div class="panel-help"><strong>${escapeHtml(label)}</strong>: no CSVs staged in this session.</div>`;
     } else {

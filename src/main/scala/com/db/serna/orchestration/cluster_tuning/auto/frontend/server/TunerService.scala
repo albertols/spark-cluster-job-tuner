@@ -51,7 +51,8 @@ object TunerService {
     frontendDir: File,
     inputsBase:  File,
     outputsBase: File,
-    basePath:    String  // sets -DclusterTuning.basePath for the tuners
+    basePath:    String,  // sets -DclusterTuning.basePath for the tuners
+    sqlDir:      File     // log_analytics/, served at /log_analytics/
   )
 
   // ── Main ──────────────────────────────────────────────────────────────────
@@ -107,11 +108,20 @@ object TunerService {
     val server = HttpServer.create(new InetSocketAddress(cfg.host, cfg.port), 0)
     server.setExecutor(boundedExecutor("tuner-http", 8))
     server.createContext("/api/", new ApiHandler(cfg))
+    // The wizard fetches the bNN.sql files via `../../log_analytics/<file>`
+    // which (with the page served at /) URL-collapses to `/log_analytics/...`.
+    // Map that path to the resolved log_analytics dir on disk.
+    if (cfg.sqlDir.isDirectory) {
+      server.createContext("/log_analytics/", new StaticHandler(cfg.sqlDir))
+    } else {
+      logger.warn(s"sqlDir not found (${cfg.sqlDir.getAbsolutePath}); /log_analytics/* will 404. " +
+        "Pass --sql-dir=PATH if your log_analytics folder lives elsewhere.")
+    }
     server.createContext("/",     new StaticHandler(cfg.frontendDir))
     server.start()
 
     val rootUrl = s"http://${cfg.host}:${cfg.port}/"
-    logger.info(s"TunerService listening on $rootUrl  (frontend=${cfg.frontendDir}, inputs=${cfg.inputsBase}, outputs=${cfg.outputsBase})")
+    logger.info(s"TunerService listening on $rootUrl  (frontend=${cfg.frontendDir}, inputs=${cfg.inputsBase}, outputs=${cfg.outputsBase}, sql=${cfg.sqlDir})")
     println(s"Open the dashboard at $rootUrl  ·  Ctrl+C to stop.")
 
     Runtime.getRuntime.addShutdownHook(new Thread(() => {
@@ -140,14 +150,20 @@ object TunerService {
     val absBase         = if (baseDir.isAbsolute) baseDir else new File(cwd, basePathArg)
     val inputsBase      = argMap.get("inputs-dir").map(new File(_)).getOrElse(new File(absBase, "inputs"))
     val outputsBase     = argMap.get("outputs-dir").map(new File(_)).getOrElse(new File(absBase, "outputs"))
+    val frontendDir     = argMap.get("frontend-dir").map(new File(_)).getOrElse(defaultFrontend)
+    // log_analytics lives at <frontendDir>/../../log_analytics — same layout
+    // the wizard's `../../log_analytics/` URL expects.
+    val sqlDir          = argMap.get("sql-dir").map(new File(_))
+      .getOrElse(new File(frontendDir, "../../log_analytics").getCanonicalFile)
 
     ServiceConfig(
       host        = argMap.getOrElse("host", "127.0.0.1"),
       port        = argMap.get("port").map(_.toInt).getOrElse(8080),
-      frontendDir = argMap.get("frontend-dir").map(new File(_)).getOrElse(defaultFrontend),
+      frontendDir = frontendDir,
       inputsBase  = inputsBase,
       outputsBase = outputsBase,
-      basePath    = absBase.getAbsolutePath
+      basePath    = absBase.getAbsolutePath,
+      sqlDir      = sqlDir
     )
   }
 
