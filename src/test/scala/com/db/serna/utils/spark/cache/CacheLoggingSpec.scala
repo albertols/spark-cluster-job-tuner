@@ -16,7 +16,7 @@ class CacheLoggingSpec extends AnyFunSuite with Eventually {
 
   test("DataFrame caching is reported via Dataset.isCached and CacheManager, and materializes data") {
     TestSparkSessionSupport.withCacheSession { spark: SparkSession =>
-      val ssStable = spark;
+      spark;
 
       println(
         s"[CLS] master=${spark.sparkContext.master}, serializer=${spark.sparkContext.getConf.get("spark.serializer")}"
@@ -51,7 +51,7 @@ class CacheLoggingSpec extends AnyFunSuite with Eventually {
 
   test("Executor memory status is available; attempt CacheLogging invocation if present (optional)") {
     TestSparkSessionSupport.withCacheSession { spark: SparkSession =>
-      val ssStable = spark;
+      spark;
 
       val df = spark.range(0, 1000).toDF("id")
       df.persist(StorageLevel.MEMORY_AND_DISK)

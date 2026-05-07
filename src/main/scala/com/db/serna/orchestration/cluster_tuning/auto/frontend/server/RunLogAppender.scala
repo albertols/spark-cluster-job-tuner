@@ -6,7 +6,6 @@ import org.apache.logging.log4j.core.layout.PatternLayout
 import org.apache.logging.log4j.core.{LogEvent, LoggerContext}
 import org.apache.logging.log4j.{Level, LogManager}
 
-import java.io.Serializable
 import scala.util.control.NonFatal
 
 /**

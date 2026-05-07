@@ -143,7 +143,7 @@ object GenerationSummaryWriter {
         )
       }
 
-    val quotaArray: String = arr(summary.quotas.productIterator.toList.indices.map { _ => "" }: _*) // unused
+    arr(summary.quotas.productIterator.toList.indices.map { _ => "" }: _*) // unused
 
     val entriesArr: String = arr(summary.entries.map { e =>
       obj(

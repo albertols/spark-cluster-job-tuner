@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory
 import java.io.{File, IOException, InputStream}
 import java.net.{InetSocketAddress, URLDecoder}
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Path, Paths, StandardCopyOption}
+import java.nio.file.{Files, StandardCopyOption}
 import java.util.concurrent.{ExecutorService, Executors, ThreadFactory}
 import scala.collection.mutable
 import scala.util.control.NonFatal
@@ -601,7 +601,7 @@ object TunerService {
         }
         run.markDone()
       } catch {
-        case e: InterruptedException =>
+        case _: InterruptedException =>
           run.log.append(s"[run ${run.runId}] interrupted")
           run.markCancelled()
         case NonFatal(e) =>
@@ -693,7 +693,7 @@ object TunerService {
   private def withErrorHandling(ex: HttpExchange)(body: => Unit): Unit = {
     try body
     catch {
-      case e: IOException =>
+      case _: IOException =>
         // Client disconnected mid-stream, etc. Don't dump to log.
         try ex.close()
         catch { case _: Throwable => () }

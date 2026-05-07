@@ -1,6 +1,5 @@
 package com.db.serna.orchestration.cluster_tuning.auto
 
-import com.db.serna.orchestration.cluster_tuning._
 import com.db.serna.orchestration.cluster_tuning.single.{ClusterDiagnosticsProcessor, MachineCatalog, RecipeMetrics}
 import com.db.serna.orchestration.cluster_tuning.single.refinement.{
   MemoryHeapBoost,
@@ -30,12 +29,6 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
     try pw.write(content)
     finally pw.close()
   }
-
-  private val B13Header =
-    "cluster_name,recipe_filename,avg_executors_per_job,p95_run_max_executors,avg_job_duration_ms,p95_job_duration_ms,runs,seconds_at_cap,runs_reaching_cap,total_runs,fraction_reaching_cap,max_concurrent_jobs"
-
-  private val B14Header =
-    "timestamp,job_id,cluster_name,driver_exit_code,msg"
 
   private val B16Header =
     "job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name"

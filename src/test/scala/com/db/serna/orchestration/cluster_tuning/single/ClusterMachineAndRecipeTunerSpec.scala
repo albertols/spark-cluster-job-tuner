@@ -121,7 +121,7 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     // n2 quota = 5000; allocate 5000 cores via 32-core × 156-ish workers... use tight quotas
     val quotas = Quotas(e2 = 100, n2 = 100, n2d = 100, c3 = 4, c4 = 4, n4 = 4, n4d = 4)
     val tracker = new QuotaTracker(quotas)
-    val n2 = MachineCatalog.byName("n2-standard-32").get // 32 cores
+    MachineCatalog.byName("n2-standard-32").get // 32 cores
     // Allocate exactly 100 n2 cores (32 cores * 3 workers = 96; use 8-core machine for exact 100)
     val n2small = MachineCatalog.byName("n2-standard-8").get // 8 cores
     tracker.recordCluster(n2small, 12, defaultPref) // 8 * 12 = 96 cores → not exactly 100
@@ -656,8 +656,8 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     val s = span("2026-01-01T08:00:00Z", "2026-01-01T10:00:00Z")
     val e1 = event("2026-01-01T08:30:00Z", current = 3, target = 5)
     val e2 = event("2026-01-01T09:00:00Z", current = 5, target = 2)
-    val w = MachineType("test-worker", cores = 1, memoryGb = 1)
-    val m = MachineType("test-master", cores = 1, memoryGb = 1)
+    MachineType("test-worker", cores = 1, memoryGb = 1)
+    MachineType("test-master", cores = 1, memoryGb = 1)
     // Stub PriceCatalog by relying on default-zero behavior; use the segment formula directly.
     val segs = ClusterMachineAndRecipeTuner.buildSpanSegments(s, Seq(e1, e2), 1.0, 0.1, 99.0)
     segs.map(_.totalCostEur).sum shouldBe 6.20 +- 0.0001

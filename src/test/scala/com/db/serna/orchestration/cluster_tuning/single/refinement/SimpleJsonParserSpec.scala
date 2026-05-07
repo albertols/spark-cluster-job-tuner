@@ -1,6 +1,5 @@
 package com.db.serna.orchestration.cluster_tuning.single.refinement
 
-import com.db.serna.orchestration.cluster_tuning.single.refinement.SimpleJsonParser
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 

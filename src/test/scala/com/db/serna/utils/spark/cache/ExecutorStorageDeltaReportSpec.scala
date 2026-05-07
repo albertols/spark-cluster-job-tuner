@@ -9,7 +9,7 @@ class ExecutorStorageDeltaReportSpec extends AnyFunSuite {
 
   test("executorStorageDeltaReport observational mode returns before snapshot only (no materialize)") {
     TestSparkSessionSupport.withSession(TestSparkSessionSupport.CacheConf) { spark: SparkSession =>
-      val ssStable = spark;
+      spark;
       val df = spark.range(0, 1000).toDF("id").repartition(2)
 
       val (delta, countOpt, persistedByReport) =
@@ -38,7 +38,7 @@ class ExecutorStorageDeltaReportSpec extends AnyFunSuite {
 
   test("executorStorageDeltaReport experimental mode can persist+materialize and produce deltas") {
     TestSparkSessionSupport.withSession(TestSparkSessionSupport.CacheConf) { spark: SparkSession =>
-      val ssStable = spark;
+      spark;
       val df = spark.range(0, 20000).toDF("id").repartition(4)
 
       val (delta, countOpt, persistedByReport) =

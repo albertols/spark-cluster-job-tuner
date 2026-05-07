@@ -11,7 +11,7 @@ class MemorySizingUtilsStorageFootprintSpec extends AnyFunSuite {
 
   test("getRDDStorageFootprint returns None when DataFrame is not cached") {
     TestSparkSessionSupport.withSession { spark: SparkSession =>
-      val ssStable = spark
+      spark
       val df = spark.range(0, 1000).toDF("id")
       val footprint = MemorySizingUtils.getRDDStorageFootprint(df)
       println(s"[MSU-FP] Not cached footprint => ${footprint}")
@@ -21,7 +21,7 @@ class MemorySizingUtilsStorageFootprintSpec extends AnyFunSuite {
 
   test("getRDDStorageFootprint returns Some for DataFrame.persist (SQL cache) and respects fallback") {
     TestSparkSessionSupport.withSession(TestSparkSessionSupport.CacheConf) { spark: SparkSession =>
-      val ssStable = spark;
+      spark;
       val df = spark.range(0, 5000).toDF("id").repartition(3)
       df.persist(StorageLevel.MEMORY_ONLY)
       val _ = df.count()
@@ -54,7 +54,7 @@ class MemorySizingUtilsStorageFootprintSpec extends AnyFunSuite {
 
   test("getRDDStorageFootprint returns populated info when df.rdd is cached (RDD cache)") {
     TestSparkSessionSupport.withSession { spark: SparkSession =>
-      val ssStable = spark;
+      spark;
       val df = spark.range(0, 20000).toDF("id").repartition(4)
 
       // RDD-level cache path (different from DataFrame.persist)

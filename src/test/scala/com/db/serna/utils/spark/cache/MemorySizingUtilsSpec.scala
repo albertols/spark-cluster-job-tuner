@@ -18,7 +18,7 @@ class MemorySizingUtilsSpec extends AnyFunSuite {
 
   test("dataFrameMemoryReport composes observational + experimental signals") {
     TestSparkSessionSupport.withSession(TestSparkSessionSupport.CacheConf) { spark: SparkSession =>
-      val ssStable = spark;
+      spark;
       val df = spark.range(0, 8000).toDF("id").repartition(2)
 
       val report = MemorySizingUtils.dataFrameMemoryReport(
@@ -41,7 +41,7 @@ class MemorySizingUtilsSpec extends AnyFunSuite {
 
   test("getRDDStorageFootprint returns info or presence when SQL cache manager is used") {
     TestSparkSessionSupport.withSession(TestSparkSessionSupport.CacheConf) { spark: SparkSession =>
-      val ssStable = spark;
+      spark;
       val df = spark.range(0, 1000).toDF("id")
       df.persist(StorageLevel.MEMORY_ONLY)
       val _ = df.count()

@@ -9,7 +9,7 @@ class DataFrameMemoryReportSpec extends AnyFunSuite {
 
   test("dataFrameMemoryReport observational mode returns structure without side effects") {
     TestSparkSessionSupport.withSession(TestSparkSessionSupport.CacheConf) { spark: SparkSession =>
-      val ssStable = spark;
+      spark;
 
       val df = spark.range(0, 2000).toDF("id").repartition(2)
 
@@ -38,7 +38,7 @@ class DataFrameMemoryReportSpec extends AnyFunSuite {
 
   test("dataFrameMemoryReport experimental mode can persist+materialize and produce non-negative delta") {
     TestSparkSessionSupport.withSession(TestSparkSessionSupport.CacheConf) { spark: SparkSession =>
-      val ssStable = spark;
+      spark;
 
       val df = spark.range(0, 20000).toDF("id").repartition(4)
 
