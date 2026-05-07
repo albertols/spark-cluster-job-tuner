@@ -10,26 +10,25 @@ import java.io.Serializable
 import scala.util.control.NonFatal
 
 /**
- * log4j2 programmatic appender that streams every log event into the active
- * run's [[RunRegistry.LogBuffer]].
+ * log4j2 programmatic appender that streams every log event into the active run's [[RunRegistry.LogBuffer]].
  *
  * Lifecycle (managed by [[withRunCapture]]):
  *   - on entry: create + start an appender, attach to the root logger.
  *   - on exit (via finally): detach + stop. No mutation of stdout/stderr.
  *
- * The single-run gate in [[RunRegistry]] guarantees at most one capture at a
- * time, so we don't need per-thread isolation.
+ * The single-run gate in [[RunRegistry]] guarantees at most one capture at a time, so we don't need per-thread
+ * isolation.
  */
 final class RunLogAppender private (
-  name: String,
-  layout: PatternLayout,
-  buffer: RunRegistry.LogBuffer
+    name: String,
+    layout: PatternLayout,
+    buffer: RunRegistry.LogBuffer
 ) extends AbstractAppender(name, /* filter */ null, layout, /* ignoreExceptions */ true, Property.EMPTY_ARRAY) {
 
   override def append(event: LogEvent): Unit = {
     try {
       val bytes = getLayout.toByteArray(event)
-      val line  = new String(bytes, java.nio.charset.StandardCharsets.UTF_8).stripLineEnd
+      val line = new String(bytes, java.nio.charset.StandardCharsets.UTF_8).stripLineEnd
       if (line.nonEmpty) buffer.append(line)
     } catch {
       case NonFatal(_) => /* never let logging break the tuner */
@@ -45,7 +44,8 @@ object RunLogAppender {
   def withRunCapture[T](buffer: RunRegistry.LogBuffer)(body: => T): T = {
     val ctx = LogManager.getContext(false).asInstanceOf[LoggerContext]
     val cfg = ctx.getConfiguration
-    val layout = PatternLayout.newBuilder()
+    val layout = PatternLayout
+      .newBuilder()
       .withConfiguration(cfg)
       .withPattern(PATTERN)
       .build()
@@ -63,7 +63,8 @@ object RunLogAppender {
         rootCfg.removeAppender(name)
         ctx.updateLoggers()
       } catch { case NonFatal(_) => /* swallow */ }
-      try appender.stop() catch { case NonFatal(_) => /* swallow */ }
+      try appender.stop()
+      catch { case NonFatal(_) => /* swallow */ }
     }
   }
 }

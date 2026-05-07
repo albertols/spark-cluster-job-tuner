@@ -6,11 +6,15 @@ import org.scalatest.matchers.should.Matchers
 
 class TrendDetectorSpec extends AnyFunSuite with Matchers {
 
-  private def mkMetrics(avgExec: Double = 2.0, p95Exec: Double = 4.0,
-                        avgDur: Double = 50000.0, p95Dur: Double = 100000.0,
-                        runs: Long = 20, fracCap: Option[Double] = None): RecipeMetrics =
-    RecipeMetrics("cluster-a", "recipe-a.json", avgExec, p95Exec, avgDur, p95Dur, runs,
-      None, None, None, fracCap, None)
+  private def mkMetrics(
+      avgExec: Double = 2.0,
+      p95Exec: Double = 4.0,
+      avgDur: Double = 50000.0,
+      p95Dur: Double = 100000.0,
+      runs: Long = 20,
+      fracCap: Option[Double] = None
+  ): RecipeMetrics =
+    RecipeMetrics("cluster-a", "recipe-a.json", avgExec, p95Exec, avgDur, p95Dur, runs, None, None, None, fracCap, None)
 
   private def mkPair(ref: RecipeMetrics, cur: RecipeMetrics): MetricsPair =
     MetricsPair("cluster-a", "recipe-a.json", ref, cur)
@@ -114,10 +118,13 @@ class TrendDetectorSpec extends AnyFunSuite with Matchers {
     val cur = mkMetrics()
     val assessment = TrendDetector.assessTrend(mkPair(ref, cur))
     assessment.deltas should have size 6
-    assessment.deltas.map(_.metricName) should contain allOf(
-      "avg_executors_per_job", "p95_run_max_executors",
-      "avg_job_duration_ms", "p95_job_duration_ms",
-      "fraction_reaching_cap", "runs"
+    assessment.deltas.map(_.metricName) should contain allOf (
+      "avg_executors_per_job",
+      "p95_run_max_executors",
+      "avg_job_duration_ms",
+      "p95_job_duration_ms",
+      "fraction_reaching_cap",
+      "runs"
     )
   }
 }

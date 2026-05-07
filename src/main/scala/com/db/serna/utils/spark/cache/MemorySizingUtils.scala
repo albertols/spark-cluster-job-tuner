@@ -13,15 +13,15 @@ import scala.math.BigDecimal.RoundingMode
  * MemorySizingUtils: helpers to estimate memory consumption and main.scala.com.db.serna.utils.spark.cache footprint.
  *
  * References:
- * - Spark Configuration: https://spark.apache.org/docs/latest/configuration.html
- * - Memory Management Overview: https://spark.apache.org/docs/latest/tuning.html#memory-management-overview
+ *   - Spark Configuration: https://spark.apache.org/docs/latest/configuration.html
+ *   - Memory Management Overview: https://spark.apache.org/docs/latest/tuning.html#memory-management-overview
  *
  * IMPORTANT SEMANTICS / CAVEATS:
- * - DataFrame caching uses Spark SQL's columnar main.scala.com.db.serna.utils.spark.cache / UnsafeRow + Tungsten memory manager.
- *   Any JVM-object estimator (e.g., SizeEstimator) does NOT represent cached DataFrame footprint.
- * - SparkContext.getExecutorMemoryStatus reflects executor *storage memory accounting* (max, remaining)
- *   and we derive "used = max - remaining". This is not the same as "RDDStorageInfo.memSize".
- * - Deltas from before/after snapshots are approximate and may be affected by other activity.
+ *   - DataFrame caching uses Spark SQL's columnar main.scala.com.db.serna.utils.spark.cache / UnsafeRow + Tungsten
+ *     memory manager. Any JVM-object estimator (e.g., SizeEstimator) does NOT represent cached DataFrame footprint.
+ *   - SparkContext.getExecutorMemoryStatus reflects executor *storage memory accounting* (max, remaining) and we derive
+ *     "used = max - remaining". This is not the same as "RDDStorageInfo.memSize".
+ *   - Deltas from before/after snapshots are approximate and may be affected by other activity.
  */
 object MemorySizingUtils {
 
@@ -31,85 +31,98 @@ object MemorySizingUtils {
   def estimateObjectSizeBytes(obj: AnyRef): Long = SizeEstimator.estimate(obj)
 
   case class RDDStorageFootprint(
-                                  rddId: Int,
-                                  memSizeBytes: Long,
-                                  diskSizeBytes: Long,
-                                  cachedPartitions: Int,
-                                  totalPartitions: Int
-                                )
+      rddId: Int,
+      memSizeBytes: Long,
+      diskSizeBytes: Long,
+      cachedPartitions: Int,
+      totalPartitions: Int
+  )
 
   def getRDDStorageFootprint(df: DataFrame): Option[RDDStorageFootprint] = {
     val sc = df.sparkSession.sparkContext
     val rddId = df.rdd.id
-    sc.getRDDStorageInfo.find(_.id == rddId).map { info: RDDInfo =>
-      val fp = RDDStorageFootprint(
-        rddId = info.id,
-        memSizeBytes = info.memSize,
-        diskSizeBytes = info.diskSize,
-        cachedPartitions = info.numCachedPartitions,
-        totalPartitions = info.numPartitions
-      )
-      log.info(
-        s"[MSU] RDDStorageInfo found for rddId=$rddId mem=${fmtBytes(fp.memSizeBytes)} disk=${fmtBytes(fp.diskSizeBytes)} " +
-          s"cachedPartitions=${fp.cachedPartitions}/${fp.totalPartitions}"
-      )
-      fp
-    }.orElse {
-      val cachedData = df.sparkSession.sharedState.cacheManager.lookupCachedData(df.queryExecution.logical)
-      if (cachedData.nonEmpty) {
-        log.info(s"[MSU] CacheManager reports cached logical plan; RDDStorageInfo not available for rddId=$rddId")
-        Some(RDDStorageFootprint(rddId, memSizeBytes = 0L, diskSizeBytes = 0L, cachedPartitions = 0, totalPartitions = df.rdd.partitions.length))
-      } else {
-        log.info(s"[MSU] No storage info found for rddId=$rddId; DataFrame not cached")
-        None
+    sc.getRDDStorageInfo
+      .find(_.id == rddId)
+      .map { info: RDDInfo =>
+        val fp = RDDStorageFootprint(
+          rddId = info.id,
+          memSizeBytes = info.memSize,
+          diskSizeBytes = info.diskSize,
+          cachedPartitions = info.numCachedPartitions,
+          totalPartitions = info.numPartitions
+        )
+        log.info(
+          s"[MSU] RDDStorageInfo found for rddId=$rddId mem=${fmtBytes(fp.memSizeBytes)} disk=${fmtBytes(fp.diskSizeBytes)} " +
+            s"cachedPartitions=${fp.cachedPartitions}/${fp.totalPartitions}"
+        )
+        fp
       }
-    }
+      .orElse {
+        val cachedData = df.sparkSession.sharedState.cacheManager.lookupCachedData(df.queryExecution.logical)
+        if (cachedData.nonEmpty) {
+          log.info(s"[MSU] CacheManager reports cached logical plan; RDDStorageInfo not available for rddId=$rddId")
+          Some(
+            RDDStorageFootprint(
+              rddId,
+              memSizeBytes = 0L,
+              diskSizeBytes = 0L,
+              cachedPartitions = 0,
+              totalPartitions = df.rdd.partitions.length
+            )
+          )
+        } else {
+          log.info(s"[MSU] No storage info found for rddId=$rddId; DataFrame not cached")
+          None
+        }
+      }
   }
 
   case class DataFrameMemoryReportConfig(
-                                          label: String = "df",
-                                          storageLevel: StorageLevel = StorageLevel.MEMORY_ONLY,
+      label: String = "df",
+      storageLevel: StorageLevel = StorageLevel.MEMORY_ONLY,
 
-                                          // If true, persist the DF if it isn't already persisted/cached (best-effort).
-                                          persistIfNeeded: Boolean = false,
+      // If true, persist the DF if it isn't already persisted/cached (best-effort).
+      persistIfNeeded: Boolean = false,
 
-                                          // If true, execute an action to force materialization. Default: true when persisting.
-                                          materialize: Boolean = false,
+      // If true, execute an action to force materialization. Default: true when persisting.
+      materialize: Boolean = false,
 
-                                          // Only used when we persisted inside the report call.
-                                          unpersistAfter: Boolean = true
-                                        )
+      // Only used when we persisted inside the report call.
+      unpersistAfter: Boolean = true
+  )
 
   /** Dedicated output for MEMORY_REPORT_DELTA (executor storage accounting before/after/delta). */
   case class ExecutorStorageDelta(
-                                   beforeUsedBytes: Map[String, Long],
-                                   afterUsedBytes: Map[String, Long],
-                                   perExecutorDeltaBytes: Map[String, Long],
-                                   totalDeltaBytes: Long
-                                 )
+      beforeUsedBytes: Map[String, Long],
+      afterUsedBytes: Map[String, Long],
+      perExecutorDeltaBytes: Map[String, Long],
+      totalDeltaBytes: Long
+  )
 
   /**
-   * MEMORY_REPORT_DELTA: compute an approximate main.scala.com.db.serna.utils.spark.cache footprint delta based on executor storage accounting.
+   * MEMORY_REPORT_DELTA: compute an approximate main.scala.com.db.serna.utils.spark.cache footprint delta based on
+   * executor storage accounting.
    *
    * Uses SparkContext.getExecutorMemoryStatus:
-   * - (max, remaining) for Spark's "storage memory" accounting
-   * - used = max - remaining
+   *   - (max, remaining) for Spark's "storage memory" accounting
+   *   - used = max - remaining
    *
    * Notes:
-   * - This is NOT JVM heap usage.
-   * - This is NOT necessarily equal to Spark UI "Storage" sizes.
-   * - Deltas are approximate and can be impacted by concurrent caching/evictions.
+   *   - This is NOT JVM heap usage.
+   *   - This is NOT necessarily equal to Spark UI "Storage" sizes.
+   *   - Deltas are approximate and can be impacted by concurrent caching/evictions.
    *
-   * @return (delta, materializedCount, persistedByReport)
+   * @return
+   *   (delta, materializedCount, persistedByReport)
    */
   def executorStorageDeltaReport(
-                                  df: DataFrame,
-                                  label: String,
-                                  persistIfNeeded: Boolean,
-                                  storageLevel: StorageLevel,
-                                  materialize: Boolean,
-                                  unpersistAfter: Boolean
-                                ): (ExecutorStorageDelta, Option[Long], Boolean) = {
+      df: DataFrame,
+      label: String,
+      persistIfNeeded: Boolean,
+      storageLevel: StorageLevel,
+      materialize: Boolean,
+      unpersistAfter: Boolean
+  ): (ExecutorStorageDelta, Option[Long], Boolean) = {
     val sc = df.sparkSession.sparkContext
 
     def usedByExecutor(): Map[String, Long] =
@@ -173,36 +186,33 @@ object MemorySizingUtils {
   }
 
   case class DataFrameMemoryReport(
-                                    label: String,
-                                    rddId: Int,
-                                    partitions: Int,
+      label: String,
+      rddId: Int,
+      partitions: Int,
 
-                                    // MEMORY_REPORT_SIZE_ESTIMATOR (Option A):
-                                    // This is the driver-side JVM object graph estimate for the DataFrame object itself.
-                                    // It is NOT the cached footprint.
-                                    driverSideDataFrameObjectGraphEstimateBytes: Long,
+      // MEMORY_REPORT_SIZE_ESTIMATOR (Option A):
+      // This is the driver-side JVM object graph estimate for the DataFrame object itself.
+      // It is NOT the cached footprint.
+      driverSideDataFrameObjectGraphEstimateBytes: Long,
+      storageLevelRequested: String,
 
-                                    storageLevelRequested: String,
+      // MEMORY_REPORT_RDD / SQL main.scala.com.db.serna.utils.spark.cache presence
+      cacheManagerHasEntry: Boolean,
+      rddStorageInfoPresentForThisRddId: Boolean,
+      rddStorageFootprint: Option[RDDStorageFootprint],
 
-                                    // MEMORY_REPORT_RDD / SQL main.scala.com.db.serna.utils.spark.cache presence
-                                    cacheManagerHasEntry: Boolean,
-                                    rddStorageInfoPresentForThisRddId: Boolean,
-                                    rddStorageFootprint: Option[RDDStorageFootprint],
+      // MEMORY_REPORT_DELTA
+      executorUsedBeforeBytes: Map[String, Long],
+      executorUsedAfterBytes: Map[String, Long],
+      executorUsedDeltaBytes: Map[String, Long],
+      totalExecutorUsedDeltaBytes: Long,
+      materialized: Boolean,
+      materializedCount: Option[Long],
 
-                                    // MEMORY_REPORT_DELTA
-                                    executorUsedBeforeBytes: Map[String, Long],
-                                    executorUsedAfterBytes: Map[String, Long],
-                                    executorUsedDeltaBytes: Map[String, Long],
-                                    totalExecutorUsedDeltaBytes: Long,
-
-                                    materialized: Boolean,
-                                    materializedCount: Option[Long],
-
-                                    // whether this call performed df.persist(...)
-                                    persistedByReport: Boolean,
-
-                                    notes: Seq[String]
-                                  ) {
+      // whether this call performed df.persist(...)
+      persistedByReport: Boolean,
+      notes: Seq[String]
+  ) {
     def prettyString: String = {
       val sb = new StringBuilder
       sb.append(s"DataFrameMemoryReport(label=$label, rddId=$rddId, partitions=$partitions)\n")
@@ -214,7 +224,9 @@ object MemorySizingUtils {
           s"(WARNING: not main.scala.com.db.serna.utils.spark.cache footprint; Tungsten/columnar main.scala.com.db.serna.utils.spark.cache is different)\n"
       )
 
-      sb.append(s"  cacheManagerHasEntry=$cacheManagerHasEntry, rddStorageInfoPresentForThisRddId=$rddStorageInfoPresentForThisRddId\n")
+      sb.append(
+        s"  cacheManagerHasEntry=$cacheManagerHasEntry, rddStorageInfoPresentForThisRddId=$rddStorageInfoPresentForThisRddId\n"
+      )
       sb.append(s"  persistedByReport=$persistedByReport\n")
 
       rddStorageFootprint match {
@@ -233,7 +245,9 @@ object MemorySizingUtils {
 
       sb.append(s"  [MEMORY_REPORT_DELTA] executorUsedBefore: ${fmtExec(executorUsedBeforeBytes)}\n")
       sb.append(s"  [MEMORY_REPORT_DELTA] executorUsedAfter:  ${fmtExec(executorUsedAfterBytes)}\n")
-      sb.append(s"  [MEMORY_REPORT_DELTA] executorDelta:      ${fmtExec(executorUsedDeltaBytes)} (totalDelta=${fmtBytes(totalExecutorUsedDeltaBytes)})\n")
+      sb.append(
+        s"  [MEMORY_REPORT_DELTA] executorDelta:      ${fmtExec(executorUsedDeltaBytes)} (totalDelta=${fmtBytes(totalExecutorUsedDeltaBytes)})\n"
+      )
       sb.append(s"  materialized=$materialized ,count=${materializedCount.getOrElse(-1L)}\n")
 
       if (notes.nonEmpty) {
@@ -245,9 +259,9 @@ object MemorySizingUtils {
   }
 
   def dataFrameMemoryReport(
-                             df: DataFrame,
-                             config: DataFrameMemoryReportConfig = DataFrameMemoryReportConfig()
-                           ): DataFrameMemoryReport = {
+      df: DataFrame,
+      config: DataFrameMemoryReportConfig = DataFrameMemoryReportConfig()
+  ): DataFrameMemoryReport = {
     val spark = df.sparkSession
     val sc = spark.sparkContext
 
@@ -272,7 +286,8 @@ object MemorySizingUtils {
     /* ===> MEMORY_REPORT_RDD (Spark UI-ish storage info) <=== */
     val footprintOpt: Option[RDDStorageFootprint] = getRDDStorageFootprint(df)
 
-    val cacheManagerHasEntryAfter: Boolean = spark.sharedState.cacheManager.lookupCachedData(df.queryExecution.logical).nonEmpty
+    val cacheManagerHasEntryAfter: Boolean =
+      spark.sharedState.cacheManager.lookupCachedData(df.queryExecution.logical).nonEmpty
     val rddStorageInfoPresentAfter: Boolean = sc.getRDDStorageInfo.exists(_.id == rddId)
 
     val notes = Seq(
@@ -338,8 +353,8 @@ object MemorySizingUtils {
   def bytesToMB(bytes: Long): Long = bytes / (1024L * 1024L)
 
   /**
-   * Format bytes into a human-readable string without rounding (truncate to 2 decimals).
-   * Uses binary units (base 1024): B, KB, MB, GB, TB.
+   * Format bytes into a human-readable string without rounding (truncate to 2 decimals). Uses binary units (base 1024):
+   * B, KB, MB, GB, TB.
    */
   def fmtBytes(bytes: Long): String = {
     val units = Array("B", "KB", "MB", "GB", "TB")

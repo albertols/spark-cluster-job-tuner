@@ -12,7 +12,8 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
 
   private def writeCsv(dir: File, name: String, content: String): Unit = {
     val pw = new PrintWriter(new File(dir, name))
-    try pw.write(content) finally pw.close()
+    try pw.write(content)
+    finally pw.close()
   }
 
   private def mkTmpInputDir(): File = Files.createTempDirectory("tuner-load-").toFile
@@ -30,8 +31,8 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
   }
 
   private val defaultMachine = MachineCatalog.byName("e2-standard-8").get
-  private val defaultPolicy  = DefaultTuningStrategy.toTuningPolicy(defaultMachine)
-  private val defaultPref    = MachineSelectionPreference.Default
+  private val defaultPolicy = DefaultTuningStrategy.toTuningPolicy(defaultMachine)
+  private val defaultPref = MachineSelectionPreference.Default
 
   // ── QuotaTracker ──────────────────────────────────────────────────────────
 
@@ -80,7 +81,7 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
 
   test("QuotaTracker isHardBlocked returns true for excluded families (n4, n4d)") {
     val tracker = new QuotaTracker(Quotas.Default)
-    tracker.isHardBlocked(MachineType("n4-standard-32", 32, 128),  defaultPref) shouldBe true
+    tracker.isHardBlocked(MachineType("n4-standard-32", 32, 128), defaultPref) shouldBe true
     tracker.isHardBlocked(MachineType("n4d-standard-32", 32, 128), defaultPref) shouldBe true
   }
 
@@ -89,14 +90,14 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     val n2 = MachineCatalog.byName("n2-standard-32").get
     val c3 = MachineCatalog.defaults.find(_.name.startsWith("c3")).get
     tracker.isHardBlocked(n2, defaultPref) shouldBe false
-    tracker.isHardBlocked(c3, defaultPref) shouldBe false  // c3ClusterCount=0 < cap=1
+    tracker.isHardBlocked(c3, defaultPref) shouldBe false // c3ClusterCount=0 < cap=1
   }
 
   test("QuotaTracker isHardBlocked returns true for c4 after cluster cap reached") {
     val tracker = new QuotaTracker(Quotas.Default)
     val c4 = MachineCatalog.defaults.find(_.name.startsWith("c4")).get
     tracker.recordCluster(c4, 1, defaultPref)
-    tracker.isHardBlocked(c4, defaultPref) shouldBe true  // c4ClusterCount=1 >= cap=1
+    tracker.isHardBlocked(c4, defaultPref) shouldBe true // c4ClusterCount=1 >= cap=1
   }
 
   test("QuotaTracker withinQuota returns false when adding cores would exceed quota") {
@@ -111,47 +112,47 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
 
   test("QuotaTracker quotaPressure is 0.0 before any allocation") {
     val tracker = new QuotaTracker(Quotas.Default)
-    tracker.quotaPressure("n2")  shouldBe 0.0
+    tracker.quotaPressure("n2") shouldBe 0.0
     tracker.quotaPressure("n2d") shouldBe 0.0
-    tracker.quotaPressure("e2")  shouldBe 0.0
+    tracker.quotaPressure("e2") shouldBe 0.0
   }
 
   test("QuotaTracker quotaPressure reaches 1.0 when family is exactly at quota") {
     // n2 quota = 5000; allocate 5000 cores via 32-core × 156-ish workers... use tight quotas
     val quotas = Quotas(e2 = 100, n2 = 100, n2d = 100, c3 = 4, c4 = 4, n4 = 4, n4d = 4)
     val tracker = new QuotaTracker(quotas)
-    val n2 = MachineCatalog.byName("n2-standard-32").get  // 32 cores
+    val n2 = MachineCatalog.byName("n2-standard-32").get // 32 cores
     // Allocate exactly 100 n2 cores (32 cores * 3 workers = 96; use 8-core machine for exact 100)
-    val n2small = MachineCatalog.byName("n2-standard-8").get  // 8 cores
-    tracker.recordCluster(n2small, 12, defaultPref)  // 8 * 12 = 96 cores → not exactly 100
+    val n2small = MachineCatalog.byName("n2-standard-8").get // 8 cores
+    tracker.recordCluster(n2small, 12, defaultPref) // 8 * 12 = 96 cores → not exactly 100
     tracker.quotaPressure("n2") shouldBe (96.0 / 100.0)
   }
 
   test("QuotaTracker quotaPressure exceeds 1.0 when family is over quota") {
     val quotas = Quotas(e2 = 50, n2 = 5000, n2d = 3000, c3 = 4, c4 = 4, n4 = 4, n4d = 4)
     val tracker = new QuotaTracker(quotas)
-    val e2 = MachineCatalog.byName("e2-standard-8").get  // 8 cores
-    tracker.recordCluster(e2, 10, defaultPref)  // 80 cores > quota 50
+    val e2 = MachineCatalog.byName("e2-standard-8").get // 8 cores
+    tracker.recordCluster(e2, 10, defaultPref) // 80 cores > quota 50
     tracker.quotaPressure("e2") shouldBe (80.0 / 50.0) +- 1e-9
   }
 
   test("QuotaTracker quotaPressure is proportional: equal ratio => equal pressure") {
     val quotas = Quotas(e2 = 5000, n2 = 5000, n2d = 3000, c3 = 4, c4 = 4, n4 = 4, n4d = 4)
     val tracker = new QuotaTracker(quotas)
-    val n2   = MachineCatalog.byName("n2-standard-8").get    // 8 cores
-    val n2d  = MachineCatalog.byName("n2d-standard-8").get   // 8 cores
-    val e2   = MachineCatalog.byName("e2-standard-8").get    // 8 cores
+    val n2 = MachineCatalog.byName("n2-standard-8").get // 8 cores
+    val n2d = MachineCatalog.byName("n2d-standard-8").get // 8 cores
+    val e2 = MachineCatalog.byName("e2-standard-8").get // 8 cores
     // Fill each family to exactly 50% of its quota: 2500 for n2/e2, 1500 for n2d
-    tracker.recordCluster(n2,  312, defaultPref)  // 8 * 312 = 2496 ≈ 50% of 5000
-    tracker.recordCluster(n2d, 187, defaultPref)  // 8 * 187 = 1496 ≈ 50% of 3000
-    tracker.recordCluster(e2,  312, defaultPref)  // 8 * 312 = 2496 ≈ 50% of 5000
+    tracker.recordCluster(n2, 312, defaultPref) // 8 * 312 = 2496 ≈ 50% of 5000
+    tracker.recordCluster(n2d, 187, defaultPref) // 8 * 187 = 1496 ≈ 50% of 3000
+    tracker.recordCluster(e2, 312, defaultPref) // 8 * 312 = 2496 ≈ 50% of 5000
     // All should have roughly equal pressure (~0.499)
-    val pN2  = tracker.quotaPressure("n2")
+    val pN2 = tracker.quotaPressure("n2")
     val pN2d = tracker.quotaPressure("n2d")
-    val pE2  = tracker.quotaPressure("e2")
-    pN2  shouldBe (2496.0 / 5000.0) +- 1e-9
+    val pE2 = tracker.quotaPressure("e2")
+    pN2 shouldBe (2496.0 / 5000.0) +- 1e-9
     pN2d shouldBe (1496.0 / 3000.0) +- 1e-9
-    pE2  shouldBe (2496.0 / 5000.0) +- 1e-9
+    pE2 shouldBe (2496.0 / 5000.0) +- 1e-9
     // N2 and E2 have identical pressure; N2D is very close (within 0.1%)
     math.abs(pN2 - pN2d) should be < 0.005
   }
@@ -218,14 +219,14 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
       RecipeMetrics("c1", "r1", 5.0, 10.0, 60000, 90000, 10L, None, None, None, None, Some(4))
     )
     val costMachine = MachineCatalog.byName("e2-standard-8").get
-    val costPolicy  = CostBiasedStrategy.toTuningPolicy(costMachine)
-    val defPolicy   = DefaultTuningStrategy.toTuningPolicy(defaultMachine)
+    val costPolicy = CostBiasedStrategy.toTuningPolicy(costMachine)
+    val defPolicy = DefaultTuningStrategy.toTuningPolicy(defaultMachine)
 
     val trackerCost = new QuotaTracker(Quotas.Default)
-    val trackerDef  = new QuotaTracker(Quotas.Default)
+    val trackerDef = new QuotaTracker(Quotas.Default)
 
     val planCost = ClusterMachineAndRecipeTuner.planCluster("c1", metrics, costPolicy, trackerCost, defaultPref)
-    val planDef  = ClusterMachineAndRecipeTuner.planCluster("c1", metrics, defPolicy,  trackerDef,  defaultPref)
+    val planDef = ClusterMachineAndRecipeTuner.planCluster("c1", metrics, defPolicy, trackerDef, defaultPref)
 
     // cost_biased (0.10 buffer) should produce <= workers than default (0.25 buffer) for the same input
     planCost.workers should be <= planDef.workers
@@ -250,8 +251,8 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     // usableMem = 32 - 4 = 28; perExecMem = 8 + max(0.384, 8*0.10) = 8.8 → byMem = floor(28/8.8) = 3
     // epw = min(1, 3) = 1
     val e2std8 = MachineCatalog.byName("e2-standard-8").get
-    val epw = Sizing.executorsPerWorker(e2std8, executorCores = 8, executorMemoryGb = 8,
-      memOverheadRatio = 0.10, reserveGb = 4)
+    val epw =
+      Sizing.executorsPerWorker(e2std8, executorCores = 8, executorMemoryGb = 8, memOverheadRatio = 0.10, reserveGb = 4)
     epw shouldBe 1
   }
 
@@ -260,8 +261,13 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     // usableMem = 128 - 4 = 124; perExecMem = 8.8 → byMem = floor(124/8.8) = 14
     // epw = min(4, 14) = 4
     val n2std32 = MachineCatalog.byName("n2-standard-32").get
-    val epw = Sizing.executorsPerWorker(n2std32, executorCores = 8, executorMemoryGb = 8,
-      memOverheadRatio = 0.10, reserveGb = 4)
+    val epw = Sizing.executorsPerWorker(
+      n2std32,
+      executorCores = 8,
+      executorMemoryGb = 8,
+      memOverheadRatio = 0.10,
+      reserveGb = 4
+    )
     epw shouldBe 4
   }
 
@@ -270,8 +276,13 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     // perExecMem = 64 + 6.4 = 70.4; byMem = floor(124/70.4) = 1
     // epw = min(4, 1) = 1
     val e2std32 = MachineCatalog.byName("e2-standard-32").get
-    val epw = Sizing.executorsPerWorker(e2std32, executorCores = 8, executorMemoryGb = 64,
-      memOverheadRatio = 0.10, reserveGb = 4)
+    val epw = Sizing.executorsPerWorker(
+      e2std32,
+      executorCores = 8,
+      executorMemoryGb = 64,
+      memOverheadRatio = 0.10,
+      reserveGb = 4
+    )
     epw shouldBe 1
   }
 
@@ -282,14 +293,14 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     )
     // Force selection of n2-standard-32 by using tight quotas that exclude everything else
     val tightPref = MachineSelectionPreference(
-      preferredCores   = 32,
-      minCores         = 32,
-      maxCores         = 32,
-      allowedFamilies  = List("n2"),
-      familyPriority   = Map("n2" -> 1),
-      c3MaxClusters    = 0,
-      c4MaxClusters    = 0,
-      c3c4MaxWorkers   = 13,
+      preferredCores = 32,
+      minCores = 32,
+      maxCores = 32,
+      allowedFamilies = List("n2"),
+      familyPriority = Map("n2" -> 1),
+      c3MaxClusters = 0,
+      c4MaxClusters = 0,
+      c3c4MaxWorkers = 13,
       excludedFamilies = Set("n4", "n4d", "n2d", "e2", "c3", "c4")
     )
     val n2Machine = MachineCatalog.byName("n2-standard-32").get
@@ -300,7 +311,7 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     // epw on n2-standard-32 with default policy = 4 (verified by Sizing test above)
     plan.executorsPerWorker shouldBe 4
     // workers = max(2, ceil(reqSlots / 4))  where reqSlots = max(1, 8*2*1.25) = 20
-    plan.workers shouldBe math.max(2, math.ceil(reqSlots(8.0, 2, 0.25) / 4.0).toInt)  // = 5
+    plan.workers shouldBe math.max(2, math.ceil(reqSlots(8.0, 2, 0.25) / 4.0).toInt) // = 5
   }
 
   // ── planCluster ───────────────────────────────────────────────────────────
@@ -390,8 +401,8 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     // Force C3 by allowing only c3
     val c3OnlyPref = defaultPref.copy(
       allowedFamilies = List("c3"),
-      c3MaxClusters   = 99,
-      c4MaxClusters   = 0,
+      c3MaxClusters = 99,
+      c4MaxClusters = 0,
       excludedFamilies = Set("n4", "n4d", "n2", "n2d", "e2", "c4")
     )
     val tracker = new QuotaTracker(Quotas(c3 = 100000))
@@ -404,9 +415,9 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
       RecipeMetrics("c1", "r1", 100.0, 500.0, 60000, 90000, 10L, None, None, None, None, Some(20))
     )
     val n2OnlyPref = defaultPref.copy(
-      allowedFamilies  = List("n2"),
-      c3MaxClusters    = 0,
-      c4MaxClusters    = 0,
+      allowedFamilies = List("n2"),
+      c3MaxClusters = 0,
+      c4MaxClusters = 0,
       excludedFamilies = Set("n4", "n4d", "n2d", "e2", "c3", "c4")
     )
     val tracker = new QuotaTracker(Quotas(n2 = 100000))
@@ -420,18 +431,21 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
   test("QuotaTracker c3 cluster cap ensures at most c3MaxClusters=1 cluster uses c3") {
     val tracker = new QuotaTracker(Quotas.Default)
     val c3 = MachineCatalog.defaults.find(_.name.startsWith("c3-standard-44")).get
-    tracker.recordCluster(c3, 5, defaultPref)          // first C3 cluster → recorded
-    tracker.withinQuota(c3, 5, defaultPref) shouldBe false  // second C3 cluster → blocked
+    tracker.recordCluster(c3, 5, defaultPref) // first C3 cluster → recorded
+    tracker.withinQuota(c3, 5, defaultPref) shouldBe false // second C3 cluster → blocked
     tracker.isHardBlocked(c3, defaultPref) shouldBe true
   }
 
   // ── planManualRecipes ─────────────────────────────────────────────────────
 
   test("planManualRecipes caps instances at cluster maxExecutorsSupported") {
-    val clusterPlan = ClusterPlan("c1",
+    val clusterPlan = ClusterPlan(
+      "c1",
       MachineCatalog.byName("n2-standard-32").get,
       MachineCatalog.byName("n2-standard-32").get,
-      workers = 4, executorsPerWorker = 4, maxExecutorsSupported = 16
+      workers = 4,
+      executorsPerWorker = 4,
+      maxExecutorsSupported = 16
     )
     val metrics = Seq(
       RecipeMetrics("c1", "r1", 20.0, 200.0, 60000, 90000, 5L, None, None, None, None, Some(1))
@@ -441,10 +455,8 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
   }
 
   test("planManualRecipes applies cap-hit boost when fractionReachingCap exceeds threshold") {
-    val clusterPlan = ClusterPlan("c1",
-      defaultMachine, defaultMachine,
-      workers = 4, executorsPerWorker = 4, maxExecutorsSupported = 16
-    )
+    val clusterPlan =
+      ClusterPlan("c1", defaultMachine, defaultMachine, workers = 4, executorsPerWorker = 4, maxExecutorsSupported = 16)
     val base = 4.0
     val withCap = Seq(
       RecipeMetrics("c1", "r1", 2.0, base, 60000, 90000, 10L, Some(100L), Some(5L), Some(10L), Some(0.5), Some(1))
@@ -458,10 +470,13 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
   }
 
   test("planManualRecipes uses 8 cores when preferEightCoreExecutors=true and capacity allows") {
-    val clusterPlan = ClusterPlan("c1",
+    val clusterPlan = ClusterPlan(
+      "c1",
       MachineCatalog.byName("n2-standard-32").get,
       MachineCatalog.byName("n2-standard-32").get,
-      workers = 4, executorsPerWorker = 4, maxExecutorsSupported = 16
+      workers = 4,
+      executorsPerWorker = 4,
+      maxExecutorsSupported = 16
     )
     val metrics = Seq(
       RecipeMetrics("c1", "r1", 2.0, 2.0, 60000, 90000, 10L, None, None, None, None, Some(1))
@@ -473,8 +488,8 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
   // ── planDARecipes ─────────────────────────────────────────────────────────
 
   test("planDARecipes minExecutors is at least 2") {
-    val clusterPlan = ClusterPlan("c1", defaultMachine, defaultMachine,
-      workers = 4, executorsPerWorker = 2, maxExecutorsSupported = 8)
+    val clusterPlan =
+      ClusterPlan("c1", defaultMachine, defaultMachine, workers = 4, executorsPerWorker = 2, maxExecutorsSupported = 8)
     val metrics = Seq(
       RecipeMetrics("c1", "r1", 1.0, 1.0, 60000, 90000, 10L, None, None, None, None, Some(1))
     )
@@ -483,8 +498,8 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
   }
 
   test("planDARecipes maxExecutors is clamped to cluster maxExecutorsSupported") {
-    val clusterPlan = ClusterPlan("c1", defaultMachine, defaultMachine,
-      workers = 2, executorsPerWorker = 2, maxExecutorsSupported = 4)
+    val clusterPlan =
+      ClusterPlan("c1", defaultMachine, defaultMachine, workers = 2, executorsPerWorker = 2, maxExecutorsSupported = 4)
     val metrics = Seq(
       RecipeMetrics("c1", "r1", 50.0, 500.0, 60000, 90000, 10L, None, None, None, None, Some(1))
     )
@@ -493,8 +508,8 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
   }
 
   test("planDARecipes initialExecutors >= minExecutors") {
-    val clusterPlan = ClusterPlan("c1", defaultMachine, defaultMachine,
-      workers = 4, executorsPerWorker = 2, maxExecutorsSupported = 8)
+    val clusterPlan =
+      ClusterPlan("c1", defaultMachine, defaultMachine, workers = 4, executorsPerWorker = 2, maxExecutorsSupported = 8)
     val metrics = Seq(
       RecipeMetrics("c1", "r1", 3.0, 5.0, 60000, 90000, 5L, None, None, None, None, Some(1))
     )
@@ -540,7 +555,7 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
       cluster = "c1",
       incarnationIdx = idx,
       spanStart = java.time.Instant.parse(start),
-      spanEnd   = java.time.Instant.parse(end),
+      spanEnd = java.time.Instant.parse(end),
       hasExplicitCreate = true,
       hasExplicitDelete = true
     )
@@ -549,10 +564,10 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     AutoscalerEvent(
       cluster = "c1",
       eventTs = java.time.Instant.parse(ts),
-      state   = "RECOMMENDING",
+      state = "RECOMMENDING",
       decision = Some("SCALE_UP"),
       currentPrimary = Some(current),
-      targetPrimary  = Some(target),
+      targetPrimary = Some(target),
       minPrimary = Some(2),
       maxPrimary = Some(16)
     )
@@ -560,7 +575,11 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
   test("buildSpanSegments with no events emits a single fallback segment over the span") {
     val s = span("2026-01-01T08:00:00Z", "2026-01-01T10:00:00Z")
     val segs = ClusterMachineAndRecipeTuner.buildSpanSegments(
-      span = s, events = Seq.empty, workerHourly = 1.0, masterHourly = 0.1, fallbackWorkers = 4.0
+      span = s,
+      events = Seq.empty,
+      workerHourly = 1.0,
+      masterHourly = 0.1,
+      fallbackWorkers = 4.0
     )
     segs should have size 1
     segs.head.workers shouldBe 4.0
@@ -571,10 +590,14 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
 
   test("buildSpanSegments with two events emits 3 segments at correct boundaries") {
     val s = span("2026-01-01T08:00:00Z", "2026-01-01T10:00:00Z")
-    val e1 = event("2026-01-01T08:30:00Z", current = 3, target = 5)  // initialWorkers=3, t1->t2 workers=5
-    val e2 = event("2026-01-01T09:00:00Z", current = 5, target = 2)  // t2->end workers=2
+    val e1 = event("2026-01-01T08:30:00Z", current = 3, target = 5) // initialWorkers=3, t1->t2 workers=5
+    val e2 = event("2026-01-01T09:00:00Z", current = 5, target = 2) // t2->end workers=2
     val segs = ClusterMachineAndRecipeTuner.buildSpanSegments(
-      span = s, events = Seq(e1, e2), workerHourly = 1.0, masterHourly = 0.0, fallbackWorkers = 99.0
+      span = s,
+      events = Seq(e1, e2),
+      workerHourly = 1.0,
+      masterHourly = 0.0,
+      fallbackWorkers = 99.0
     )
     segs should have size 3
     segs.map(_.workers) shouldBe Seq(3.0, 5.0, 2.0)
@@ -605,7 +628,9 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
 
   test("workerStatsForCluster on empty spans returns zero stats") {
     val stats = ClusterMachineAndRecipeTuner.workerStatsForCluster(
-      spans = Seq.empty, events = Seq.empty, fallbackWorkers = 4
+      spans = Seq.empty,
+      events = Seq.empty,
+      fallbackWorkers = 4
     )
     stats shouldBe WorkerStats(0.0, 0, 0)
   }
@@ -613,7 +638,9 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
   test("workerStatsForCluster falls back to fallbackWorkers when a span has no events") {
     val s = span("2026-01-01T08:00:00Z", "2026-01-01T10:00:00Z")
     val stats = ClusterMachineAndRecipeTuner.workerStatsForCluster(
-      spans = Seq(s), events = Seq.empty, fallbackWorkers = 7
+      spans = Seq(s),
+      events = Seq.empty,
+      fallbackWorkers = 7
     )
     stats.avgWorkers shouldBe 7.0
     stats.minWorkers shouldBe 7
@@ -629,8 +656,8 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     val s = span("2026-01-01T08:00:00Z", "2026-01-01T10:00:00Z")
     val e1 = event("2026-01-01T08:30:00Z", current = 3, target = 5)
     val e2 = event("2026-01-01T09:00:00Z", current = 5, target = 2)
-    val w  = MachineType("test-worker", cores = 1, memoryGb = 1)
-    val m  = MachineType("test-master", cores = 1, memoryGb = 1)
+    val w = MachineType("test-worker", cores = 1, memoryGb = 1)
+    val m = MachineType("test-master", cores = 1, memoryGb = 1)
     // Stub PriceCatalog by relying on default-zero behavior; use the segment formula directly.
     val segs = ClusterMachineAndRecipeTuner.buildSpanSegments(s, Seq(e1, e2), 1.0, 0.1, 99.0)
     segs.map(_.totalCostEur).sum shouldBe 6.20 +- 0.0001
@@ -639,7 +666,11 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
   test("costTimelineJson returns None when no spans") {
     val w = MachineCatalog.byName("e2-standard-8").get
     ClusterMachineAndRecipeTuner.costTimelineJson(
-      spans = Seq.empty, events = Seq.empty, worker = w, master = w, fallbackWorkers = 4
+      spans = Seq.empty,
+      events = Seq.empty,
+      worker = w,
+      master = w,
+      fallbackWorkers = 4
     ) shouldBe None
   }
 
@@ -648,23 +679,31 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     val s = span("2026-01-01T08:00:00Z", "2026-01-01T10:00:00Z")
     val e1 = event("2026-01-01T08:30:00Z", current = 3, target = 5)
     val out = ClusterMachineAndRecipeTuner.costTimelineJson(
-      spans = Seq(s), events = Seq(e1), worker = w, master = w, fallbackWorkers = 4
+      spans = Seq(s),
+      events = Seq(e1),
+      worker = w,
+      master = w,
+      fallbackWorkers = 4
     )
     out shouldBe defined
     val json = out.get
-    json should include ("\"incarnations\"")
-    json should include ("\"intervals\"")
-    json should include ("\"real_used_avg_num_of_workers\"")
-    json should include ("\"real_used_min_workers\"")
-    json should include ("\"real_used_max_workers\"")
-    json should include ("\"worker_machine_type\"")
-    json should include ("\"master_machine_type\"")
+    json should include("\"incarnations\"")
+    json should include("\"intervals\"")
+    json should include("\"real_used_avg_num_of_workers\"")
+    json should include("\"real_used_min_workers\"")
+    json should include("\"real_used_max_workers\"")
+    json should include("\"worker_machine_type\"")
+    json should include("\"master_machine_type\"")
   }
 
   test("computeClusterCost returns zeros and None when no spans") {
     val w = MachineCatalog.byName("e2-standard-8").get
     val br = ClusterMachineAndRecipeTuner.computeClusterCost(
-      spans = Seq.empty, events = Seq.empty, worker = w, master = w, fallbackWorkers = 4
+      spans = Seq.empty,
+      events = Seq.empty,
+      worker = w,
+      master = w,
+      fallbackWorkers = 4
     )
     br.totalActiveMinutes shouldBe 0.0
     br.estimatedCostEur shouldBe 0.0
@@ -674,10 +713,14 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
 
   test("computeClusterCost wires totalActiveMinutes from b20 wall-clock minutes") {
     val w = MachineCatalog.byName("e2-standard-8").get
-    val sa = span("2026-01-01T08:00:00Z", "2026-01-01T09:00:00Z", idx = 1)  // 60 min
+    val sa = span("2026-01-01T08:00:00Z", "2026-01-01T09:00:00Z", idx = 1) // 60 min
     val sb = span("2026-01-01T10:00:00Z", "2026-01-01T10:30:00Z", idx = 2) // 30 min
     val br = ClusterMachineAndRecipeTuner.computeClusterCost(
-      spans = Seq(sa, sb), events = Seq.empty, worker = w, master = w, fallbackWorkers = 4
+      spans = Seq(sa, sb),
+      events = Seq.empty,
+      worker = w,
+      master = w,
+      fallbackWorkers = 4
     )
     br.totalActiveMinutes shouldBe 90.0 +- 0.001
   }
@@ -687,7 +730,8 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
   test("synthesizeSpanFromEvents returns None when fewer than 2 events") {
     ClusterMachineAndRecipeTuner.synthesizeSpanFromEvents("c1", Seq.empty) shouldBe None
     ClusterMachineAndRecipeTuner.synthesizeSpanFromEvents(
-      "c1", Seq(event("2026-01-01T08:00:00Z", current = 3, target = 4))
+      "c1",
+      Seq(event("2026-01-01T08:00:00Z", current = 3, target = 4))
     ) shouldBe None
   }
 
@@ -701,7 +745,7 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     s.cluster shouldBe "c1"
     s.synthetic shouldBe true
     s.spanStart shouldBe java.time.Instant.parse("2026-01-01T08:00:00Z")
-    s.spanEnd   shouldBe java.time.Instant.parse("2026-01-01T09:00:00Z")
+    s.spanEnd shouldBe java.time.Instant.parse("2026-01-01T09:00:00Z")
     s.hasExplicitCreate shouldBe false
     s.hasExplicitDelete shouldBe false
   }
@@ -712,26 +756,34 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     val e2 = event("2026-01-01T09:00:00Z", current = 5, target = 2)
     val synth = ClusterMachineAndRecipeTuner.synthesizeSpanFromEvents("c1", Seq(e1, e2)).get
     val out = ClusterMachineAndRecipeTuner.costTimelineJson(
-      spans = Seq(synth), events = Seq(e1, e2), worker = w, master = w, fallbackWorkers = 4
+      spans = Seq(synth),
+      events = Seq(e1, e2),
+      worker = w,
+      master = w,
+      fallbackWorkers = 4
     )
     out shouldBe defined
     val json = out.get
-    json should include ("\"synthetic_span\": true")
-    json should include ("\"has_synthetic_span\": true")
-    json should include ("\"events_count\":")
+    json should include("\"synthetic_span\": true")
+    json should include("\"has_synthetic_span\": true")
+    json should include("\"events_count\":")
   }
 
   test("costTimelineJson emits synthetic_span:false when span is loaded from b20") {
     val w = MachineCatalog.byName("e2-standard-8").get
     val s = span("2026-01-01T08:00:00Z", "2026-01-01T10:00:00Z")
     val out = ClusterMachineAndRecipeTuner.costTimelineJson(
-      spans = Seq(s), events = Seq.empty, worker = w, master = w, fallbackWorkers = 4
+      spans = Seq(s),
+      events = Seq.empty,
+      worker = w,
+      master = w,
+      fallbackWorkers = 4
     )
     out shouldBe defined
     val json = out.get
-    json should include ("\"synthetic_span\": false")
-    json should include ("\"has_synthetic_span\": false")
-    json should include ("\"events_count\": 0")
+    json should include("\"synthetic_span\": false")
+    json should include("\"has_synthetic_span\": false")
+    json should include("\"events_count\": 0")
   }
 
   // ── Real-world b20 + b21 row shape (from BigQuery CSV export) ─────────────
@@ -747,24 +799,30 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
   //     naive (no CSV quote handling) but the leading 14 well-formed cells
   //     still align with the 15-column header
 
-  test("real-world: 1 b20 row + b21 RECOMMENDING events produces a non-null cost_timeline (regression — IPC + cluster-cost surfacing)") {
-    val tmp     = Files.createTempDirectory("real-b20-b21-test-").toFile
-    val inDir   = tmp                                       // loaders read from cfg.inputDir directly
+  test(
+    "real-world: 1 b20 row + b21 RECOMMENDING events produces a non-null cost_timeline (regression — IPC + cluster-cost surfacing)"
+  ) {
+    val tmp = Files.createTempDirectory("real-b20-b21-test-").toFile
+    val inDir = tmp // loaders read from cfg.inputDir directly
     val cluster = "cluster-wf-anonimiza-636bf97f-main"
 
     // b20: 10-column header + 1 data row, ISO microseconds, lowercase booleans.
-    val b20Header = "cluster_name,incarnation_idx,span_start_ts,span_end_ts,span_minutes,create_event_ts,delete_event_ts,has_explicit_create,has_explicit_delete,total_events"
-    val b20Row    = s"$cluster,1,2026-05-01T07:00:56.283227Z,2026-05-01T07:11:35.307332Z,10.65,2026-05-01T07:00:56.283227Z,2026-05-01T07:11:35.307332Z,true,true,42891"
-    val b20F      = new File(inDir, "b20_cluster_span_time.csv")
-    val w20       = new PrintWriter(b20F)
-    try { w20.println(b20Header); w20.println(b20Row) } finally w20.close()
+    val b20Header =
+      "cluster_name,incarnation_idx,span_start_ts,span_end_ts,span_minutes,create_event_ts,delete_event_ts,has_explicit_create,has_explicit_delete,total_events"
+    val b20Row =
+      s"$cluster,1,2026-05-01T07:00:56.283227Z,2026-05-01T07:11:35.307332Z,10.65,2026-05-01T07:00:56.283227Z,2026-05-01T07:11:35.307332Z,true,true,42891"
+    val b20F = new File(inDir, "b20_cluster_span_time.csv")
+    val w20 = new PrintWriter(b20F)
+    try { w20.println(b20Header); w20.println(b20Row) }
+    finally w20.close()
 
     // b21: 15-column header + 12 data rows of mixed states (INITIALIZING,
     // COOLDOWN, RECOMMENDING NO_SCALE, COOLDOWN, RECOMMENDING SCALE_DOWN,
     // SCALING, COOLDOWN, RECOMMENDING CANCEL — null target, dropped — SCALING,
     // SCALING, COOLDOWN, STOPPED). Loader must keep only the 2 RECOMMENDING
     // rows with non-null target_primary_workers.
-    val b21Header = "cluster_name,event_ts,state,decision,decision_metric,current_primary_workers,target_primary_workers,min_primary_workers,max_primary_workers,current_secondary_workers,target_secondary_workers,min_secondary_workers,max_secondary_workers,recommendation_id,status_details"
+    val b21Header =
+      "cluster_name,event_ts,state,decision,decision_metric,current_primary_workers,target_primary_workers,min_primary_workers,max_primary_workers,current_secondary_workers,target_secondary_workers,min_secondary_workers,max_secondary_workers,recommendation_id,status_details"
     val b21Rows = Seq(
       s"$cluster,2026-05-01T07:03:55.216Z,INITIALIZING,,,,,,,,,,,,Enabling autoscaling.",
       s"$cluster,2026-05-01T07:03:55.230Z,COOLDOWN,,,,,,,,,,,,2 minute cooldown started.",
@@ -780,25 +838,26 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
       s"$cluster,2026-05-01T07:11:56.154Z,STOPPED,,,,,,,,,,,,Stopped autoscaling cluster."
     )
     val b21F = new File(inDir, "b21_cluster_autoscaler_values.csv")
-    val w21  = new PrintWriter(b21F)
-    try { w21.println(b21Header); b21Rows.foreach(w21.println) } finally w21.close()
+    val w21 = new PrintWriter(b21F)
+    try { w21.println(b21Header); b21Rows.foreach(w21.println) }
+    finally w21.close()
 
     val machine = MachineCatalog.byName("e2-highcpu-32").get
     val cfg = ClusterMachineAndRecipeTuner.Config(
-      useFlattened  = true,
-      date          = "2026_05_01",
-      inputDir      = inDir,
-      outputDir     = new File(tmp, "out"),
+      useFlattened = true,
+      date = "2026_05_01",
+      inputDir = inDir,
+      outputDir = new File(tmp, "out"),
       defaultMaster = machine,
       defaultWorker = machine
     )
 
-    val spansByCluster  = ClusterMachineAndRecipeTuner.loadClusterSpans(cfg)
+    val spansByCluster = ClusterMachineAndRecipeTuner.loadClusterSpans(cfg)
     val eventsByCluster = ClusterMachineAndRecipeTuner.loadAutoscalerEvents(cfg)
 
     // Loaders pick up exactly what we wrote: 1 span and 2 RECOMMENDING events
     // (NO_SCALE target=3 and SCALE_DOWN target=2; CANCEL target-null is dropped).
-    spansByCluster.keySet  shouldBe Set(cluster)
+    spansByCluster.keySet shouldBe Set(cluster)
     spansByCluster(cluster) should have size 1
     eventsByCluster.keySet shouldBe Set(cluster)
     eventsByCluster(cluster) should have size 2
@@ -810,22 +869,22 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     // (#detail-cluster-cost-body) — empty cost_timeline = "No autoscaling data
     // exported" message.
     val breakdown = ClusterMachineAndRecipeTuner.computeClusterCost(
-      spans           = spansByCluster(cluster),
-      events          = eventsByCluster(cluster),
-      worker          = machine,
-      master          = machine,
+      spans = spansByCluster(cluster),
+      events = eventsByCluster(cluster),
+      worker = machine,
+      master = machine,
       fallbackWorkers = 2
     )
     breakdown.totalActiveMinutes should be > 10.0
-    breakdown.estimatedCostEur   should be > 0.0
+    breakdown.estimatedCostEur should be > 0.0
     breakdown.workerStats.maxWorkers shouldBe 3
     breakdown.workerStats.minWorkers shouldBe 2
     breakdown.costTimelineJson shouldBe defined
     val json = breakdown.costTimelineJson.get
-    json should include (s""""worker_machine_type": "${machine.name}"""")
-    json should include ("\"synthetic_span\": false")  // b20 row exists, no synthesis
-    json should include ("\"events_count\": 2")        // 2 RECOMMENDING events kept
-    json should include ("\"has_synthetic_span\": false")
+    json should include(s""""worker_machine_type": "${machine.name}"""")
+    json should include("\"synthetic_span\": false") // b20 row exists, no synthesis
+    json should include("\"events_count\": 2") // 2 RECOMMENDING events kept
+    json should include("\"has_synthetic_span\": false")
   }
 
   // ── AutoscalingPolicyConfig ───────────────────────────────────────────────
@@ -852,36 +911,91 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     AutoscalingPolicyConfig.maxWorkersForCluster(8) shouldBe 8
     AutoscalingPolicyConfig.maxWorkersForCluster(9) shouldBe 10
     AutoscalingPolicyConfig.maxWorkersForCluster(10) shouldBe 10
-    AutoscalingPolicyConfig.maxWorkersForCluster(15) shouldBe 15  // fallback = observed
+    AutoscalingPolicyConfig.maxWorkersForCluster(15) shouldBe 15 // fallback = observed
   }
 
   // ── GenerationSummary ─────────────────────────────────────────────────────
 
   test("GenerationSummary totalPredictedNodes = sum of (numWorkers + 1) across entries") {
     val entries = Seq(
-      GenerationSummaryEntry("c1", "n2-standard-32", "n2", 4, 6, 128, 192,
-        Seq.empty, "default", "cost_performance_balance", "8cx1GBpc"),
-      GenerationSummaryEntry("c2", "e2-standard-8", "e2", 2, 4, 16, 32,
-        Seq.empty, "default", "cost_performance_balance", "8cx1GBpc")
+      GenerationSummaryEntry(
+        "c1",
+        "n2-standard-32",
+        "n2",
+        4,
+        6,
+        128,
+        192,
+        Seq.empty,
+        "default",
+        "cost_performance_balance",
+        "8cx1GBpc"
+      ),
+      GenerationSummaryEntry(
+        "c2",
+        "e2-standard-8",
+        "e2",
+        2,
+        4,
+        16,
+        32,
+        Seq.empty,
+        "default",
+        "cost_performance_balance",
+        "8cx1GBpc"
+      )
     )
     val predicted = entries.map(_.numWorkers + 1).sum
-    predicted shouldBe 8  // (4+1) + (2+1)
+    predicted shouldBe 8 // (4+1) + (2+1)
   }
 
   test("GenerationSummary totalMaxNodes = sum of (maxWorkersFromPolicy + 1) across entries") {
     val entries = Seq(
-      GenerationSummaryEntry("c1", "n2-standard-32", "n2", 4, 6, 128, 192,
-        Seq.empty, "default", "balance", "8cx1GBpc"),  // maxWorkersFromPolicy=6 → +1 = 7
-      GenerationSummaryEntry("c2", "e2-standard-8", "e2", 2, 4, 16, 32,
-        Seq.empty, "default", "balance", "8cx1GBpc")   // maxWorkersFromPolicy=4 → +1 = 5
+      GenerationSummaryEntry(
+        "c1",
+        "n2-standard-32",
+        "n2",
+        4,
+        6,
+        128,
+        192,
+        Seq.empty,
+        "default",
+        "balance",
+        "8cx1GBpc"
+      ), // maxWorkersFromPolicy=6 → +1 = 7
+      GenerationSummaryEntry(
+        "c2",
+        "e2-standard-8",
+        "e2",
+        2,
+        4,
+        16,
+        32,
+        Seq.empty,
+        "default",
+        "balance",
+        "8cx1GBpc"
+      ) // maxWorkersFromPolicy=4 → +1 = 5
     )
-    entries.map(_.maxWorkersFromPolicy + 1).sum shouldBe 12  // 7 + 5 = 12
+    entries.map(_.maxWorkersFromPolicy + 1).sum shouldBe 12 // 7 + 5 = 12
   }
 
   test("GenerationSummaryWriter.toJson produces valid JSON structure") {
     val entries = Seq(
-      GenerationSummaryEntry("c1", "n2-standard-32", "n2", 4, 6, 128, 192,
-        Seq("signal 1"), "default", "balance", "8cx1GBpc")
+      GenerationSummaryEntry(
+        "c1",
+        "n2-standard-32",
+        "n2",
+        4,
+        6,
+        128,
+        192,
+        Seq("signal 1"),
+        "default",
+        "balance",
+        "8cx1GBpc"
+      )
     )
     val summary = GenerationSummary(
       generatedAt = "2026-01-01T00:00:00Z",
@@ -913,16 +1027,19 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     val header = "cluster_name,recipe_filename,avg_executors_per_job,p95_run_max_executors," +
       "avg_job_duration_ms,p95_job_duration_ms,runs,seconds_at_cap,runs_reaching_cap," +
       "total_runs,fraction_reaching_cap,max_concurrent_jobs"
-    val rowWithNullP95   = "c1,_r1.json,0,,35165.4,40983,5,,,,,1"
+    val rowWithNullP95 = "c1,_r1.json,0,,35165.4,40983,5,,,,,1"
     val rowFullyPopulated = "c2,_r2.json,2.5,4,1000,1500,10,,,,,3"
-    writeCsv(dir, "b13_recommendations_inputs_per_recipe_per_cluster.csv",
-      s"$header\n$rowWithNullP95\n$rowFullyPopulated\n")
+    writeCsv(
+      dir,
+      "b13_recommendations_inputs_per_recipe_per_cluster.csv",
+      s"$header\n$rowWithNullP95\n$rowFullyPopulated\n"
+    )
 
     val metrics = ClusterMachineAndRecipeTuner.loadMetrics(cfgFor(dir, useFlattened = true))
     metrics should have size 2
     val m1 = metrics(("c1", "_r1.json"))
     m1.avgExecutorsPerJob shouldBe 0.0
-    m1.p95RunMaxExecutors shouldBe 1.0  // default applied when NULL
+    m1.p95RunMaxExecutors shouldBe 1.0 // default applied when NULL
     m1.avgJobDurationMs shouldBe 35165.4
     m1.p95JobDurationMs shouldBe 40983.0
     m1.runs shouldBe 5L
@@ -939,8 +1056,7 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
       "avg_job_duration_ms,p95_job_duration_ms,runs,seconds_at_cap,runs_reaching_cap," +
       "total_runs,fraction_reaching_cap,max_concurrent_jobs"
     val rowMissingConc = "c1,_r1.json,1,2,100,200,3,,,,,"
-    writeCsv(dir, "b13_recommendations_inputs_per_recipe_per_cluster.csv",
-      s"$header\n$rowMissingConc\n")
+    writeCsv(dir, "b13_recommendations_inputs_per_recipe_per_cluster.csv", s"$header\n$rowMissingConc\n")
 
     val metrics = ClusterMachineAndRecipeTuner.loadMetrics(cfgFor(dir, useFlattened = true))
     metrics(("c1", "_r1.json")).maxConcurrentJobs shouldBe Some(1)
@@ -951,11 +1067,14 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     val header = "cluster_name,recipe_filename,avg_executors_per_job,p95_run_max_executors," +
       "avg_job_duration_ms,p95_job_duration_ms,runs,seconds_at_cap,runs_reaching_cap," +
       "total_runs,fraction_reaching_cap,max_concurrent_jobs"
-    val validRow      = "c1,_r1.json,1,2,100,200,3,,,,,1"
+    val validRow = "c1,_r1.json,1,2,100,200,3,,,,,1"
     val missingCluster = ",_r2.json,1,2,100,200,3,,,,,1"
-    val missingRecipe  = "c3,,1,2,100,200,3,,,,,1"
-    writeCsv(dir, "b13_recommendations_inputs_per_recipe_per_cluster.csv",
-      s"$header\n$validRow\n$missingCluster\n$missingRecipe\n")
+    val missingRecipe = "c3,,1,2,100,200,3,,,,,1"
+    writeCsv(
+      dir,
+      "b13_recommendations_inputs_per_recipe_per_cluster.csv",
+      s"$header\n$validRow\n$missingCluster\n$missingRecipe\n"
+    )
 
     val metrics = ClusterMachineAndRecipeTuner.loadMetrics(cfgFor(dir, useFlattened = true))
     metrics.keys should contain only (("c1", "_r1.json"))
@@ -970,28 +1089,49 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     val flatRow1 = "cA,_r1.json,2.5,4,1000,1500,10,,,,,2"
     val flatRow2 = "cA,_r2.json,1.0,3,500,800,7,,,,,2"
     val flatRow3 = "cB,_r1.json,0.5,2,200,250,3,,,,,1"
-    writeCsv(flatDir, "b13_recommendations_inputs_per_recipe_per_cluster.csv",
-      Seq(flatHeader, flatRow1, flatRow2, flatRow3).mkString("\n") + "\n")
+    writeCsv(
+      flatDir,
+      "b13_recommendations_inputs_per_recipe_per_cluster.csv",
+      Seq(flatHeader, flatRow1, flatRow2, flatRow3).mkString("\n") + "\n"
+    )
     val flat = ClusterMachineAndRecipeTuner.loadMetrics(cfgFor(flatDir, useFlattened = true))
 
     // Equivalent individual CSVs
     val indDir = mkTmpInputDir()
-    writeCsv(indDir, "b1_average_number_of_executors_per_job_by_cluster.csv",
+    writeCsv(
+      indDir,
+      "b1_average_number_of_executors_per_job_by_cluster.csv",
       "cluster_name,recipe_filename,avg_executors_per_job\n" +
-        "cA,_r1.json,2.5\ncA,_r2.json,1.0\ncB,_r1.json,0.5\n")
-    writeCsv(indDir, "b12_p95_max_executors_per_recipe_per_cluster.csv",
+        "cA,_r1.json,2.5\ncA,_r2.json,1.0\ncB,_r1.json,0.5\n"
+    )
+    writeCsv(
+      indDir,
+      "b12_p95_max_executors_per_recipe_per_cluster.csv",
       "cluster_name,recipe_filename,p95_run_max_executors,avg_run_max_executors,runs\n" +
-        "cA,_r1.json,4,3,10\ncA,_r2.json,3,2,7\ncB,_r1.json,2,1,3\n")
-    writeCsv(indDir, "b3_average_recipefilename_per_cluster.csv",
+        "cA,_r1.json,4,3,10\ncA,_r2.json,3,2,7\ncB,_r1.json,2,1,3\n"
+    )
+    writeCsv(
+      indDir,
+      "b3_average_recipefilename_per_cluster.csv",
       "cluster_name,recipe_filename,avg_job_duration_ms\n" +
-        "cA,_r1.json,1000\ncA,_r2.json,500\ncB,_r1.json,200\n")
-    writeCsv(indDir, "b8_P95_job_duration_per_recipe_per_cluster.csv",
+        "cA,_r1.json,1000\ncA,_r2.json,500\ncB,_r1.json,200\n"
+    )
+    writeCsv(
+      indDir,
+      "b8_P95_job_duration_per_recipe_per_cluster.csv",
       "cluster_name,recipe_filename,p95_job_duration_ms,runs\n" +
-        "cA,_r1.json,1500,10\ncA,_r2.json,800,7\ncB,_r1.json,250,3\n")
-    writeCsv(indDir, "b5_a_times_job_reaches_max_executor_per_cluster.csv",
-      "cluster_name,recipe_filename,seconds_at_cap,runs_reaching_cap,total_runs,fraction_reaching_cap\n")
-    writeCsv(indDir, "b11_max_concurrent_jobs_per_cluster_in_window.csv",
-      "cluster_name,max_concurrent_jobs\ncA,2\ncB,1\n")
+        "cA,_r1.json,1500,10\ncA,_r2.json,800,7\ncB,_r1.json,250,3\n"
+    )
+    writeCsv(
+      indDir,
+      "b5_a_times_job_reaches_max_executor_per_cluster.csv",
+      "cluster_name,recipe_filename,seconds_at_cap,runs_reaching_cap,total_runs,fraction_reaching_cap\n"
+    )
+    writeCsv(
+      indDir,
+      "b11_max_concurrent_jobs_per_cluster_in_window.csv",
+      "cluster_name,max_concurrent_jobs\ncA,2\ncB,1\n"
+    )
     val ind = ClusterMachineAndRecipeTuner.loadMetrics(cfgFor(indDir, useFlattened = false))
 
     flat.keySet shouldBe ind.keySet
@@ -999,10 +1139,10 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
       val im = ind(k)
       fm.avgExecutorsPerJob shouldBe im.avgExecutorsPerJob
       fm.p95RunMaxExecutors shouldBe im.p95RunMaxExecutors
-      fm.avgJobDurationMs   shouldBe im.avgJobDurationMs
-      fm.p95JobDurationMs   shouldBe im.p95JobDurationMs
-      fm.runs               shouldBe im.runs
-      fm.maxConcurrentJobs  shouldBe im.maxConcurrentJobs
+      fm.avgJobDurationMs shouldBe im.avgJobDurationMs
+      fm.p95JobDurationMs shouldBe im.p95JobDurationMs
+      fm.runs shouldBe im.runs
+      fm.maxConcurrentJobs shouldBe im.maxConcurrentJobs
     }
   }
 
@@ -1012,23 +1152,25 @@ class ClusterMachineAndRecipeTunerSpec extends AnyFunSuite with Matchers {
     val flatHeader = "cluster_name,recipe_filename,avg_executors_per_job,p95_run_max_executors," +
       "avg_job_duration_ms,p95_job_duration_ms,runs,seconds_at_cap,runs_reaching_cap," +
       "total_runs,fraction_reaching_cap,max_concurrent_jobs"
-    writeCsv(flatDir, "b13_recommendations_inputs_per_recipe_per_cluster.csv",
-      s"$flatHeader\ncX,_r.json,,,,,,,,,,\n")
+    writeCsv(flatDir, "b13_recommendations_inputs_per_recipe_per_cluster.csv", s"$flatHeader\ncX,_r.json,,,,,,,,,,\n")
     val flat = ClusterMachineAndRecipeTuner.loadMetrics(cfgFor(flatDir, useFlattened = true))
 
     // Individual: (cX,_r) present only in b1 with empty avg_executors_per_job
     val indDir = mkTmpInputDir()
-    writeCsv(indDir, "b1_average_number_of_executors_per_job_by_cluster.csv",
-      "cluster_name,recipe_filename,avg_executors_per_job\ncX,_r.json,\n")
+    writeCsv(
+      indDir,
+      "b1_average_number_of_executors_per_job_by_cluster.csv",
+      "cluster_name,recipe_filename,avg_executors_per_job\ncX,_r.json,\n"
+    )
     val ind = ClusterMachineAndRecipeTuner.loadMetrics(cfgFor(indDir, useFlattened = false))
 
     val fm = flat(("cX", "_r.json"))
     val im = ind(("cX", "_r.json"))
-    fm.avgExecutorsPerJob shouldBe im.avgExecutorsPerJob  // 1.0
-    fm.p95RunMaxExecutors shouldBe im.p95RunMaxExecutors  // 1.0
-    fm.avgJobDurationMs   shouldBe im.avgJobDurationMs    // 0.0
-    fm.p95JobDurationMs   shouldBe im.p95JobDurationMs    // 0.0 (== avgDur)
-    fm.runs               shouldBe im.runs                // 0L
-    fm.maxConcurrentJobs  shouldBe im.maxConcurrentJobs   // Some(1)
+    fm.avgExecutorsPerJob shouldBe im.avgExecutorsPerJob // 1.0
+    fm.p95RunMaxExecutors shouldBe im.p95RunMaxExecutors // 1.0
+    fm.avgJobDurationMs shouldBe im.avgJobDurationMs // 0.0
+    fm.p95JobDurationMs shouldBe im.p95JobDurationMs // 0.0 (== avgDur)
+    fm.runs shouldBe im.runs // 0L
+    fm.maxConcurrentJobs shouldBe im.maxConcurrentJobs // Some(1)
   }
 }

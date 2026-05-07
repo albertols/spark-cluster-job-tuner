@@ -6,16 +6,17 @@ import org.scalatest.funsuite.AnyFunSuite
 
 /**
  * Shared SparkSession for tests in a suite.
- * - Creates SparkSession lazily when first used
- * - Stops it after all tests
- * - Clears active/default to avoid reuse of a stopped context
+ *   - Creates SparkSession lazily when first used
+ *   - Stops it after all tests
+ *   - Clears active/default to avoid reuse of a stopped context
  */
 trait SparkTestSession extends BeforeAndAfterAll { self: AnyFunSuite =>
   @transient private var _spark: SparkSession = _
 
   protected def spark: SparkSession = {
     if (_spark == null) {
-      _spark = SparkSession.builder()
+      _spark = SparkSession
+        .builder()
         .appName(self.getClass.getSimpleName.stripSuffix("$"))
         .master("local[2]")
         .config("spark.ui.enabled", "false")

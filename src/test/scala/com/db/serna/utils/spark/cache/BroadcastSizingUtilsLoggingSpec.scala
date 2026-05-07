@@ -7,8 +7,7 @@ import org.scalatest.funsuite.AnyFunSuite
 class BroadcastSizingUtilsLoggingSpec extends AnyFunSuite {
 
   test("BroadcastSizingUtils reports produce printable logs (smoke test)") {
-    TestSparkSessionSupport.withSession(TestSparkSessionSupport.CacheConf) { spark: SparkSession
-    =>
+    TestSparkSessionSupport.withSession(TestSparkSessionSupport.CacheConf) { spark: SparkSession =>
       val ssStable = spark;
 
       val df = spark.range(0, 10000).toDF("id")

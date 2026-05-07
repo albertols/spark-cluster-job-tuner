@@ -5,8 +5,8 @@ import com.db.serna.orchestration.cluster_tuning.single.RecipeMetrics
 /**
  * Pure statistical functions for multi-date performance analysis.
  *
- * Uses population statistics (not sample) since we typically have the full fleet.
- * All functions use scala.math only — no external library.
+ * Uses population statistics (not sample) since we typically have the full fleet. All functions use scala.math only —
+ * no external library.
  */
 object StatisticalAnalysis {
 
@@ -55,7 +55,11 @@ object StatisticalAnalysis {
     MetricAccessor("delta_p95_run_max_executors", _.reference.p95RunMaxExecutors, _.current.p95RunMaxExecutors),
     MetricAccessor("delta_avg_job_duration_ms", _.reference.avgJobDurationMs, _.current.avgJobDurationMs),
     MetricAccessor("delta_p95_job_duration_ms", _.reference.p95JobDurationMs, _.current.p95JobDurationMs),
-    MetricAccessor("delta_fraction_reaching_cap", _.reference.fractionReachingCap.getOrElse(0.0), _.current.fractionReachingCap.getOrElse(0.0)),
+    MetricAccessor(
+      "delta_fraction_reaching_cap",
+      _.reference.fractionReachingCap.getOrElse(0.0),
+      _.current.fractionReachingCap.getOrElse(0.0)
+    ),
     MetricAccessor("delta_runs", _.reference.runs.toDouble, _.current.runs.toDouble)
   )
 
@@ -125,9 +129,9 @@ object StatisticalAnalysis {
     detectDivergencesScoped(pairs, zThreshold, clusterScope = None)
 
   private def detectDivergencesScoped(
-    pairs: Seq[MetricsPair],
-    zThreshold: Double,
-    clusterScope: Option[String]
+      pairs: Seq[MetricsPair],
+      zThreshold: Double,
+      clusterScope: Option[String]
   ): Seq[DivergenceResult] = {
     if (pairs.size < 2) return Seq.empty
     MetricAccessors.flatMap { accessor =>
@@ -135,23 +139,26 @@ object StatisticalAnalysis {
       val m = mean(deltas)
       val s = stddev(deltas)
       if (s == 0.0) Seq.empty
-      else pairs.zip(deltas).flatMap { case (pair, delta) =>
-        val z = zScore(delta, m, s)
-        if (math.abs(z) >= zThreshold) {
-          Some(DivergenceResult(
-            cluster = pair.cluster,
-            recipe = pair.recipe,
-            metricName = accessor.name,
-            referenceValue = accessor.refValue(pair),
-            currentValue = accessor.curValue(pair),
-            zScore = z,
-            isOutlier = true,
-            view = "delta",
-            isNewEntry = false,
-            clusterScope = clusterScope
-          ))
-        } else None
-      }
+      else
+        pairs.zip(deltas).flatMap { case (pair, delta) =>
+          val z = zScore(delta, m, s)
+          if (math.abs(z) >= zThreshold) {
+            Some(
+              DivergenceResult(
+                cluster = pair.cluster,
+                recipe = pair.recipe,
+                metricName = accessor.name,
+                referenceValue = accessor.refValue(pair),
+                currentValue = accessor.curValue(pair),
+                zScore = z,
+                isOutlier = true,
+                view = "delta",
+                isNewEntry = false,
+                clusterScope = clusterScope
+              )
+            )
+          } else None
+        }
     }
   }
 
@@ -159,8 +166,8 @@ object StatisticalAnalysis {
 
   /** Per-cluster correlation matrices. Clusters with `< minN` paired recipes are omitted (frontend falls back). */
   def computePerClusterCorrelations(
-    pairs: Seq[MetricsPair],
-    minN: Int = MinGroupSize
+      pairs: Seq[MetricsPair],
+      minN: Int = MinGroupSize
   ): Map[String, Seq[CorrelationResult]] = {
     pairs.groupBy(_.cluster).flatMap { case (cluster, clusterPairs) =>
       if (clusterPairs.size < minN) None
@@ -170,9 +177,9 @@ object StatisticalAnalysis {
 
   /** Per-cluster z-score detection. Stats are computed inside each cluster (not vs the fleet). */
   def detectPerClusterDivergences(
-    pairs: Seq[MetricsPair],
-    zThreshold: Double = 2.0,
-    minN: Int = MinGroupSize
+      pairs: Seq[MetricsPair],
+      zThreshold: Double = 2.0,
+      minN: Int = MinGroupSize
   ): Map[String, Seq[DivergenceResult]] = {
     pairs.groupBy(_.cluster).flatMap { case (cluster, clusterPairs) =>
       if (clusterPairs.size < minN) None
@@ -182,13 +189,14 @@ object StatisticalAnalysis {
 
   // ---------- Current-snapshot view (includes new entries) ----------
 
-  /** Pearson correlations on raw current values across all current-date entries (paired + new).
+  /**
+   * Pearson correlations on raw current values across all current-date entries (paired + new).
    *
-   *  Uses the same 4 metric pairs but without the `delta_` prefix; entries get `view = "current_snapshot"`.
+   * Uses the same 4 metric pairs but without the `delta_` prefix; entries get `view = "current_snapshot"`.
    */
   def computeCurrentSnapshotCorrelations(
-    snapshot: DateSnapshot,
-    refKeys: Set[(String, String)]
+      snapshot: DateSnapshot,
+      refKeys: Set[(String, String)]
   ): Seq[CorrelationResult] = {
     val entries: Seq[((String, String), RecipeMetrics)] = snapshot.metrics.toSeq
     if (entries.size < 2) return Seq.empty
@@ -212,14 +220,15 @@ object StatisticalAnalysis {
     }
   }
 
-  /** Z-scores on raw current values, computed per metric across all current-date entries.
+  /**
+   * Z-scores on raw current values, computed per metric across all current-date entries.
    *
-   *  Entries flagged `isNewEntry = true` if the (cluster, recipe) is not present in `refKeys`.
+   * Entries flagged `isNewEntry = true` if the (cluster, recipe) is not present in `refKeys`.
    */
   def detectCurrentSnapshotZScores(
-    snapshot: DateSnapshot,
-    refKeys: Set[(String, String)],
-    zThreshold: Double = 2.0
+      snapshot: DateSnapshot,
+      refKeys: Set[(String, String)],
+      zThreshold: Double = 2.0
   ): Seq[DivergenceResult] = {
     val entries: Seq[((String, String), RecipeMetrics)] = snapshot.metrics.toSeq
     if (entries.size < 2) return Seq.empty
@@ -228,23 +237,26 @@ object StatisticalAnalysis {
       val m = mean(values)
       val s = stddev(values)
       if (s == 0.0) Seq.empty
-      else entries.zip(values).flatMap { case (((cluster, recipe), _), v) =>
-        val z = zScore(v, m, s)
-        if (math.abs(z) >= zThreshold) {
-          Some(DivergenceResult(
-            cluster = cluster,
-            recipe = recipe,
-            metricName = accessor.name,
-            referenceValue = 0.0, // no reference in this view
-            currentValue = v,
-            zScore = z,
-            isOutlier = true,
-            view = "current_snapshot",
-            isNewEntry = !refKeys.contains((cluster, recipe)),
-            clusterScope = None
-          ))
-        } else None
-      }
+      else
+        entries.zip(values).flatMap { case (((cluster, recipe), _), v) =>
+          val z = zScore(v, m, s)
+          if (math.abs(z) >= zThreshold) {
+            Some(
+              DivergenceResult(
+                cluster = cluster,
+                recipe = recipe,
+                metricName = accessor.name,
+                referenceValue = 0.0, // no reference in this view
+                currentValue = v,
+                zScore = z,
+                isOutlier = true,
+                view = "current_snapshot",
+                isNewEntry = !refKeys.contains((cluster, recipe)),
+                clusterScope = None
+              )
+            )
+          } else None
+        }
     }
   }
 
@@ -252,9 +264,9 @@ object StatisticalAnalysis {
 
   /** All scatter points for a given metric pair, delta view. */
   def scatterPointsDelta(
-    pairs: Seq[MetricsPair],
-    metricA: String,
-    metricB: String
+      pairs: Seq[MetricsPair],
+      metricA: String,
+      metricB: String
   ): Seq[ScatterPoint] = {
     val a = accessorFor(metricA)
     val b = accessorFor(metricB)
@@ -266,10 +278,10 @@ object StatisticalAnalysis {
 
   /** All scatter points for a given metric pair, current-snapshot view (uses the un-prefixed names). */
   def scatterPointsCurrentSnapshot(
-    snapshot: DateSnapshot,
-    refKeys: Set[(String, String)],
-    metricA: String,
-    metricB: String
+      snapshot: DateSnapshot,
+      refKeys: Set[(String, String)],
+      metricA: String,
+      metricB: String
   ): Seq[ScatterPoint] = {
     val a = currentAccessorFor(metricA)
     val b = currentAccessorFor(metricB)

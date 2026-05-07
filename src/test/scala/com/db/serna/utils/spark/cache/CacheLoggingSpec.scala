@@ -18,7 +18,9 @@ class CacheLoggingSpec extends AnyFunSuite with Eventually {
     TestSparkSessionSupport.withCacheSession { spark: SparkSession =>
       val ssStable = spark;
 
-      println(s"[CLS] master=${spark.sparkContext.master}, serializer=${spark.sparkContext.getConf.get("spark.serializer")}")
+      println(
+        s"[CLS] master=${spark.sparkContext.master}, serializer=${spark.sparkContext.getConf.get("spark.serializer")}"
+      )
 
       val df = spark.range(0, 10000).toDF("id").repartition(8)
 
@@ -41,7 +43,9 @@ class CacheLoggingSpec extends AnyFunSuite with Eventually {
       val anyCachedRddInfoExists =
         spark.sparkContext.getRDDStorageInfo.exists(_.numCachedPartitions > 0)
       println(s"[CLS] RDDStorageInfo.hasCachedPartitions=${anyCachedRddInfoExists}")
-      assert(anyCachedRddInfoExists || spark.sharedState.cacheManager.lookupCachedData(df.queryExecution.logical).nonEmpty)
+      assert(
+        anyCachedRddInfoExists || spark.sharedState.cacheManager.lookupCachedData(df.queryExecution.logical).nonEmpty
+      )
     }
   }
 
@@ -72,17 +76,21 @@ class CacheLoggingSpec extends AnyFunSuite with Eventually {
         found.exists { clazz =>
           val instanceOpt =
             if (fqcn.endsWith("$")) Try(clazz.getField("MODULE$").get(null)).toOption
-            else Try(clazz.getField("MODULE$").get(null)).toOption
-              .orElse(Try(clazz.getDeclaredConstructor().newInstance()).toOption)
+            else
+              Try(clazz.getField("MODULE$").get(null)).toOption
+                .orElse(Try(clazz.getDeclaredConstructor().newInstance()).toOption)
 
           println(s"[CLS] instanceOpt.isDefined=${instanceOpt.isDefined}")
 
           instanceOpt.exists { instance =>
             val registerOpt = Try(clazz.getMethod("register", classOf[org.apache.spark.SparkContext])).toOption
-            val logStats2Opt = Try(clazz.getMethod("logDfCacheStats", classOf[org.apache.spark.sql.DataFrame], classOf[String])).toOption
+            val logStats2Opt =
+              Try(clazz.getMethod("logDfCacheStats", classOf[org.apache.spark.sql.DataFrame], classOf[String])).toOption
             val logStats1Opt = Try(clazz.getMethod("logDfCacheStats", classOf[org.apache.spark.sql.DataFrame])).toOption
 
-            println(s"[CLS] methods: register=${registerOpt.isDefined}, log2=${logStats2Opt.isDefined}, log1=${logStats1Opt.isDefined}")
+            println(
+              s"[CLS] methods: register=${registerOpt.isDefined}, log2=${logStats2Opt.isDefined}, log1=${logStats1Opt.isDefined}"
+            )
 
             registerOpt.exists { register =>
               register.invoke(instance, spark.sparkContext)

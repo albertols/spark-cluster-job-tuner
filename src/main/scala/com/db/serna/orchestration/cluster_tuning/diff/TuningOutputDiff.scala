@@ -6,22 +6,17 @@ import java.io.{File, PrintWriter}
 import scala.io.Source
 
 /**
- * Diffs two tuner output directories (e.g. flattened_true vs flattened_false) and writes
- * a human-readable summary plus per-area CSVs.
+ * Diffs two tuner output directories (e.g. flattened_true vs flattened_false) and writes a human-readable summary plus
+ * per-area CSVs.
  *
- * Usage:
- *   main(Array("2025_12_20"))
- *     → compares outputs/2025_12_20_flattened_true vs outputs/2025_12_20_flattened_false
- *   main(Array("2025_12_20", "<pathA>", "<pathB>"))
- *     → compares arbitrary directories; date is only used for the default output location
- *   main(Array("2025_12_20", "<pathA>", "<pathB>", "<outDir>"))
+ * Usage: main(Array("2025_12_20")) → compares outputs/2025_12_20_flattened_true vs outputs/2025_12_20_flattened_false
+ * main(Array("2025_12_20", "<pathA>", "<pathB>")) → compares arbitrary directories; date is only used for the default
+ * output location main(Array("2025_12_20", "<pathA>", "<pathB>", "<outDir>"))
  *
- * Produces in <outDir>:
- *   _diff_summary.txt              — top-level human-readable report
- *   _diff_file_inventory.csv       — per-file presence/equality
- *   _diff_clusters_summary.csv     — per-cluster field-level diff from _clusters-summary.csv
- *   _diff_generation_summary.csv   — per-cluster field-level diff from _generation_summary.csv
- *   _diff_json_content.csv         — per-cluster-JSON field-level diff (clusterConf block)
+ * Produces in <outDir>: _diff_summary.txt — top-level human-readable report _diff_file_inventory.csv — per-file
+ * presence/equality _diff_clusters_summary.csv — per-cluster field-level diff from _clusters-summary.csv
+ * _diff_generation_summary.csv — per-cluster field-level diff from _generation_summary.csv _diff_json_content.csv —
+ * per-cluster-JSON field-level diff (clusterConf block)
  */
 object TuningOutputDiff {
 
@@ -29,11 +24,11 @@ object TuningOutputDiff {
     new File("src/main/resources/composer/dwh/config/cluster_tuning/outputs")
 
   final case class DiffConfig(
-                               date: String,
-                               pathA: File,
-                               pathB: File,
-                               outDir: File
-                             )
+      date: String,
+      pathA: File,
+      pathB: File,
+      outDir: File
+  )
 
   object DiffConfig {
     def fromArgs(args: Array[String]): DiffConfig = {
@@ -41,12 +36,15 @@ object TuningOutputDiff {
       val date = args(0)
       require(date.matches("\\d{4}_\\d{2}_\\d{2}"), "Date must be in YYYY_MM_DD format (e.g., 2025_12_20).")
 
-      val pathA = if (args.length >= 2) new File(args(1))
-      else new File(OutputsRoot, s"${date}_flattened_true")
-      val pathB = if (args.length >= 3) new File(args(2))
-      else new File(OutputsRoot, s"${date}_flattened_false")
-      val outDir = if (args.length >= 4) new File(args(3))
-      else new File(OutputsRoot, s"${date}_diff_flattened_true_vs_false")
+      val pathA =
+        if (args.length >= 2) new File(args(1))
+        else new File(OutputsRoot, s"${date}_flattened_true")
+      val pathB =
+        if (args.length >= 3) new File(args(2))
+        else new File(OutputsRoot, s"${date}_flattened_false")
+      val outDir =
+        if (args.length >= 4) new File(args(3))
+        else new File(OutputsRoot, s"${date}_diff_flattened_true_vs_false")
 
       DiffConfig(date, pathA, pathB, outDir)
     }
@@ -62,21 +60,24 @@ object TuningOutputDiff {
     require(cfg.pathB.isDirectory, s"Path B is not a directory: ${cfg.pathB.getPath}")
     if (!cfg.outDir.exists()) cfg.outDir.mkdirs()
 
-    val inventory       = compareFileInventory(cfg.pathA, cfg.pathB)
-    val summaryDiff     = compareCsv(csv(cfg.pathA, "_clusters-summary.csv"),
-                                     csv(cfg.pathB, "_clusters-summary.csv"),
-                                     keyColumn = "cluster_name")
-    val generationDiff  = compareCsv(csv(cfg.pathA, "_generation_summary.csv"),
-                                     csv(cfg.pathB, "_generation_summary.csv"),
-                                     keyColumn = "cluster_name")
-    val jsonDiff        = compareClusterJsons(cfg.pathA, cfg.pathB, inventory.inBoth)
+    val inventory = compareFileInventory(cfg.pathA, cfg.pathB)
+    val summaryDiff = compareCsv(
+      csv(cfg.pathA, "_clusters-summary.csv"),
+      csv(cfg.pathB, "_clusters-summary.csv"),
+      keyColumn = "cluster_name"
+    )
+    val generationDiff = compareCsv(
+      csv(cfg.pathA, "_generation_summary.csv"),
+      csv(cfg.pathB, "_generation_summary.csv"),
+      keyColumn = "cluster_name"
+    )
+    val jsonDiff = compareClusterJsons(cfg.pathA, cfg.pathB, inventory.inBoth)
 
     writeInventoryCsv(new File(cfg.outDir, "_diff_file_inventory.csv"), inventory)
     writeCsvDiffCsv(new File(cfg.outDir, "_diff_clusters_summary.csv"), summaryDiff)
     writeCsvDiffCsv(new File(cfg.outDir, "_diff_generation_summary.csv"), generationDiff)
     writeJsonDiffCsv(new File(cfg.outDir, "_diff_json_content.csv"), jsonDiff)
-    writeSummaryReport(new File(cfg.outDir, "_diff_summary.txt"),
-      cfg, inventory, summaryDiff, generationDiff, jsonDiff)
+    writeSummaryReport(new File(cfg.outDir, "_diff_summary.txt"), cfg, inventory, summaryDiff, generationDiff, jsonDiff)
 
     // Echo the top-level summary to stdout so it's visible when run from IntelliJ/CLI.
     val reportText = Source.fromFile(new File(cfg.outDir, "_diff_summary.txt")).mkString
@@ -86,19 +87,19 @@ object TuningOutputDiff {
   // ── File inventory ────────────────────────────────────────────────────────
 
   final case class FileInventory(
-                                  onlyInA: Seq[String],
-                                  onlyInB: Seq[String],
-                                  inBoth: Seq[String],
-                                  identical: Seq[String],
-                                  differing: Seq[String]
-                                )
+      onlyInA: Seq[String],
+      onlyInB: Seq[String],
+      inBoth: Seq[String],
+      identical: Seq[String],
+      differing: Seq[String]
+  )
 
   private def compareFileInventory(a: File, b: File): FileInventory = {
     val setA = listAllFiles(a).toSet
     val setB = listAllFiles(b).toSet
     val onlyA = (setA -- setB).toSeq.sorted
     val onlyB = (setB -- setA).toSeq.sorted
-    val both  = (setA intersect setB).toSeq.sorted
+    val both = (setA intersect setB).toSeq.sorted
 
     val (identical, differing) = both.partition { name =>
       filesByteEqual(new File(a, name), new File(b, name))
@@ -133,19 +134,19 @@ object TuningOutputDiff {
 
   final case class CsvRowDiff(key: String, column: String, valueA: String, valueB: String)
   final case class CsvDiff(
-                            fileName: String,
-                            missingA: Boolean,
-                            missingB: Boolean,
-                            keysOnlyInA: Seq[String],
-                            keysOnlyInB: Seq[String],
-                            fieldDiffs: Seq[CsvRowDiff]
-                          )
+      fileName: String,
+      missingA: Boolean,
+      missingB: Boolean,
+      keysOnlyInA: Seq[String],
+      keysOnlyInB: Seq[String],
+      fieldDiffs: Seq[CsvRowDiff]
+  )
 
   private def csv(dir: File, name: String): (String, File) = name -> new File(dir, name)
 
   private def compareCsv(a: (String, File), b: (String, File), keyColumn: String): CsvDiff = {
     val (name, fileA) = a
-    val (_,    fileB) = b
+    val (_, fileB) = b
     val missingA = !fileA.exists()
     val missingB = !fileB.exists()
     if (missingA || missingB) {
@@ -205,9 +206,9 @@ object TuningOutputDiff {
   )
 
   final case class JsonClusterDiff(
-                                    fileName: String,
-                                    fieldDiffs: Seq[CsvRowDiff] // reuse: key=field, column="", values from each
-                                  )
+      fileName: String,
+      fieldDiffs: Seq[CsvRowDiff] // reuse: key=field, column="", values from each
+  )
 
   private def compareClusterJsons(a: File, b: File, common: Seq[String]): Seq[JsonClusterDiff] = {
     common.filter(_.endsWith(".json")).flatMap { name =>
@@ -227,9 +228,10 @@ object TuningOutputDiff {
           // recipe count (top-level keys inside recipeSparkConf)
           val recipeCountA = countRecipes(contentA)
           val recipeCountB = countRecipes(contentB)
-          val recipeDiff = if (recipeCountA != recipeCountB)
-            Seq(CsvRowDiff(name, "recipe_count", recipeCountA.toString, recipeCountB.toString))
-          else Nil
+          val recipeDiff =
+            if (recipeCountA != recipeCountB)
+              Seq(CsvRowDiff(name, "recipe_count", recipeCountA.toString, recipeCountB.toString))
+            else Nil
           val all = diffs ++ recipeDiff
           if (all.nonEmpty) Some(JsonClusterDiff(name, all))
           else Some(JsonClusterDiff(name, Seq(CsvRowDiff(name, "content_other", "differs", "differs"))))
@@ -240,7 +242,8 @@ object TuningOutputDiff {
 
   private def readFileToString(f: File): String = {
     val src = Source.fromFile(f)
-    try src.mkString finally src.close()
+    try src.mkString
+    finally src.close()
   }
 
   private def extractClusterConfField(json: String, key: String): Option[String] = {
@@ -341,13 +344,13 @@ object TuningOutputDiff {
   // ── Top-level report ──────────────────────────────────────────────────────
 
   private def writeSummaryReport(
-                                  out: File,
-                                  cfg: DiffConfig,
-                                  inv: FileInventory,
-                                  summaryDiff: CsvDiff,
-                                  generationDiff: CsvDiff,
-                                  jsonDiff: Seq[JsonClusterDiff]
-                                ): Unit = {
+      out: File,
+      cfg: DiffConfig,
+      inv: FileInventory,
+      summaryDiff: CsvDiff,
+      generationDiff: CsvDiff,
+      jsonDiff: Seq[JsonClusterDiff]
+  ): Unit = {
     val sb = new StringBuilder
     sb.append(s"# Tuning Output Diff Report\n")
     sb.append(s"# Date  : ${cfg.date}\n")
@@ -395,7 +398,8 @@ object TuningOutputDiff {
     sb.append(s"- ${new File(cfg.outDir, "_diff_json_content.csv").getName}\n")
 
     val pw = new PrintWriter(out)
-    try pw.write(sb.toString()) finally pw.close()
+    try pw.write(sb.toString())
+    finally pw.close()
   }
 
   private def appendCsvDiffSection(sb: StringBuilder, d: CsvDiff): Unit = {

@@ -84,19 +84,32 @@ class StatisticalAnalysisSpec extends AnyFunSuite with Matchers {
 
   // ── Fleet-wide correlation ────────────────────────────────────────────────
 
-  private def mkMetrics(cluster: String, recipe: String,
-                        avgExec: Double, p95Exec: Double,
-                        avgDur: Double, p95Dur: Double,
-                        runs: Long, fracCap: Option[Double] = None): RecipeMetrics =
-    RecipeMetrics(cluster, recipe, avgExec, p95Exec, avgDur, p95Dur, runs,
-      None, None, None, fracCap, None)
+  private def mkMetrics(
+      cluster: String,
+      recipe: String,
+      avgExec: Double,
+      p95Exec: Double,
+      avgDur: Double,
+      p95Dur: Double,
+      runs: Long,
+      fracCap: Option[Double] = None
+  ): RecipeMetrics =
+    RecipeMetrics(cluster, recipe, avgExec, p95Exec, avgDur, p95Dur, runs, None, None, None, fracCap, None)
 
-  private def mkPair(cluster: String, recipe: String,
-                     refAvgExec: Double, refP95Dur: Double,
-                     curAvgExec: Double, curP95Dur: Double): MetricsPair =
-    MetricsPair(cluster, recipe,
+  private def mkPair(
+      cluster: String,
+      recipe: String,
+      refAvgExec: Double,
+      refP95Dur: Double,
+      curAvgExec: Double,
+      curP95Dur: Double
+  ): MetricsPair =
+    MetricsPair(
+      cluster,
+      recipe,
       mkMetrics(cluster, recipe, refAvgExec, refAvgExec, refP95Dur, refP95Dur, 10),
-      mkMetrics(cluster, recipe, curAvgExec, curAvgExec, curP95Dur, curP95Dur, 10))
+      mkMetrics(cluster, recipe, curAvgExec, curAvgExec, curP95Dur, curP95Dur, 10)
+    )
 
   test("computeCorrelations returns expected pairs") {
     val pairs = Seq(

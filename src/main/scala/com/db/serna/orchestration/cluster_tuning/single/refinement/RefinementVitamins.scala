@@ -16,31 +16,29 @@ sealed trait VitaminSignal {
 }
 
 final case class MemoryHeapOomSignal(
-                                      clusterName: String,
-                                      recipeFilename: String,
-                                      jobId: String,
-                                      latestDriverLogTs: String,
-                                      latestDriverMessage: String
-                                    ) extends VitaminSignal {
+    clusterName: String,
+    recipeFilename: String,
+    jobId: String,
+    latestDriverLogTs: String,
+    latestDriverMessage: String
+) extends VitaminSignal {
   val description: String = s"Java heap OOM for job $jobId ($recipeFilename) at $latestDriverLogTs"
 }
 
 /**
- * Synthetic signal — NOT loaded from CSV. Built in-memory by the AutoTuner
- * from `divergences_current_snapshot` outliers whose paired recipe is
- * cap-touching (current `p95_run_max_executors` close to the recipe's current
- * `maxExecutors`). New entries are excluded by the AutoTuner before signals
- * reach this vitamin.
+ * Synthetic signal — NOT loaded from CSV. Built in-memory by the AutoTuner from `divergences_current_snapshot` outliers
+ * whose paired recipe is cap-touching (current `p95_run_max_executors` close to the recipe's current `maxExecutors`).
+ * New entries are excluded by the AutoTuner before signals reach this vitamin.
  */
 final case class ExecutorScaleSignal(
-                                      clusterName: String,
-                                      recipeFilename: String,
-                                      jobId: String,
-                                      metricName: String,
-                                      zScore: Double,
-                                      currentMaxExecutors: Int,
-                                      p95RunMaxExecutors: Double
-                                    ) extends VitaminSignal {
+    clusterName: String,
+    recipeFilename: String,
+    jobId: String,
+    metricName: String,
+    zScore: Double,
+    currentMaxExecutors: Int,
+    p95RunMaxExecutors: Double
+) extends VitaminSignal {
   val description: String =
     s"High duration z=$zScore on $metricName for $recipeFilename — cap-touching " +
       f"(p95_run_max_executors=$p95RunMaxExecutors%.1f / maxExecutors=$currentMaxExecutors)"
@@ -50,33 +48,32 @@ final case class ExecutorScaleSignal(
 
 /** A diagnostic CSV entry that could not be matched to any recipe in the cluster. */
 final case class UnresolvedEntry(
-                                  vitaminName: String,
-                                  csvSource: String,
-                                  jobId: String,
-                                  clusterName: String,
-                                  rawRecipeFilename: String,
-                                  latestDriverLogTs: String,
-                                  latestDriverMessage: String
-                                )
+    vitaminName: String,
+    csvSource: String,
+    jobId: String,
+    clusterName: String,
+    rawRecipeFilename: String,
+    latestDriverLogTs: String,
+    latestDriverMessage: String
+)
 
 // ── Boosts ──────────────────────────────────────────────────────────────────
 
 /**
  * Lifecycle state of a boost across multi-date AutoTuner runs.
  *
- *  - `New`     : recipe untagged, fresh signal in the current-date CSV → first-time boost.
- *  - `ReBoost` : recipe already tagged AND fresh current-date signal → previous boost was
- *                insufficient; multiply current memory by the per-step factor and store the
- *                new cumulative factor.
- *  - `Holding` : recipe already tagged but NO fresh current-date signal → carry the boost
- *                forward unchanged (the boost is succeeding).
+ *   - `New` : recipe untagged, fresh signal in the current-date CSV → first-time boost.
+ *   - `ReBoost` : recipe already tagged AND fresh current-date signal → previous boost was insufficient; multiply
+ *     current memory by the per-step factor and store the new cumulative factor.
+ *   - `Holding` : recipe already tagged but NO fresh current-date signal → carry the boost forward unchanged (the boost
+ *     is succeeding).
  *
- * Single-tuner (one inputDir) only ever emits `New` boosts; the holding/re-boost
- * distinction requires AutoTuner-style date awareness (multiple inputDirs).
+ * Single-tuner (one inputDir) only ever emits `New` boosts; the holding/re-boost distinction requires AutoTuner-style
+ * date awareness (multiple inputDirs).
  */
 sealed trait BoostState { def label: String }
 object BoostState {
-  case object New     extends BoostState { val label = "new" }
+  case object New extends BoostState { val label = "new" }
   case object ReBoost extends BoostState { val label = "re-boost" }
   case object Holding extends BoostState { val label = "holding" }
 }
@@ -88,13 +85,14 @@ sealed trait VitaminBoost {
 }
 
 final case class MemoryHeapBoost(
-                                  recipeFilename: String,
-                                  originalMemory: String,
-                                  boostedMemory: String,
-                                  boostFactor: Double,
-                                  cumulativeFactor: Double = Double.NaN,
-                                  state: BoostState = BoostState.New
-                                ) extends VitaminBoost {
+    recipeFilename: String,
+    originalMemory: String,
+    boostedMemory: String,
+    boostFactor: Double,
+    cumulativeFactor: Double = Double.NaN,
+    state: BoostState = BoostState.New
+) extends VitaminBoost {
+
   /** Cumulative factor stored in the recipe JSON. NaN sentinel means "same as boostFactor". */
   def effectiveCumulativeFactor: Double = if (cumulativeFactor.isNaN) boostFactor else cumulativeFactor
 
@@ -103,13 +101,13 @@ final case class MemoryHeapBoost(
 }
 
 final case class ExecutorScaleBoost(
-                                     recipeFilename: String,
-                                     originalMaxExecutors: Int,
-                                     boostedMaxExecutors: Int,
-                                     boostFactor: Double,
-                                     cumulativeFactor: Double = Double.NaN,
-                                     state: BoostState = BoostState.New
-                                   ) extends VitaminBoost {
+    recipeFilename: String,
+    originalMaxExecutors: Int,
+    boostedMaxExecutors: Int,
+    boostFactor: Double,
+    cumulativeFactor: Double = Double.NaN,
+    state: BoostState = BoostState.New
+) extends VitaminBoost {
   def effectiveCumulativeFactor: Double = if (cumulativeFactor.isNaN) boostFactor else cumulativeFactor
 
   val description: String =
@@ -119,15 +117,15 @@ final case class ExecutorScaleBoost(
 // ── Vitamin Trait ───────────────────────────────────────────────────────────
 
 /**
- * A refinement vitamin detects a diagnostic condition from a CSV and applies
- * targeted boosts to affected recipe configurations.
+ * A refinement vitamin detects a diagnostic condition from a CSV and applies targeted boosts to affected recipe
+ * configurations.
  *
  * Each vitamin declares:
- *  - `name` — human-readable identifier
- *  - `csvFileName` — source CSV file name (for unresolved report)
- *  - `counterKey` — field name injected into clusterConf (e.g. "boostedMemoryHeapJobCount")
- *  - `listKey` — field name for list of boosted recipe names in clusterConf
- *  - `boostFieldKey` — field name added per-recipe (e.g. "appliedMemoryHeapBoostFactor")
+ *   - `name` — human-readable identifier
+ *   - `csvFileName` — source CSV file name (for unresolved report)
+ *   - `counterKey` — field name injected into clusterConf (e.g. "boostedMemoryHeapJobCount")
+ *   - `listKey` — field name for list of boosted recipe names in clusterConf
+ *   - `boostFieldKey` — field name added per-recipe (e.g. "appliedMemoryHeapBoostFactor")
  */
 trait RefinementVitamin {
   def name: String
@@ -141,19 +139,18 @@ trait RefinementVitamin {
   def applyBoosts(boosts: Seq[VitaminBoost], recipes: Map[String, RecipeConfig]): Map[String, RecipeConfig]
 
   /**
-   * Date-aware overload used by AutoTuner. `currentSignals` are the signals loaded from
-   * the current-date inputDir (the head of `inputDirs` in the pipeline); `signals` is the
-   * union of current + reference-date signals after dedupe.
+   * Date-aware overload used by AutoTuner. `currentSignals` are the signals loaded from the current-date inputDir (the
+   * head of `inputDirs` in the pipeline); `signals` is the union of current + reference-date signals after dedupe.
    *
-   * Default delegates to the legacy 2-arg method so vitamins that don't care about the
-   * current/reference distinction keep their existing behavior. Vitamins that need the
-   * `New` / `ReBoost` / `Holding` lifecycle (e.g. `MemoryHeapBoostVitamin`) override this.
+   * Default delegates to the legacy 2-arg method so vitamins that don't care about the current/reference distinction
+   * keep their existing behavior. Vitamins that need the `New` / `ReBoost` / `Holding` lifecycle (e.g.
+   * `MemoryHeapBoostVitamin`) override this.
    */
   def computeBoosts(
-                     signals: Seq[VitaminSignal],
-                     recipes: Map[String, RecipeConfig],
-                     currentSignals: Seq[VitaminSignal]
-                   ): Seq[VitaminBoost] = computeBoosts(signals, recipes)
+      signals: Seq[VitaminSignal],
+      recipes: Map[String, RecipeConfig],
+      currentSignals: Seq[VitaminSignal]
+  ): Seq[VitaminBoost] = computeBoosts(signals, recipes)
 }
 
 // ── Recipe Resolution ───────────────────────────────────────────────────────
@@ -161,22 +158,22 @@ trait RefinementVitamin {
 object RecipeResolver {
 
   /**
-   * Strip date+time suffix from a job_id.
-   * e.g. "etl-m-dq3-ods-f-gr-garantia-20260411-0438" → "etl-m-dq3-ods-f-gr-garantia"
+   * Strip date+time suffix from a job_id. e.g. "etl-m-dq3-ods-f-gr-garantia-20260411-0438" →
+   * "etl-m-dq3-ods-f-gr-garantia"
    */
   private[refinement] def stripJobIdSuffix(jobId: String): String =
     jobId.replaceAll("-\\d{8}-\\d{4}$", "")
 
   /**
-   * Derive a normalised recipe name from a job_id prefix for case-insensitive matching.
-   * e.g. "etl-m-dq3-ods-f-gr-garantia" → "ETL_M_DQ3_ODS_F_GR_GARANTIA"
+   * Derive a normalised recipe name from a job_id prefix for case-insensitive matching. e.g.
+   * "etl-m-dq3-ods-f-gr-garantia" → "ETL_M_DQ3_ODS_F_GR_GARANTIA"
    */
   private[refinement] def normaliseJobPrefix(prefix: String): String =
     prefix.replace('-', '_').toUpperCase
 
   /**
-   * Normalise a recipe filename for case-insensitive matching.
-   * e.g. "_ETL_m_DQ3_ODS_F_GR_GARANTIA.json" → "ETL_M_DQ3_ODS_F_GR_GARANTIA"
+   * Normalise a recipe filename for case-insensitive matching. e.g. "_ETL_m_DQ3_ODS_F_GR_GARANTIA.json" →
+   * "ETL_M_DQ3_ODS_F_GR_GARANTIA"
    */
   private[refinement] def normaliseRecipeName(recipe: String): String =
     recipe.stripPrefix("_").stripSuffix(".json").toUpperCase
@@ -184,18 +181,18 @@ object RecipeResolver {
   /**
    * Resolve missing recipe_filename for signals using two strategies:
    *
-   * 1. **Sibling lookup**: Find another signal with the same job prefix (after stripping
-   *    date suffix) that already has a recipe_filename.
+   *   1. **Sibling lookup**: Find another signal with the same job prefix (after stripping date suffix) that already
+   *      has a recipe_filename.
    *
-   * 2. **Job-id derivation**: Strip date suffix, replace `-` with `_`, and match
-   *    case-insensitively against the available recipe names in the cluster.
+   * 2. **Job-id derivation**: Strip date suffix, replace `-` with `_`, and match case-insensitively against the
+   * available recipe names in the cluster.
    *
    * Returns (resolved signals, unresolved signals).
    */
   def resolve(
-               signals: Seq[VitaminSignal],
-               recipeNames: Set[String]
-             ): (Seq[VitaminSignal], Seq[VitaminSignal]) = {
+      signals: Seq[VitaminSignal],
+      recipeNames: Set[String]
+  ): (Seq[VitaminSignal], Seq[VitaminSignal]) = {
 
     // Build lookup: job prefix → known recipe (from signals that already have one)
     val prefixToRecipe: Map[String, String] = signals
@@ -245,12 +242,11 @@ object RecipeResolver {
 // ── B16: Memory Heap OOM Vitamin ────────────────────────────────────────────
 
 /**
- * Detects Java heap OOM failures from b16_oom_job_driver_exceptions.csv and
- * boosts `spark.executor.memory` for affected recipes by the given factor.
+ * Detects Java heap OOM failures from b16_oom_job_driver_exceptions.csv and boosts `spark.executor.memory` for affected
+ * recipes by the given factor.
  *
- * Signals with empty recipe_filename are resolved via [[RecipeResolver]]:
- * first by sibling lookup (other rows with same job prefix), then by
- * job-id derivation matched against available recipe names.
+ * Signals with empty recipe_filename are resolved via [[RecipeResolver]]: first by sibling lookup (other rows with same
+ * job prefix), then by job-id derivation matched against available recipe names.
  */
 class MemoryHeapBoostVitamin(val boostFactor: Double = 1.5) extends RefinementVitamin {
   val name = "b16_memory_heap_boost"
@@ -281,11 +277,9 @@ class MemoryHeapBoostVitamin(val boostFactor: Double = 1.5) extends RefinementVi
   }
 
   /**
-   * Legacy single-date entry point (single-tuner, single inputDir). Kept idempotent on
-   * re-run: a recipe that already carries `appliedMemoryHeapBoostFactor >= boostFactor`
-   * yields a no-op boost so the same CSV processed twice on its own output doesn't
-   * double-boost. AutoTuner uses the 3-arg overload below for the New / ReBoost / Holding
-   * lifecycle.
+   * Legacy single-date entry point (single-tuner, single inputDir). Kept idempotent on re-run: a recipe that already
+   * carries `appliedMemoryHeapBoostFactor >= boostFactor` yields a no-op boost so the same CSV processed twice on its
+   * own output doesn't double-boost. AutoTuner uses the 3-arg overload below for the New / ReBoost / Holding lifecycle.
    */
   def computeBoosts(signals: Seq[VitaminSignal], recipes: Map[String, RecipeConfig]): Seq[VitaminBoost] = {
     val heapSignals = signals.collect { case s: MemoryHeapOomSignal => s }
@@ -311,18 +305,18 @@ class MemoryHeapBoostVitamin(val boostFactor: Double = 1.5) extends RefinementVi
 
   /**
    * Date-aware computeBoosts used by AutoTuner. Distinguishes:
-   *  - fresh OOM in current-date CSV + recipe untagged  → `New`
-   *  - fresh OOM in current-date CSV + recipe tagged    → `ReBoost` (stack: cur-mem * factor)
-   *  - tagged recipe with NO fresh current-date signal  → `Holding`
+   *   - fresh OOM in current-date CSV + recipe untagged → `New`
+   *   - fresh OOM in current-date CSV + recipe tagged → `ReBoost` (stack: cur-mem * factor)
+   *   - tagged recipe with NO fresh current-date signal → `Holding`
    *
-   * Untagged recipes that only show up via reference-date signals are conservatively
-   * treated as `New` (a missed signal that should be acted on).
+   * Untagged recipes that only show up via reference-date signals are conservatively treated as `New` (a missed signal
+   * that should be acted on).
    */
   override def computeBoosts(
-                              signals: Seq[VitaminSignal],
-                              recipes: Map[String, RecipeConfig],
-                              currentSignals: Seq[VitaminSignal]
-                            ): Seq[VitaminBoost] = {
+      signals: Seq[VitaminSignal],
+      recipes: Map[String, RecipeConfig],
+      currentSignals: Seq[VitaminSignal]
+  ): Seq[VitaminBoost] = {
     val heapAll = signals.collect { case s: MemoryHeapOomSignal => s }
     val heapCurrent = currentSignals.collect { case s: MemoryHeapOomSignal => s }
     val currentRecipeSet = heapCurrent.map(_.recipeFilename).filter(_.nonEmpty).toSet
@@ -378,12 +372,15 @@ class MemoryHeapBoostVitamin(val boostFactor: Double = 1.5) extends RefinementVi
               val updatedOpts = rc.sparkOptsMap.updated("spark.executor.memory", b.boostedMemory)
               val memGb = SimpleJsonParser.parseMemoryGb(b.boostedMemory)
               val (minExec, maxExec) = extractExecutorCounts(rc)
-              cfg.updated(b.recipeFilename, rc.copy(
-                sparkOptsMap = updatedOpts,
-                totalExecutorMinAllocatedMemoryGb = minExec * memGb,
-                totalExecutorMaxAllocatedMemoryGb = maxExec * memGb,
-                extraFields = updatedExtra
-              ))
+              cfg.updated(
+                b.recipeFilename,
+                rc.copy(
+                  sparkOptsMap = updatedOpts,
+                  totalExecutorMinAllocatedMemoryGb = minExec * memGb,
+                  totalExecutorMaxAllocatedMemoryGb = maxExec * memGb,
+                  extraFields = updatedExtra
+                )
+              )
             }
           case None => cfg
         }
@@ -401,8 +398,10 @@ class MemoryHeapBoostVitamin(val boostFactor: Double = 1.5) extends RefinementVi
     val opts = rc.sparkOptsMap
     val isDynamic = opts.get("spark.dynamicAllocation.enabled").contains("true")
     if (isDynamic) {
-      val min = opts.get("spark.dynamicAllocation.minExecutors").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(1)
-      val max = opts.get("spark.dynamicAllocation.maxExecutors").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(min)
+      val min =
+        opts.get("spark.dynamicAllocation.minExecutors").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(1)
+      val max =
+        opts.get("spark.dynamicAllocation.maxExecutors").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(min)
       (min, max)
     } else {
       val instances = opts.get("spark.executor.instances").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(1)
@@ -414,33 +413,33 @@ class MemoryHeapBoostVitamin(val boostFactor: Double = 1.5) extends RefinementVi
 // ── Executor Scale-up Vitamin ──────────────────────────────────────────────
 
 /**
- * Bumps `spark.dynamicAllocation.maxExecutors` (and `total_executor_max_allocated_memory_gb`)
- * for cap-touching duration outliers detected by the AutoTuner's divergence pipeline.
+ * Bumps `spark.dynamicAllocation.maxExecutors` (and `total_executor_max_allocated_memory_gb`) for cap-touching duration
+ * outliers detected by the AutoTuner's divergence pipeline.
  *
- * Signals are NOT loaded from a CSV — the AutoTuner constructs them in memory from
- * `divergences_current_snapshot` (filtered to non-new entries with high positive
- * z-score on a duration metric) and the recipe's current p95_run_max_executors.
- * The caller injects signals via the `signalsForCluster` lookup so the
- * `RefinementPipeline` can drive the same New/ReBoost/Holding lifecycle that the
- * b16 vitamin uses.
+ * Signals are NOT loaded from a CSV — the AutoTuner constructs them in memory from `divergences_current_snapshot`
+ * (filtered to non-new entries with high positive z-score on a duration metric) and the recipe's current
+ * p95_run_max_executors. The caller injects signals via the `signalsForCluster` lookup so the `RefinementPipeline` can
+ * drive the same New/ReBoost/Holding lifecycle that the b16 vitamin uses.
  *
- * Manual recipes (using `spark.executor.instances`) are skipped — the goal is to
- * raise the autoscaling ceiling, not to grow a fixed allocation.
+ * Manual recipes (using `spark.executor.instances`) are skipped — the goal is to raise the autoscaling ceiling, not to
+ * grow a fixed allocation.
  *
  * `minExecutors` is intentionally NOT touched: more headroom, not a higher floor.
  */
 class ExecutorScaleVitamin(
-                            val boostFactor: Double = 1.5,
-                            val signalsForCluster: String => Seq[ExecutorScaleSignal] = _ => Seq.empty
-                          ) extends RefinementVitamin {
+    val boostFactor: Double = 1.5,
+    val signalsForCluster: String => Seq[ExecutorScaleSignal] = _ => Seq.empty
+) extends RefinementVitamin {
   val name = "executor_scale_up"
   val csvFileName = "(divergence-driven, no CSV)"
   val counterKey = "scaledMaxExecutorsJobCount"
   val listKey = "scaledMaxExecutorsJobList"
   val boostFieldKey = "appliedExecutorScaleFactor"
 
-  /** No CSV — signals are pre-built. The pipeline calls this once per inputDir; the
-    * dedupe step in `RefinementPipeline.refine` collapses duplicates by recipe. */
+  /**
+   * No CSV — signals are pre-built. The pipeline calls this once per inputDir; the dedupe step in
+   * `RefinementPipeline.refine` collapses duplicates by recipe.
+   */
   def loadSignals(inputDir: File, clusterName: String): Seq[VitaminSignal] =
     signalsForCluster(clusterName)
 
@@ -455,12 +454,19 @@ class ExecutorScaleVitamin(
           val existing = rc.extraFields.get(boostFieldKey).flatMap(s => scala.util.Try(s.toDouble).toOption)
           val alreadyScaled = existing.exists(_ >= boostFactor)
           if (alreadyScaled) {
-            Some(ExecutorScaleBoost(sig.recipeFilename, curMax, curMax, boostFactor,
-              existing.getOrElse(boostFactor), BoostState.Holding))
+            Some(
+              ExecutorScaleBoost(
+                sig.recipeFilename,
+                curMax,
+                curMax,
+                boostFactor,
+                existing.getOrElse(boostFactor),
+                BoostState.Holding
+              )
+            )
           } else {
             val boosted = math.max(curMax + 1, math.ceil(curMax * boostFactor).toInt)
-            Some(ExecutorScaleBoost(sig.recipeFilename, curMax, boosted, boostFactor,
-              boostFactor, BoostState.New))
+            Some(ExecutorScaleBoost(sig.recipeFilename, curMax, boosted, boostFactor, boostFactor, BoostState.New))
           }
         }
       }
@@ -469,10 +475,10 @@ class ExecutorScaleVitamin(
 
   /** Date-aware path mirroring [[MemoryHeapBoostVitamin.computeBoosts]]: New / ReBoost / Holding. */
   override def computeBoosts(
-                              signals: Seq[VitaminSignal],
-                              recipes: Map[String, RecipeConfig],
-                              currentSignals: Seq[VitaminSignal]
-                            ): Seq[VitaminBoost] = {
+      signals: Seq[VitaminSignal],
+      recipes: Map[String, RecipeConfig],
+      currentSignals: Seq[VitaminSignal]
+  ): Seq[VitaminBoost] = {
     val current = currentSignals.collect { case s: ExecutorScaleSignal => s }
     val all = signals.collect { case s: ExecutorScaleSignal => s }
     val currentRecipeSet = current.map(_.recipeFilename).filter(_.nonEmpty).toSet
@@ -520,11 +526,14 @@ class ExecutorScaleVitamin(
               val opts = rc.sparkOptsMap
               val updatedOpts = opts.updated("spark.dynamicAllocation.maxExecutors", b.boostedMaxExecutors.toString)
               val memGb = SimpleJsonParser.parseMemoryGb(opts.getOrElse("spark.executor.memory", "8g"))
-              cfg.updated(b.recipeFilename, rc.copy(
-                sparkOptsMap = updatedOpts,
-                totalExecutorMaxAllocatedMemoryGb = b.boostedMaxExecutors * memGb,
-                extraFields = updatedExtra
-              ))
+              cfg.updated(
+                b.recipeFilename,
+                rc.copy(
+                  sparkOptsMap = updatedOpts,
+                  totalExecutorMaxAllocatedMemoryGb = b.boostedMaxExecutors * memGb,
+                  extraFields = updatedExtra
+                )
+              )
             }
           case None => cfg
         }
@@ -536,8 +545,10 @@ class ExecutorScaleVitamin(
     val opts = rc.sparkOptsMap
     val isDynamic = opts.get("spark.dynamicAllocation.enabled").contains("true")
     if (isDynamic) {
-      val min = opts.get("spark.dynamicAllocation.minExecutors").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(1)
-      val max = opts.get("spark.dynamicAllocation.maxExecutors").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(min)
+      val min =
+        opts.get("spark.dynamicAllocation.minExecutors").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(1)
+      val max =
+        opts.get("spark.dynamicAllocation.maxExecutors").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(min)
       (min, max)
     } else {
       val instances = opts.get("spark.executor.instances").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(1)
@@ -550,33 +561,30 @@ class ExecutorScaleVitamin(
 
 /** Result of applying all vitamins to a single cluster config. */
 final case class RefinementResult(
-                                   clusterName: String,
-                                   originalConfig: TunedClusterConfig,
-                                   refinedRecipes: Map[String, RecipeConfig],
-                                   appliedBoosts: Seq[VitaminBoost],
-                                   boostCounters: Map[String, Int],
-                                   boostLists: Map[String, Seq[String]],
-                                   unresolvedEntries: Seq[UnresolvedEntry]
-                                 )
+    clusterName: String,
+    originalConfig: TunedClusterConfig,
+    refinedRecipes: Map[String, RecipeConfig],
+    appliedBoosts: Seq[VitaminBoost],
+    boostCounters: Map[String, Int],
+    boostLists: Map[String, Seq[String]],
+    unresolvedEntries: Seq[UnresolvedEntry]
+)
 
 object RefinementPipeline {
 
   /**
-   * Apply all vitamins to a single cluster config, collecting signals from
-   * multiple input directories.
+   * Apply all vitamins to a single cluster config, collecting signals from multiple input directories.
    *
-   * Signals from all `inputDirs` are merged per vitamin; after resolution,
-   * duplicates by `recipeFilename` are removed keeping the first occurrence
-   * (earlier entries in `inputDirs` — i.e. the more recent date — take
-   * priority).  This prevents double-boosting when a previously-boosted
-   * reference config is re-processed alongside an older CSV that also
-   * contains the same recipe.
+   * Signals from all `inputDirs` are merged per vitamin; after resolution, duplicates by `recipeFilename` are removed
+   * keeping the first occurrence (earlier entries in `inputDirs` — i.e. the more recent date — take priority). This
+   * prevents double-boosting when a previously-boosted reference config is re-processed alongside an older CSV that
+   * also contains the same recipe.
    */
   def refine(
-              config: TunedClusterConfig,
-              vitamins: Seq[RefinementVitamin],
-              inputDirs: Seq[File]
-            ): RefinementResult = {
+      config: TunedClusterConfig,
+      vitamins: Seq[RefinementVitamin],
+      inputDirs: Seq[File]
+  ): RefinementResult = {
     var currentRecipes = config.recipes
     val allBoosts = mutable.ArrayBuffer.empty[VitaminBoost]
     val allUnresolved = mutable.ArrayBuffer.empty[UnresolvedEntry]
@@ -626,22 +634,28 @@ object RefinementPipeline {
       allUnresolvd.foreach(s => allUnresolved += toEntry(s))
 
       // Track resolved signals whose recipe doesn't exist in the cluster config
-      resolved.filter(s => s.recipeFilename.nonEmpty && !currentRecipes.contains(s.recipeFilename))
+      resolved
+        .filter(s => s.recipeFilename.nonEmpty && !currentRecipes.contains(s.recipeFilename))
         .foreach(s => allUnresolved += toEntry(s))
     }
 
     RefinementResult(
-      config.clusterName, config, currentRecipes, allBoosts.toSeq,
-      counters.toMap, lists.toMap, allUnresolved.toSeq
+      config.clusterName,
+      config,
+      currentRecipes,
+      allBoosts.toSeq,
+      counters.toMap,
+      lists.toMap,
+      allUnresolved.toSeq
     )
   }
 
   /** Backward-compatible single-directory overload — delegates to the multi-dir variant. */
   def refine(
-              config: TunedClusterConfig,
-              vitamins: Seq[RefinementVitamin],
-              inputDir: File
-            ): RefinementResult = refine(config, vitamins, Seq(inputDir))
+      config: TunedClusterConfig,
+      vitamins: Seq[RefinementVitamin],
+      inputDir: File
+  ): RefinementResult = refine(config, vitamins, Seq(inputDir))
 
   /** Rebuild the refined JSON string from a RefinementResult. */
   def toRefinedJson(result: RefinementResult): String = {
@@ -653,19 +667,18 @@ object RefinementPipeline {
     val boostKeys = result.boostCounters.keySet ++ result.boostLists.keySet
     val clusterFields: Seq[(String, String)] = result.originalConfig.clusterConfFields
       .filterNot { case (k, _) => boostKeys.contains(k) }
-      .map {
-        case (k, v) =>
-          if (scala.util.Try(v.toLong).isSuccess) k -> num(v.toLong)
-          else if (scala.util.Try(v.toDouble).isSuccess) k -> num(v.toDouble)
-          else k -> str(v)
+      .map { case (k, v) =>
+        if (scala.util.Try(v.toLong).isSuccess) k -> num(v.toLong)
+        else if (scala.util.Try(v.toDouble).isSuccess) k -> num(v.toDouble)
+        else k -> str(v)
       }
 
-    val counterFields: Seq[(String, String)] = result.boostCounters.toSeq.map {
-      case (k, v) => k -> num(v)
+    val counterFields: Seq[(String, String)] = result.boostCounters.toSeq.map { case (k, v) =>
+      k -> num(v)
     }
 
-    val listFields: Seq[(String, String)] = result.boostLists.toSeq.map {
-      case (k, recipes) => k -> arr(recipes.map(str): _*)
+    val listFields: Seq[(String, String)] = result.boostLists.toSeq.map { case (k, recipes) =>
+      k -> arr(recipes.map(str): _*)
     }
 
     val clusterConf = obj(
@@ -676,15 +689,16 @@ object RefinementPipeline {
     val recipes: Seq[(String, String)] = result.originalConfig.recipeOrder.map { recipeName =>
       val rc = result.refinedRecipes.getOrElse(recipeName, result.originalConfig.recipes(recipeName))
 
-      val boostFields: Seq[(String, String)] = rc.extraFields.toSeq.map {
-        case (k, v) =>
-          if (scala.util.Try(v.toDouble).isSuccess) k -> num(v.toDouble)
-          else k -> str(v)
+      val boostFields: Seq[(String, String)] = rc.extraFields.toSeq.map { case (k, v) =>
+        if (scala.util.Try(v.toDouble).isSuccess) k -> num(v.toDouble)
+        else k -> str(v)
       }
 
-      val sparkOptsFields: Seq[(String, String)] = rc.sparkOptsMap.toSeq.sortBy {
-        case (k, _) => sparkOptsOrder(k)
-      }.map { case (k, v) => k -> str(v) }
+      val sparkOptsFields: Seq[(String, String)] = rc.sparkOptsMap.toSeq
+        .sortBy { case (k, _) =>
+          sparkOptsOrder(k)
+        }
+        .map { case (k, v) => k -> str(v) }
 
       recipeName -> obj(
         (Seq("parallelizationFactor" -> num(rc.parallelizationFactor)) ++
@@ -703,15 +717,15 @@ object RefinementPipeline {
 
   /** Preserve the original sparkOptsMap ordering from the tuner. */
   private def sparkOptsOrder(key: String): Int = key match {
-    case "spark.serializer"                        => 0
-    case "spark.closure.serializer"                => 1
-    case "spark.dynamicAllocation.enabled"         => 2
-    case "spark.dynamicAllocation.minExecutors"    => 3
-    case "spark.dynamicAllocation.maxExecutors"    => 4
+    case "spark.serializer" => 0
+    case "spark.closure.serializer" => 1
+    case "spark.dynamicAllocation.enabled" => 2
+    case "spark.dynamicAllocation.minExecutors" => 3
+    case "spark.dynamicAllocation.maxExecutors" => 4
     case "spark.dynamicAllocation.initialExecutors" => 5
-    case "spark.executor.instances"                => 3
-    case "spark.executor.cores"                    => 6
-    case "spark.executor.memory"                   => 7
-    case _                                         => 8
+    case "spark.executor.instances" => 3
+    case "spark.executor.cores" => 6
+    case "spark.executor.memory" => 7
+    case _ => 8
   }
 }

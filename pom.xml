@@ -64,6 +64,21 @@
         </dependency>
     </dependencies>
 
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.antipathy</groupId>
+                <artifactId>mvn-scalafmt_2.12</artifactId>
+                <version>1.1.1640084764.9f463a9</version>
+                <configuration>
+                    <configLocation>${project.basedir}/.scalafmt.conf</configLocation>
+                    <skipTestSources>false</skipTestSources>
+                    <skipSources>false</skipSources>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
     <!--
       Default build is IntelliJ-driven (no scala-maven-plugin). The `serve`
       profile below adds Scala compilation, exec:java, and a shaded fat-JAR

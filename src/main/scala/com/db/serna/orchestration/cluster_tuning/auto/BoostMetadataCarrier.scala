@@ -4,27 +4,22 @@ import com.db.serna.orchestration.cluster_tuning.single.Json
 import com.db.serna.orchestration.cluster_tuning.single.refinement.SimpleJsonParser
 
 /**
- * Re-injects recipe-level boost metadata from a reference output JSON into a
- * freshly-emitted current JSON. Companion to [[KeptRecipeCarrier]].
+ * Re-injects recipe-level boost metadata from a reference output JSON into a freshly-emitted current JSON. Companion to
+ * [[KeptRecipeCarrier]].
  *
- * When the AutoTuner re-plans a cluster on the `BoostResources` /
- * `GenerateFresh` path, the new recipe blocks are built from current-date
- * metrics with no awareness of prior boosts. Without this carry step, the
- * downstream b16 reboosting cannot see the prior `appliedMemoryHeapBoostFactor`
- * tag and would either treat the recipe as baseline (when the b16 CSV no
- * longer reports the recipe) or only apply a fresh `New` boost without
- * compounding the cumulative factor.
+ * When the AutoTuner re-plans a cluster on the `BoostResources` / `GenerateFresh` path, the new recipe blocks are built
+ * from current-date metrics with no awareness of prior boosts. Without this carry step, the downstream b16 reboosting
+ * cannot see the prior `appliedMemoryHeapBoostFactor` tag and would either treat the recipe as baseline (when the b16
+ * CSV no longer reports the recipe) or only apply a fresh `New` boost without compounding the cumulative factor.
  *
  * Per recipe, the carry copies:
- *   - `appliedMemoryHeapBoostFactor`        (recipe-level cumulative factor)
- *   - `spark.executor.memory`               (boosted GB string, e.g. "12g")
- *   - `total_executor_minimum_allocated_memory_gb` re-derived from the cur
- *     recipe's executor counts × boosted memGb
+ *   - `appliedMemoryHeapBoostFactor` (recipe-level cumulative factor)
+ *   - `spark.executor.memory` (boosted GB string, e.g. "12g")
+ *   - `total_executor_minimum_allocated_memory_gb` re-derived from the cur recipe's executor counts × boosted memGb
  *   - `total_executor_maximum_allocated_memory_gb` (same)
  *
- * Pure raw-JSON surgery — does not round-trip through SimpleJsonParser, so
- * fields that the lightweight parser does not understand (e.g. nested
- * `cost_timeline` arrays) are left untouched.
+ * Pure raw-JSON surgery — does not round-trip through SimpleJsonParser, so fields that the lightweight parser does not
+ * understand (e.g. nested `cost_timeline` arrays) are left untouched.
  */
 private[auto] object BoostMetadataCarrier {
 
@@ -36,9 +31,8 @@ private[auto] object BoostMetadataCarrier {
   private val instancesRe = """"spark\.executor\.instances"\s*:\s*"?(\d+)"?""".r
 
   /**
-   * Inject prior b16 boost metadata for each recipe in `recipeNames`. Recipes
-   * whose reference block has no `appliedMemoryHeapBoostFactor` are skipped,
-   * as are recipes missing from the current JSON. Returns the updated JSON
+   * Inject prior b16 boost metadata for each recipe in `recipeNames`. Recipes whose reference block has no
+   * `appliedMemoryHeapBoostFactor` are skipped, as are recipes missing from the current JSON. Returns the updated JSON
    * (pretty-printed) — equal to the input when nothing was carried.
    */
   def injectPriorBoosts(curJson: String, refJson: String, recipeNames: Set[String]): String = {
@@ -85,12 +79,12 @@ private[auto] object BoostMetadataCarrier {
   }
 
   private def patchBlock(
-                          curBlock: String,
-                          priorFactor: String,
-                          boostedMem: String,
-                          newMinTotal: Int,
-                          newMaxTotal: Int
-                        ): String = {
+      curBlock: String,
+      priorFactor: String,
+      boostedMem: String,
+      newMinTotal: Int,
+      newMaxTotal: Int
+  ): String = {
     val memReplacement = "$1" + java.util.regex.Matcher.quoteReplacement(boostedMem) + "$2"
     var b = curBlock
       .replaceAll(
@@ -114,7 +108,8 @@ private[auto] object BoostMetadataCarrier {
     } else {
       // Insert immediately after parallelizationFactor (matches the layout
       // produced by RefinementPipeline.toRefinedJson).
-      val factorInsertion = "$1," + java.util.regex.Matcher.quoteReplacement(s""""appliedMemoryHeapBoostFactor": $priorFactor,""")
+      val factorInsertion =
+        "$1," + java.util.regex.Matcher.quoteReplacement(s""""appliedMemoryHeapBoostFactor": $priorFactor,""")
       b = b.replaceFirst(
         """("parallelizationFactor"\s*:\s*\d+)\s*,""",
         factorInsertion
@@ -124,11 +119,10 @@ private[auto] object BoostMetadataCarrier {
   }
 
   /**
-   * Replace the recipe's `{ ... }` block within `curJson`. Anchors on the
-   * recipe key (`"<recipeName>"`) FIRST and then locates its `{...}` payload
-   * via brace-balance walking. Naïve `indexOf(oldBlock)` is unsafe when two
-   * sibling recipes happen to share an identical inner block (which is the
-   * common case for baseline-planned recipes that haven't been boosted yet).
+   * Replace the recipe's `{ ... }` block within `curJson`. Anchors on the recipe key (`"<recipeName>"`) FIRST and then
+   * locates its `{...}` payload via brace-balance walking. Naïve `indexOf(oldBlock)` is unsafe when two sibling recipes
+   * happen to share an identical inner block (which is the common case for baseline-planned recipes that haven't been
+   * boosted yet).
    */
   private def replaceRecipeBlock(curJson: String, recipeName: String, newBlock: String): String = {
     val keyPattern = ("\"" + java.util.regex.Pattern.quote(recipeName) + "\"\\s*:\\s*\\{").r

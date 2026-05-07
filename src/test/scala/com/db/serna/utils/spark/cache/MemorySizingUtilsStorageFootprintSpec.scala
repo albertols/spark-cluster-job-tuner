@@ -38,7 +38,9 @@ class MemorySizingUtilsStorageFootprintSpec extends AnyFunSuite {
       val rddStorageInfoObserved = fp.memSizeBytes > 0L && fp.cachedPartitions >= 0
       val cacheManagerObservedOnly = fp.memSizeBytes == 0L
 
-      println(s"[MSU-FP] path=rddStorageInfoObserved=${rddStorageInfoObserved}, cacheManagerObservedOnly=${cacheManagerObservedOnly}, bytes=${fp.memSizeBytes} (~${bytesToMB(fp.memSizeBytes)} MB)")
+      println(
+        s"[MSU-FP] path=rddStorageInfoObserved=${rddStorageInfoObserved}, cacheManagerObservedOnly=${cacheManagerObservedOnly}, bytes=${fp.memSizeBytes} (~${bytesToMB(fp.memSizeBytes)} MB)"
+      )
       assert(rddStorageInfoObserved || cacheManagerObservedOnly, s"Unexpected footprint shape for SQL cache: $fp")
 
       // If we hit the fallback path, assert that the CacheManager indeed sees it cached
@@ -65,7 +67,9 @@ class MemorySizingUtilsStorageFootprintSpec extends AnyFunSuite {
 
       // [MSU-FP] mem=1520864 (~1 MB), disk=0, cachedPartitions=4, totalPartitions=4
       val fp = footprintOpt.get
-      println(s"[MSU-FP] mem=${fp.memSizeBytes} (~${bytesToMB(fp.memSizeBytes)} MB), disk=${fp.diskSizeBytes}, cachedPartitions=${fp.cachedPartitions}, totalPartitions=${fp.totalPartitions}")
+      println(
+        s"[MSU-FP] mem=${fp.memSizeBytes} (~${bytesToMB(fp.memSizeBytes)} MB), disk=${fp.diskSizeBytes}, cachedPartitions=${fp.cachedPartitions}, totalPartitions=${fp.totalPartitions}"
+      )
       assert(fp.memSizeBytes > 0L, s"Expected non-zero memSizeBytes for RDD cache, got $fp")
       assert(fp.cachedPartitions > 0, s"Expected some cached partitions for RDD cache, got $fp")
       assert(fp.totalPartitions == df.rdd.partitions.length, "totalPartitions should match RDD partition count")

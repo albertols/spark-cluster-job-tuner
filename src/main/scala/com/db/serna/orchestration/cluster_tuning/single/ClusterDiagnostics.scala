@@ -6,10 +6,10 @@ import java.io.File
 
 // ── Raw b14 record ────────────────────────────────────────────────────────────
 final case class ExitCodeRecord(
-  timestamp: String,
-  jobId: String,
-  clusterName: String,
-  driverExitCode: Int
+    timestamp: String,
+    jobId: String,
+    clusterName: String,
+    driverExitCode: Int
 )
 
 // ── Diagnostic signal hierarchy ───────────────────────────────────────────────
@@ -24,9 +24,9 @@ sealed trait DiagnosticSignal {
 // Exit code 247 is the canonical YARN out-of-memory / container-eviction code for Dataproc.
 // Remedy: boost driver memory and cores in clusterConf.
 final case class YarnDriverEviction(
-  clusterName: String,
-  evictionCount: Int,
-  affectedJobs: Seq[String]
+    clusterName: String,
+    evictionCount: Int,
+    affectedJobs: Seq[String]
 ) extends DiagnosticSignal {
   val description: String =
     s"YARN driver evicted $evictionCount time(s) (exit 247). Sample jobs: ${affectedJobs.take(3).mkString(", ")}"
@@ -35,9 +35,9 @@ final case class YarnDriverEviction(
 // Generic non-zero exit pattern — covers "silent FAILED" jobs without a specific remedy yet.
 // Documented for observability; no automatic config override is applied.
 final case class NonZeroExitPattern(
-  clusterName: String,
-  dominantExitCode: Int,
-  occurrenceCount: Int
+    clusterName: String,
+    dominantExitCode: Int,
+    occurrenceCount: Int
 ) extends DiagnosticSignal {
   val description: String =
     s"Non-zero exit code $dominantExitCode occurred $occurrenceCount time(s)"
@@ -53,12 +53,12 @@ final case class NonZeroExitPattern(
 // promotedMasterMachineType: upgraded master machine selected by promoteMasterForEviction();
 //   replaces master_machine_type in the output JSON when set.
 final case class DriverResourceOverride(
-  clusterName: String,
-  driverMemoryGb: Option[Int],
-  driverCores: Option[Int],
-  driverMemoryOverheadGb: Option[Int],
-  diagnosticReason: String,
-  promotedMasterMachineType: Option[MachineType] = None
+    clusterName: String,
+    driverMemoryGb: Option[Int],
+    driverCores: Option[Int],
+    driverMemoryOverheadGb: Option[Int],
+    diagnosticReason: String,
+    promotedMasterMachineType: Option[MachineType] = None
 )
 
 // ── Diagnostics processor ─────────────────────────────────────────────────────
@@ -80,15 +80,17 @@ object ClusterDiagnosticsProcessor {
     logger.info(s"b14: parsed ${rows.size} rows from ${b14File.getName}")
     val records = rows.flatMap { r =>
       for {
-        ts      <- r.get("timestamp")
-        jobId   <- r.get("job_id")
+        ts <- r.get("timestamp")
+        jobId <- r.get("job_id")
         rawCluster <- r.get("cluster_name")
-        cluster  = rawCluster.replaceAll("\"", "").trim
+        cluster = rawCluster.replaceAll("\"", "").trim
         if cluster.nonEmpty
-        code    <- r.get("driver_exit_code").flatMap(Csv.toInt)
+        code <- r.get("driver_exit_code").flatMap(Csv.toInt)
       } yield ExitCodeRecord(ts, jobId, cluster, code)
     }
-    logger.info(s"b14: loaded ${records.size} exit-code records for ${records.map(_.clusterName).distinct.size} clusters")
+    logger.info(
+      s"b14: loaded ${records.size} exit-code records for ${records.map(_.clusterName).distinct.size} clusters"
+    )
     records
   }
 
@@ -102,9 +104,9 @@ object ClusterDiagnosticsProcessor {
       val evictions = recs.filter(_.driverExitCode == YarnEvictionCode)
       if (evictions.nonEmpty) {
         signals += YarnDriverEviction(
-          clusterName   = cluster,
+          clusterName = cluster,
           evictionCount = evictions.size,
-          affectedJobs  = evictions.map(_.jobId).distinct
+          affectedJobs = evictions.map(_.jobId).distinct
         )
         logger.info(s"b14: cluster '$cluster' has ${evictions.size} YARN eviction(s) (exit 247)")
       }
@@ -151,7 +153,8 @@ object ClusterDiagnosticsProcessor {
     // Step 3: cross-family to n2 when e2 has no valid upgrade
     val familyUpgraded: Option[MachineType] = coreUpgraded.orElse {
       if (fam == "e2") {
-        MachineCatalog.byName(s"n2-$variant-$cores")
+        MachineCatalog
+          .byName(s"n2-$variant-$cores")
           .orElse(MachineCatalog.byName(s"n2-standard-$cores"))
       } else None
     }
@@ -174,21 +177,21 @@ object ClusterDiagnosticsProcessor {
   // Decompose "n2-standard-32" → ("n2", "standard", 32); handles n2d, e2, c3, c4, etc.
   private[cluster_tuning] def parseMachineName(name: String): (String, String, Int) = {
     val family = name.takeWhile(_ != '-')
-    val rest   = name.drop(family.length + 1)
-    val cores  = rest.reverse.takeWhile(_ != '-').reverse.toInt
+    val rest = name.drop(family.length + 1)
+    val cores = rest.reverse.takeWhile(_ != '-').reverse.toInt
     val variant = rest.dropRight(cores.toString.length + 1)
     (family, variant, cores)
   }
 
-  private def familyOf(n: String): String  = n.takeWhile(_ != '-')
+  private def familyOf(n: String): String = n.takeWhile(_ != '-')
   private def variantOf(n: String): String = { val p = n.split("-"); if (p.length >= 2) p(1) else "standard" }
 
   // Compute DriverResourceOverride for clusters with YarnDriverEviction signals.
   // Heuristic: boost driver memory by +4 GB and ensure at least 4 driver cores.
   def computeOverrides(
-    signals: Map[String, Seq[DiagnosticSignal]],
-    baseDriverMemoryGb: Int = 4,
-    baseDriverCores: Int = 2
+      signals: Map[String, Seq[DiagnosticSignal]],
+      baseDriverMemoryGb: Int = 4,
+      baseDriverCores: Int = 2
   ): Map[String, DriverResourceOverride] = {
     signals.flatMap { case (cluster, sigs) =>
       val evictions = sigs.collect { case e: YarnDriverEviction => e }
@@ -196,17 +199,19 @@ object ClusterDiagnosticsProcessor {
         None
       } else {
         val e = evictions.head
-        val boostedMemGb   = baseDriverMemoryGb + 4
-        val boostedCores   = math.max(baseDriverCores, 4)
-        val overheadGb     = math.max(1, boostedMemGb / 4)
+        val boostedMemGb = baseDriverMemoryGb + 4
+        val boostedCores = math.max(baseDriverCores, 4)
+        val overheadGb = math.max(1, boostedMemGb / 4)
         val override_ = DriverResourceOverride(
-          clusterName            = cluster,
-          driverMemoryGb         = Some(boostedMemGb),
-          driverCores            = Some(boostedCores),
+          clusterName = cluster,
+          driverMemoryGb = Some(boostedMemGb),
+          driverCores = Some(boostedCores),
           driverMemoryOverheadGb = Some(overheadGb),
-          diagnosticReason       = e.description
+          diagnosticReason = e.description
         )
-        logger.info(s"b14: override for '$cluster': driverMemory=${boostedMemGb}GB driverCores=$boostedCores (reason: ${e.description})")
+        logger.info(
+          s"b14: override for '$cluster': driverMemory=${boostedMemGb}GB driverCores=$boostedCores (reason: ${e.description})"
+        )
         Some(cluster -> override_)
       }
     }

@@ -26,8 +26,12 @@ class MemoryTelemetryFieldsSpec extends AnyFunSuite {
       val scConf = spark.sparkContext.getConf
       println(s"[MTF] master=${spark.sparkContext.master}")
       println(s"[MTF] spark.executor.memory=${scConf.get("spark.executor.memory")}")
-      println(s"[MTF] spark.executor.memoryOverhead=${scConf.getOption("spark.executor.memoryOverhead").getOrElse("unset")}")
-      println(s"[MTF] spark.yarn.executor.memoryOverhead=${scConf.getOption("spark.yarn.executor.memoryOverhead").getOrElse("unset")}")
+      println(
+        s"[MTF] spark.executor.memoryOverhead=${scConf.getOption("spark.executor.memoryOverhead").getOrElse("unset")}"
+      )
+      println(
+        s"[MTF] spark.yarn.executor.memoryOverhead=${scConf.getOption("spark.yarn.executor.memoryOverhead").getOrElse("unset")}"
+      )
       println(s"[MTF] spark.memory.fraction=${scConf.get("spark.memory.fraction", "0.6")}")
       println(s"[MTF] spark.memory.storageFraction=${scConf.get("spark.memory.storageFraction", "0.5")}")
       println(s"[MTF] spark.memory.offHeap.enabled=${scConf.getBoolean("spark.memory.offHeap.enabled", false)}")

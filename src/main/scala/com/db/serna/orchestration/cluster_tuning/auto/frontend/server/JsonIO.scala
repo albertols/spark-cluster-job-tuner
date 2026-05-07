@@ -5,14 +5,13 @@ import scala.collection.mutable
 /**
  * Tiny JSON read/write tailored to the Tuner Service's needs.
  *
- * Why hand-rolled: avoids a new runtime dep (jackson, circe). The shapes
- * we serialise are flat and small (config blocks, run requests, run status,
- * dir listings) — full-featured JSON libs would be overkill.
+ * Why hand-rolled: avoids a new runtime dep (jackson, circe). The shapes we serialise are flat and small (config
+ * blocks, run requests, run status, dir listings) — full-featured JSON libs would be overkill.
  *
  * Parsed values use these types:
  *   - null
  *   - java.lang.Boolean
- *   - java.lang.Long  (integers)
+ *   - java.lang.Long (integers)
  *   - java.lang.Double (anything with `.`, `e`, or `E`)
  *   - String
  *   - mutable.LinkedHashMap[String, Any]
@@ -54,18 +53,19 @@ object JsonIO {
   def boolOpt(m: collection.Map[String, Any], key: String): Option[Boolean] =
     m.get(key).flatMap {
       case b: java.lang.Boolean => Some(b.booleanValue())
-      case s: String if s.equalsIgnoreCase("true")  => Some(true)
+      case s: String if s.equalsIgnoreCase("true") => Some(true)
       case s: String if s.equalsIgnoreCase("false") => Some(false)
       case _ => None
     }
 
   def numOpt(m: collection.Map[String, Any], key: String): Option[Double] =
     m.get(key).flatMap {
-      case n: java.lang.Long    => Some(n.doubleValue())
-      case n: java.lang.Double  => Some(n.doubleValue())
+      case n: java.lang.Long => Some(n.doubleValue())
+      case n: java.lang.Double => Some(n.doubleValue())
       case n: java.lang.Integer => Some(n.doubleValue())
       case s: String =>
-        try Some(s.toDouble) catch { case _: NumberFormatException => None }
+        try Some(s.toDouble)
+        catch { case _: NumberFormatException => None }
       case _ => None
     }
 
@@ -75,20 +75,20 @@ object JsonIO {
   // ── Writer ────────────────────────────────────────────────────────────────
 
   private def write(sb: java.lang.StringBuilder, v: Any, indent: Int): Unit = v match {
-    case null               => sb.append("null")
-    case b: Boolean         => sb.append(if (b) "true" else "false")
+    case null => sb.append("null")
+    case b: Boolean => sb.append(if (b) "true" else "false")
     case b: java.lang.Boolean => sb.append(if (b.booleanValue()) "true" else "false")
-    case n: Int             => sb.append(n)
-    case n: Long            => sb.append(n)
-    case n: java.lang.Long  => sb.append(n.toString)
+    case n: Int => sb.append(n)
+    case n: Long => sb.append(n)
+    case n: java.lang.Long => sb.append(n.toString)
     case n: java.lang.Integer => sb.append(n.toString)
-    case n: Float           => writeNumber(sb, n.toDouble)
-    case n: Double          => writeNumber(sb, n)
+    case n: Float => writeNumber(sb, n.toDouble)
+    case n: Double => writeNumber(sb, n)
     case n: java.lang.Double => writeNumber(sb, n.doubleValue())
-    case s: String          => writeString(sb, s)
-    case None               => sb.append("null")
-    case Some(x)            => write(sb, x, indent)
-    case it: Iterable[_]    =>
+    case s: String => writeString(sb, s)
+    case None => sb.append("null")
+    case Some(x) => write(sb, x, indent)
+    case it: Iterable[_] =>
       it match {
         case m: collection.Map[_, _] =>
           val nextIndent = if (indent < 0) -1 else indent + 1
@@ -132,7 +132,7 @@ object JsonIO {
     while (i < s.length) {
       val c = s.charAt(i)
       c match {
-        case '"'  => sb.append("\\\"")
+        case '"' => sb.append("\\\"")
         case '\\' => sb.append("\\\\")
         case '\n' => sb.append("\\n")
         case '\r' => sb.append("\\r")
@@ -140,7 +140,7 @@ object JsonIO {
         case '\b' => sb.append("\\b")
         case '\f' => sb.append("\\f")
         case ch if ch < 0x20 => sb.append("\\u%04x".format(ch.toInt))
-        case ch   => sb.append(ch)
+        case ch => sb.append(ch)
       }
       i += 1
     }
@@ -163,10 +163,12 @@ object JsonIO {
     def atEnd: Boolean = pos >= n
 
     def skipWs(): Unit = {
-      while (pos < n && (src.charAt(pos) match {
-        case ' ' | '\t' | '\n' | '\r' => true
-        case _ => false
-      })) pos += 1
+      while (
+        pos < n && (src.charAt(pos) match {
+          case ' ' | '\t' | '\n' | '\r' => true
+          case _ => false
+        })
+      ) pos += 1
     }
 
     def readValue(): Any = {
@@ -236,15 +238,15 @@ object JsonIO {
           if (pos + 1 >= n) throw new ParseException("Unterminated escape")
           val esc = src.charAt(pos + 1)
           esc match {
-            case '"'  => sb.append('"');  pos += 2
+            case '"' => sb.append('"'); pos += 2
             case '\\' => sb.append('\\'); pos += 2
-            case '/'  => sb.append('/');  pos += 2
-            case 'n'  => sb.append('\n'); pos += 2
-            case 'r'  => sb.append('\r'); pos += 2
-            case 't'  => sb.append('\t'); pos += 2
-            case 'b'  => sb.append('\b'); pos += 2
-            case 'f'  => sb.append('\f'); pos += 2
-            case 'u'  =>
+            case '/' => sb.append('/'); pos += 2
+            case 'n' => sb.append('\n'); pos += 2
+            case 'r' => sb.append('\r'); pos += 2
+            case 't' => sb.append('\t'); pos += 2
+            case 'b' => sb.append('\b'); pos += 2
+            case 'f' => sb.append('\f'); pos += 2
+            case 'u' =>
               if (pos + 5 >= n) throw new ParseException("Truncated \\uXXXX")
               val hex = src.substring(pos + 2, pos + 6)
               sb.append(Integer.parseInt(hex, 16).toChar)
@@ -259,7 +261,7 @@ object JsonIO {
     }
 
     private def readBool(): java.lang.Boolean = {
-      if (src.startsWith("true", pos))  { pos += 4; java.lang.Boolean.TRUE }
+      if (src.startsWith("true", pos)) { pos += 4; java.lang.Boolean.TRUE }
       else if (src.startsWith("false", pos)) { pos += 5; java.lang.Boolean.FALSE }
       else throw new ParseException(s"Expected bool at offset $pos")
     }

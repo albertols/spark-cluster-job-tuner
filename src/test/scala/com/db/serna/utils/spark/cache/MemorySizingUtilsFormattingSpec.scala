@@ -8,11 +8,11 @@ class MemorySizingUtilsFormattingSpec extends AnyFunSuite {
     val cases = Seq(
       0L -> 0L,
       1L -> 0L,
-      1024L -> 0L,                    // < 1 MB
-      (512L * 1024L) -> 0L,           // 512 KB => 0 MB
-      (1024L * 1024L) -> 1L,          // 1 MB
-      (1536L * 1024L) -> 1L,          // 1.5 MB => floors to 1 MB
-      (2L * 1024L * 1024L) -> 2L      // 2 MB
+      1024L -> 0L, // < 1 MB
+      (512L * 1024L) -> 0L, // 512 KB => 0 MB
+      (1024L * 1024L) -> 1L, // 1 MB
+      (1536L * 1024L) -> 1L, // 1.5 MB => floors to 1 MB
+      (2L * 1024L * 1024L) -> 2L // 2 MB
     )
 
     cases.foreach { case (bytes, expectedMB) =>
@@ -29,14 +29,14 @@ class MemorySizingUtilsFormattingSpec extends AnyFunSuite {
       1L -> "1.00 B",
       1023L -> "1023.00 B",
       1024L -> "1.00 KB",
-      1536L -> "1.50 KB",                           // exact 1.5 KB
+      1536L -> "1.50 KB", // exact 1.5 KB
       (1024L * 1024L) -> "1.00 MB",
-      (1536L * 1024L) -> "1.50 MB",                 // exact 1.5 MB
+      (1536L * 1024L) -> "1.50 MB", // exact 1.5 MB
       (1024L * 1024L * 1024L) -> "1.00 GB",
-      (1536L * 1024L * 1024L) -> "1.50 GB",         // exact 1.5 GB
+      (1536L * 1024L * 1024L) -> "1.50 GB", // exact 1.5 GB
       (1024L * 1024L * 1024L * 1024L) -> "1.00 TB",
       (1536L * 1024L * 1024L * 1024L) -> "1.50 TB", // exact 1.5 TB
-      2047L -> "1.99 KB"                            // no rounding up; truncated from ~1.999 KB
+      2047L -> "1.99 KB" // no rounding up; truncated from ~1.999 KB
     )
 
     cases.foreach { case (bytes, expectedStr) =>
@@ -47,22 +47,22 @@ class MemorySizingUtilsFormattingSpec extends AnyFunSuite {
   }
 
   test("fmtBytes boundary behavior without rounding") {
-    val kbMinusOne = 1024L - 1                    // 1023 B -> stays in B
-    val kbExact = 1024L                           // 1.00 KB
-    val kbAlmostTwo = 2047L                       // ~1.999 KB -> 1.99 KB (truncate)
+    val kbMinusOne = 1024L - 1 // 1023 B -> stays in B
+    val kbExact = 1024L // 1.00 KB
+    val kbAlmostTwo = 2047L // ~1.999 KB -> 1.99 KB (truncate)
 
-    val mbMinusOne = (1024L * 1024L) - 1          // 1 MB - 1B -> 1023.99 KB (truncate)
-    val mbExact = 1024L * 1024L                   // 1.00 MB
-    val gbMinusOne = (1024L * 1024L * 1024L) - 1  // -> 1023.99 MB (truncate)
-    val gbExact = 1024L * 1024L * 1024L           // 1.00 GB
+    val mbMinusOne = (1024L * 1024L) - 1 // 1 MB - 1B -> 1023.99 KB (truncate)
+    val mbExact = 1024L * 1024L // 1.00 MB
+    val gbMinusOne = (1024L * 1024L * 1024L) - 1 // -> 1023.99 MB (truncate)
+    val gbExact = 1024L * 1024L * 1024L // 1.00 GB
 
     val cases = Seq(
       kbMinusOne -> "1023.00 B",
       kbExact -> "1.00 KB",
       kbAlmostTwo -> "1.99 KB",
-      mbMinusOne -> "1023.99 KB",  // updated: truncation, not rounding
+      mbMinusOne -> "1023.99 KB", // updated: truncation, not rounding
       mbExact -> "1.00 MB",
-      gbMinusOne -> "1023.99 MB",  // updated: truncation, not rounding
+      gbMinusOne -> "1023.99 MB", // updated: truncation, not rounding
       gbExact -> "1.00 GB"
     )
 

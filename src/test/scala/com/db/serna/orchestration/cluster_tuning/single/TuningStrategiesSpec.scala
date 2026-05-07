@@ -139,8 +139,8 @@ class TuningStrategiesSpec extends AnyFunSuite with Matchers {
   test("DefaultTuningStrategy.toTuningPolicy produces TuningPolicy matching legacy hardcoded values") {
     val defaultMachine = MachineCatalog.byName("e2-standard-8").get
     val policy = DefaultTuningStrategy.toTuningPolicy(defaultMachine)
-    policy.executorCores shouldBe 8           // 8cx1GBpc → cores=8
-    policy.executorMemoryGb shouldBe 8        // 8*1=8 GB total
+    policy.executorCores shouldBe 8 // 8cx1GBpc → cores=8
+    policy.executorMemoryGb shouldBe 8 // 8*1=8 GB total
     policy.preferEightCoreExecutors shouldBe true
     policy.costWeight shouldBe 0.4
     policy.sufficiencyWeight shouldBe 0.5

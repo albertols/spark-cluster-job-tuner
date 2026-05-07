@@ -2,7 +2,13 @@ package com.db.serna.orchestration.cluster_tuning.auto
 
 import com.db.serna.orchestration.cluster_tuning._
 import com.db.serna.orchestration.cluster_tuning.single.{ClusterDiagnosticsProcessor, MachineCatalog, RecipeMetrics}
-import com.db.serna.orchestration.cluster_tuning.single.refinement.{MemoryHeapBoost, MemoryHeapBoostVitamin, MemoryHeapOomSignal, RefinementPipeline, SimpleJsonParser}
+import com.db.serna.orchestration.cluster_tuning.single.refinement.{
+  MemoryHeapBoost,
+  MemoryHeapBoostVitamin,
+  MemoryHeapOomSignal,
+  RefinementPipeline,
+  SimpleJsonParser
+}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
@@ -15,12 +21,14 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
 
   private def writeCsv(dir: File, name: String, content: String): Unit = {
     val pw = new PrintWriter(new File(dir, name))
-    try pw.write(content) finally pw.close()
+    try pw.write(content)
+    finally pw.close()
   }
 
   private def writeJson(dir: File, name: String, content: String): Unit = {
     val pw = new PrintWriter(new File(dir, name))
-    try pw.write(content) finally pw.close()
+    try pw.write(content)
+    finally pw.close()
   }
 
   private val B13Header =
@@ -32,12 +40,17 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
   private val B16Header =
     "job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name"
 
-  private def mkMetrics(cluster: String, recipe: String,
-                        avgExec: Double = 2.0, p95Exec: Double = 4.0,
-                        avgDur: Double = 50000.0, p95Dur: Double = 100000.0,
-                        runs: Long = 20, fracCap: Option[Double] = None): RecipeMetrics =
-    RecipeMetrics(cluster, recipe, avgExec, p95Exec, avgDur, p95Dur, runs,
-      None, None, None, fracCap, None)
+  private def mkMetrics(
+      cluster: String,
+      recipe: String,
+      avgExec: Double = 2.0,
+      p95Exec: Double = 4.0,
+      avgDur: Double = 50000.0,
+      p95Dur: Double = 100000.0,
+      runs: Long = 20,
+      fracCap: Option[Double] = None
+  ): RecipeMetrics =
+    RecipeMetrics(cluster, recipe, avgExec, p95Exec, avgDur, p95Dur, runs, None, None, None, fracCap, None)
 
   private val SampleManualJson: String =
     """{
@@ -130,7 +143,11 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
     trend.trend shouldBe Degraded
 
     val decisions = PerformanceEvolver.decideEvolutions(
-      Seq(trend), Map.empty, Map(("c1", "r1") -> cur), Map(("c1", "r1") -> ref), keepHistorical = true
+      Seq(trend),
+      Map.empty,
+      Map(("c1", "r1") -> cur),
+      Map(("c1", "r1") -> ref),
+      keepHistorical = true
     )
     decisions should have size 1
     decisions.head.action shouldBe BoostResources
@@ -145,7 +162,11 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
     trend.trend shouldBe Improved
 
     val decisions = PerformanceEvolver.decideEvolutions(
-      Seq(trend), Map.empty, Map(("c1", "r1") -> cur), Map(("c1", "r1") -> ref), keepHistorical = true
+      Seq(trend),
+      Map.empty,
+      Map(("c1", "r1") -> cur),
+      Map(("c1", "r1") -> ref),
+      keepHistorical = true
     )
     decisions should have size 1
     decisions.head.action shouldBe KeepAsIs
@@ -160,7 +181,11 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
     trend.trend shouldBe Stable
 
     val decisions = PerformanceEvolver.decideEvolutions(
-      Seq(trend), Map.empty, Map(("c1", "r1") -> cur), Map(("c1", "r1") -> ref), keepHistorical = true
+      Seq(trend),
+      Map.empty,
+      Map(("c1", "r1") -> cur),
+      Map(("c1", "r1") -> ref),
+      keepHistorical = true
     )
     decisions.head.action shouldBe KeepAsIs
   }
@@ -170,7 +195,11 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
   test("new entry produces GenerateFresh decision") {
     val trend = TrendAssessment("c1", "r1", NewEntry, Seq.empty, 0.0)
     val decisions = PerformanceEvolver.decideEvolutions(
-      Seq(trend), Map.empty, Map.empty, Map.empty, keepHistorical = true
+      Seq(trend),
+      Map.empty,
+      Map.empty,
+      Map.empty,
+      keepHistorical = true
     )
     decisions.head.action shouldBe GenerateFresh
   }
@@ -178,7 +207,11 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
   test("dropped entry with keepHistorical=true produces PreserveHistorical") {
     val trend = TrendAssessment("c1", "r1", DroppedEntry, Seq.empty, 0.0)
     val decisions = PerformanceEvolver.decideEvolutions(
-      Seq(trend), Map.empty, Map.empty, Map.empty, keepHistorical = true
+      Seq(trend),
+      Map.empty,
+      Map.empty,
+      Map.empty,
+      keepHistorical = true
     )
     decisions.head.action shouldBe PreserveHistorical
   }
@@ -186,7 +219,11 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
   test("dropped entry with keepHistorical=false does not produce PreserveHistorical") {
     val trend = TrendAssessment("c1", "r1", DroppedEntry, Seq.empty, 0.0)
     val decisions = PerformanceEvolver.decideEvolutions(
-      Seq(trend), Map.empty, Map.empty, Map.empty, keepHistorical = false
+      Seq(trend),
+      Map.empty,
+      Map.empty,
+      Map.empty,
+      keepHistorical = false
     )
     decisions.head.action shouldBe KeepAsIs
     decisions.head.reason should include("keep-historical=false")
@@ -195,8 +232,13 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
   // ── Analysis JSON output ──────────────────────────────────────────────────
 
   test("analysis JSON contains expected top-level keys") {
-    val trend = TrendAssessment("c1", "r1", Degraded,
-      Seq(MetricDelta("p95_job_duration_ms", 100000.0, 125000.0, 25000.0, 25.0)), 0.8)
+    val trend = TrendAssessment(
+      "c1",
+      "r1",
+      Degraded,
+      Seq(MetricDelta("p95_job_duration_ms", 100000.0, 125000.0, 25000.0, 25.0)),
+      0.8
+    )
     val decision = EvolutionDecision("c1", "r1", BoostResources, "degraded", trend)
     val correlation = CorrelationResult("delta_p95_run_max_executors", "delta_p95_job_duration_ms", 1234.5, 0.72, 10)
 
@@ -267,8 +309,13 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
     val tmpDir = Files.createTempDirectory("auto_tuner_csv_test").toFile
     tmpDir.deleteOnExit()
 
-    val trend = TrendAssessment("c1", "r1", Degraded,
-      Seq(MetricDelta("p95_job_duration_ms", 100000.0, 125000.0, 25000.0, 25.0)), 0.8)
+    val trend = TrendAssessment(
+      "c1",
+      "r1",
+      Degraded,
+      Seq(MetricDelta("p95_job_duration_ms", 100000.0, 125000.0, 25000.0, 25.0)),
+      0.8
+    )
     val decision = EvolutionDecision("c1", "r1", BoostResources, "reason", trend)
     val correlation = CorrelationResult("a", "b", 1.0, 0.5, 10)
     val divergence = DivergenceResult("c1", "r1", "metric", 100.0, 200.0, 3.0, true)
@@ -308,9 +355,9 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
       ("c2", "r1") -> mkMetrics("c2", "r1", p95Dur = 100000.0)
     )
     val curMetrics: Map[(String, String), RecipeMetrics] = Map(
-      ("c1", "r1") -> mkMetrics("c1", "r1", p95Dur = 90000.0),   // improved
-      ("c1", "r2") -> mkMetrics("c1", "r2", p95Dur = 125000.0),  // degraded
-      ("c3", "r1") -> mkMetrics("c3", "r1", p95Dur = 50000.0)    // new
+      ("c1", "r1") -> mkMetrics("c1", "r1", p95Dur = 90000.0), // improved
+      ("c1", "r2") -> mkMetrics("c1", "r2", p95Dur = 125000.0), // degraded
+      ("c3", "r1") -> mkMetrics("c3", "r1", p95Dur = 50000.0) // new
       // c2/r1 is dropped
     )
 
@@ -329,7 +376,11 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
     val allTrends = pairedTrends ++ newTrends ++ droppedTrends
 
     val decisions = PerformanceEvolver.decideEvolutions(
-      allTrends, Map.empty, curMetrics, refMetrics, keepHistorical = true
+      allTrends,
+      Map.empty,
+      curMetrics,
+      refMetrics,
+      keepHistorical = true
     )
 
     decisions should have size 4
@@ -354,18 +405,30 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
     )
 
     val b16Boosts = Seq(
-      ("c1", Seq(
-        MemoryHeapBoost("_ETL_recipe_A.json", "8g", "12g", 1.5),
-        MemoryHeapBoost("_ETL_recipe_B.json", "16g", "24g", 1.5)
-      ))
+      (
+        "c1",
+        Seq(
+          MemoryHeapBoost("_ETL_recipe_A.json", "8g", "12g", 1.5),
+          MemoryHeapBoost("_ETL_recipe_B.json", "16g", "24g", 1.5)
+        )
+      )
     )
 
     ClusterMachineAndRecipeAutoTuner.writeAutoTunerSummaryReport(
-      tmpDir, "2025_12_20", "2026_04_15", "default", trends,
-      kept = 2, boosted = 1, fresh = 1, preserved = 1, skipped = 0,
+      tmpDir,
+      "2025_12_20",
+      "2026_04_15",
+      "default",
+      trends,
+      kept = 2,
+      boosted = 1,
+      fresh = 1,
+      preserved = 1,
+      skipped = 0,
       b14Boosts = Seq(("c1", "Persistent b14 driver eviction: 3 (ref) -> 5 (cur) evictions")),
       b16Boosts = b16Boosts,
-      correlationCount = 4, divergenceCount = 3
+      correlationCount = 4,
+      divergenceCount = 3
     )
 
     val reportFile = new File(tmpDir, "_generation_summary_auto_tuner.txt")
@@ -396,11 +459,20 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
     tmpDir.deleteOnExit()
 
     ClusterMachineAndRecipeAutoTuner.writeAutoTunerSummaryReport(
-      tmpDir, "2025_12_20", "2026_04_15", "default",
+      tmpDir,
+      "2025_12_20",
+      "2026_04_15",
+      "default",
       Seq(TrendAssessment("c1", "r1", Stable, Seq.empty, 1.0)),
-      kept = 1, boosted = 0, fresh = 0, preserved = 0, skipped = 0,
-      b14Boosts = Seq.empty, b16Boosts = Seq.empty,
-      correlationCount = 0, divergenceCount = 0
+      kept = 1,
+      boosted = 0,
+      fresh = 0,
+      preserved = 0,
+      skipped = 0,
+      b14Boosts = Seq.empty,
+      b16Boosts = Seq.empty,
+      correlationCount = 0,
+      divergenceCount = 0
     )
 
     val content = scala.io.Source.fromFile(new File(tmpDir, "_generation_summary_auto_tuner.txt")).mkString
@@ -467,7 +539,11 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
     )
     val trend = TrendAssessment("c1", "r1", Degraded, deltas, 0.8)
     val decisions = PerformanceEvolver.decideEvolutions(
-      Seq(trend), Map.empty, Map.empty, Map.empty, keepHistorical = true
+      Seq(trend),
+      Map.empty,
+      Map.empty,
+      Map.empty,
+      keepHistorical = true
     )
     decisions.head.reason should include("p95_job_duration_ms")
     decisions.head.reason should include("25.0%")
@@ -480,7 +556,11 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
     )
     val trend = TrendAssessment("c1", "r1", Degraded, deltas, 0.9)
     val decisions = PerformanceEvolver.decideEvolutions(
-      Seq(trend), Map.empty, Map.empty, Map.empty, keepHistorical = true
+      Seq(trend),
+      Map.empty,
+      Map.empty,
+      Map.empty,
+      keepHistorical = true
     )
     decisions.head.reason should include("fraction_reaching_cap")
   }
@@ -502,7 +582,9 @@ class ClusterMachineAndRecipeAutoTunerSpec extends AnyFunSuite with Matchers {
     outputDir.mkdirs()
 
     // Write b16 CSV ONLY in reference input dir
-    writeCsv(refInputDir, "b16_oom_job_driver_exceptions.csv",
+    writeCsv(
+      refInputDir,
+      "b16_oom_job_driver_exceptions.csv",
       B16Header + "\n" +
         "etl-m-recipe-a-20260411-0438,cluster-a,_ETL_recipe_A.json,2026-04-11T04:38:00Z,ERROR,SomeClass,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,Java heap space,log1"
     )

@@ -4,10 +4,8 @@ import java.io.{File, PrintWriter}
 import scala.io.Source
 
 /**
- * Reads all CSVs in the input directory, collects every unique `cluster_name`
- * and `recipe_filename` value across files, and rewrites them with anonymised
- * placeholders that are consistent across all CSVs.
- *x
+ * Reads all CSVs in the input directory, collects every unique `cluster_name` and `recipe_filename` value across files,
+ * and rewrites them with anonymised placeholders that are consistent across all CSVs. x
  */
 object CleanClusterAndRecipeNames extends App {
 
@@ -20,17 +18,19 @@ object CleanClusterAndRecipeNames extends App {
   val csvFiles: Array[File] = inputDir.listFiles().filter(_.getName.endsWith(".csv")).sorted
 
   // ── First pass: collect every unique value ──────────────────────────────────
-  var allClusterNames   = Set.empty[String]
+  var allClusterNames = Set.empty[String]
   var allRecipeFilenames = Set.empty[String]
 
   for (file <- csvFiles) {
-    val src   = Source.fromFile(file, "UTF-8")
-    val lines = try src.getLines().toList finally src.close()
+    val src = Source.fromFile(file, "UTF-8")
+    val lines =
+      try src.getLines().toList
+      finally src.close()
 
     if (lines.nonEmpty) {
-      val header     = lines.head.split(",", -1)
+      val header = lines.head.split(",", -1)
       val clusterIdx = header.indexOf("cluster_name")
-      val recipeIdx  = header.indexOf("recipe_filename")
+      val recipeIdx = header.indexOf("recipe_filename")
 
       for (line <- lines.tail if line.nonEmpty) {
         val cols = line.split(",", -1)
@@ -44,24 +44,26 @@ object CleanClusterAndRecipeNames extends App {
 
   // ── Build deterministic global mappings (sorted → numbered) ────────────────
   val clusterMapping: Map[String, String] =
-    allClusterNames.toSeq.sorted.zipWithIndex.map {
-      case (original, idx) => original -> s"cluster-wf_spark_${idx + 1}"
+    allClusterNames.toSeq.sorted.zipWithIndex.map { case (original, idx) =>
+      original -> s"cluster-wf_spark_${idx + 1}"
     }.toMap
 
   val recipeMapping: Map[String, String] =
-    allRecipeFilenames.toSeq.sorted.zipWithIndex.map {
-      case (original, idx) => original -> s"_SPARK_JOB_recipe_filename_${idx + 1}.json"
+    allRecipeFilenames.toSeq.sorted.zipWithIndex.map { case (original, idx) =>
+      original -> s"_SPARK_JOB_recipe_filename_${idx + 1}.json"
     }.toMap
 
   // ── Second pass: rewrite every CSV in-place ────────────────────────────────
   for (file <- csvFiles) {
-    val src   = Source.fromFile(file, "UTF-8")
-    val lines = try src.getLines().toList finally src.close()
+    val src = Source.fromFile(file, "UTF-8")
+    val lines =
+      try src.getLines().toList
+      finally src.close()
 
     if (lines.nonEmpty) {
-      val header     = lines.head.split(",", -1)
+      val header = lines.head.split(",", -1)
       val clusterIdx = header.indexOf("cluster_name")
-      val recipeIdx  = header.indexOf("recipe_filename")
+      val recipeIdx = header.indexOf("recipe_filename")
 
       val rewritten = lines.head +: lines.tail.map { line =>
         if (line.isEmpty) line
@@ -76,7 +78,8 @@ object CleanClusterAndRecipeNames extends App {
       }
 
       val pw = new PrintWriter(file, "UTF-8")
-      try rewritten.foreach(pw.println) finally pw.close()
+      try rewritten.foreach(pw.println)
+      finally pw.close()
 
       println(s"Rewrote ${file.getName}  (${lines.size - 1} data rows)")
     }

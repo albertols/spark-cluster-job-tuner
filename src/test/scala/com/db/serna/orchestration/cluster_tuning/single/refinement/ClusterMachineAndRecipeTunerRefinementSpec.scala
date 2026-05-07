@@ -1,6 +1,12 @@
 package com.db.serna.orchestration.cluster_tuning.single.refinement
 
-import com.db.serna.orchestration.cluster_tuning.single.refinement.{ClusterMachineAndRecipeTunerRefinement, MemoryHeapBoostVitamin, RefinementPipeline, SimpleJsonParser, UnresolvedEntry}
+import com.db.serna.orchestration.cluster_tuning.single.refinement.{
+  ClusterMachineAndRecipeTunerRefinement,
+  MemoryHeapBoostVitamin,
+  RefinementPipeline,
+  SimpleJsonParser,
+  UnresolvedEntry
+}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
@@ -84,8 +90,12 @@ class ClusterMachineAndRecipeTunerRefinementSpec extends AnyFunSuite with Matche
     csvFile.deleteOnExit()
     val pw = new PrintWriter(csvFile)
     try {
-      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
-      pw.println("job-1,cluster-wf-dmr-load-t-02-15-0215,_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json,2026-04-12T13:03:51Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,Java heap space,driver")
+      pw.println(
+        "job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name"
+      )
+      pw.println(
+        "job-1,cluster-wf-dmr-load-t-02-15-0215,_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json,2026-04-12T13:03:51Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,Java heap space,driver"
+      )
     } finally pw.close()
 
     val config = SimpleJsonParser.parse(sampleAutoScaleJson)
@@ -101,8 +111,8 @@ class ClusterMachineAndRecipeTunerRefinementSpec extends AnyFunSuite with Matche
     val boosted = result.refinedRecipes("_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json")
     boosted.sparkOptsMap("spark.executor.memory") shouldBe "12g"
     boosted.extraFields("appliedMemoryHeapBoostFactor") shouldBe "1.5"
-    boosted.totalExecutorMinAllocatedMemoryGb shouldBe 24   // 2 x 12
-    boosted.totalExecutorMaxAllocatedMemoryGb shouldBe 60   // 5 x 12
+    boosted.totalExecutorMinAllocatedMemoryGb shouldBe 24 // 2 x 12
+    boosted.totalExecutorMaxAllocatedMemoryGb shouldBe 60 // 5 x 12
 
     // Unaffected recipe
     val untouched = result.refinedRecipes("_ETL_m_DQ3_ODS_TGL05.json")
@@ -119,8 +129,12 @@ class ClusterMachineAndRecipeTunerRefinementSpec extends AnyFunSuite with Matche
     csvFile.deleteOnExit()
     val pw = new PrintWriter(csvFile)
     try {
-      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
-      pw.println("job-1,other-cluster,_ETL_recipe_X.json,2026-04-12T13:00:00Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
+      pw.println(
+        "job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name"
+      )
+      pw.println(
+        "job-1,other-cluster,_ETL_recipe_X.json,2026-04-12T13:00:00Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver"
+      )
     } finally pw.close()
 
     val config = SimpleJsonParser.parse(sampleAutoScaleJson)
@@ -140,9 +154,15 @@ class ClusterMachineAndRecipeTunerRefinementSpec extends AnyFunSuite with Matche
     csvFile.deleteOnExit()
     val pw = new PrintWriter(csvFile)
     try {
-      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
-      pw.println("job-1,cluster-wf-dmr-load-t-02-15-0215,_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json,2026-04-12T13:00:00Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
-      pw.println("job-2,cluster-wf-dmr-load-t-02-15-0215,_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json,2026-04-12T14:00:00Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
+      pw.println(
+        "job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name"
+      )
+      pw.println(
+        "job-1,cluster-wf-dmr-load-t-02-15-0215,_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json,2026-04-12T13:00:00Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver"
+      )
+      pw.println(
+        "job-2,cluster-wf-dmr-load-t-02-15-0215,_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json,2026-04-12T14:00:00Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver"
+      )
     } finally pw.close()
 
     val config = SimpleJsonParser.parse(sampleAutoScaleJson)
@@ -151,7 +171,7 @@ class ClusterMachineAndRecipeTunerRefinementSpec extends AnyFunSuite with Matche
 
     result.appliedBoosts should have size 2
     result.boostCounters("boostedMemoryHeapJobCount") shouldBe 2
-    result.boostLists("boostedMemoryHeapJobList") should contain allOf(
+    result.boostLists("boostedMemoryHeapJobList") should contain allOf (
       "_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json",
       "_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json"
     )
@@ -185,8 +205,12 @@ class ClusterMachineAndRecipeTunerRefinementSpec extends AnyFunSuite with Matche
     csvFile.deleteOnExit()
     val pw = new PrintWriter(csvFile)
     try {
-      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
-      pw.println("etl-m-dq3-ods-f-pm-propuestas-20260409-0356,cluster-wf-dmr-load-t-02-15-0215,,2026-04-09T03:56:00Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
+      pw.println(
+        "job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name"
+      )
+      pw.println(
+        "etl-m-dq3-ods-f-pm-propuestas-20260409-0356,cluster-wf-dmr-load-t-02-15-0215,,2026-04-09T03:56:00Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver"
+      )
     } finally pw.close()
 
     val config = SimpleJsonParser.parse(sampleAutoScaleJson)
@@ -207,10 +231,16 @@ class ClusterMachineAndRecipeTunerRefinementSpec extends AnyFunSuite with Matche
     csvFile.deleteOnExit()
     val pw = new PrintWriter(csvFile)
     try {
-      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
+      pw.println(
+        "job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name"
+      )
       // Same job prefix, first row has recipe, second doesn't
-      pw.println("etl-m-dq3-ods-f-af-ope-mercado-20260409-0015,cluster-wf-dmr-load-t-02-15-0215,_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json,2026-04-09T00:15:00Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
-      pw.println("etl-m-dq3-ods-f-af-ope-mercado-20260410-0015,cluster-wf-dmr-load-t-02-15-0215,,2026-04-10T00:15:00Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
+      pw.println(
+        "etl-m-dq3-ods-f-af-ope-mercado-20260409-0015,cluster-wf-dmr-load-t-02-15-0215,_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json,2026-04-09T00:15:00Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver"
+      )
+      pw.println(
+        "etl-m-dq3-ods-f-af-ope-mercado-20260410-0015,cluster-wf-dmr-load-t-02-15-0215,,2026-04-10T00:15:00Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver"
+      )
     } finally pw.close()
 
     val config = SimpleJsonParser.parse(sampleAutoScaleJson)
@@ -230,8 +260,12 @@ class ClusterMachineAndRecipeTunerRefinementSpec extends AnyFunSuite with Matche
     csvFile.deleteOnExit()
     val pw = new PrintWriter(csvFile)
     try {
-      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
-      pw.println("totally-unknown-job-20260411-0438,cluster-wf-dmr-load-t-02-15-0215,,2026-04-11T02:59:10Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
+      pw.println(
+        "job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name"
+      )
+      pw.println(
+        "totally-unknown-job-20260411-0438,cluster-wf-dmr-load-t-02-15-0215,,2026-04-11T02:59:10Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver"
+      )
     } finally pw.close()
 
     val config = SimpleJsonParser.parse(sampleAutoScaleJson)
@@ -253,8 +287,12 @@ class ClusterMachineAndRecipeTunerRefinementSpec extends AnyFunSuite with Matche
     csvFile.deleteOnExit()
     val pw = new PrintWriter(csvFile)
     try {
-      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
-      pw.println("etl-kcop,cluster-wf-dmr-load-t-02-15-0215,EL_KCOP.json,2026-03-16T06:46:38Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
+      pw.println(
+        "job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name"
+      )
+      pw.println(
+        "etl-kcop,cluster-wf-dmr-load-t-02-15-0215,EL_KCOP.json,2026-03-16T06:46:38Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver"
+      )
     } finally pw.close()
 
     val config = SimpleJsonParser.parse(sampleAutoScaleJson)
@@ -278,8 +316,12 @@ class ClusterMachineAndRecipeTunerRefinementSpec extends AnyFunSuite with Matche
     csvFile.deleteOnExit()
     val pw = new PrintWriter(csvFile)
     try {
-      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
-      pw.println("job-1,cluster-wf-dmr-load-t-02-15-0215,_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json,2026-04-12T13:03:51Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
+      pw.println(
+        "job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name"
+      )
+      pw.println(
+        "job-1,cluster-wf-dmr-load-t-02-15-0215,_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json,2026-04-12T13:03:51Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver"
+      )
     } finally pw.close()
 
     val config = SimpleJsonParser.parse(sampleAutoScaleJson)
@@ -301,8 +343,15 @@ class ClusterMachineAndRecipeTunerRefinementSpec extends AnyFunSuite with Matche
 
   test("buildUnresolvedJson: produces valid JSON with vitamin source and entries") {
     val entries = Seq(
-      UnresolvedEntry("b16_memory_heap_boost", "b16_oom_job_driver_exceptions.csv",
-        "unknown-job-20260411-0438", "cluster-a", "", "2026-04-11T02:59:10Z", "OOM")
+      UnresolvedEntry(
+        "b16_memory_heap_boost",
+        "b16_oom_job_driver_exceptions.csv",
+        "unknown-job-20260411-0438",
+        "cluster-a",
+        "",
+        "2026-04-11T02:59:10Z",
+        "OOM"
+      )
     )
     val json = ClusterMachineAndRecipeTunerRefinement.buildUnresolvedJson(entries, "inputs/2025_12_20")
 
@@ -322,8 +371,12 @@ class ClusterMachineAndRecipeTunerRefinementSpec extends AnyFunSuite with Matche
     csvFile.deleteOnExit()
     val pw = new PrintWriter(csvFile)
     try {
-      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
-      pw.println("job-1,cluster-wf-dmr-load-t-02-15-0215,_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json,2026-04-12T13:03:51Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
+      pw.println(
+        "job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name"
+      )
+      pw.println(
+        "job-1,cluster-wf-dmr-load-t-02-15-0215,_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json,2026-04-12T13:03:51Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver"
+      )
     } finally pw.close()
 
     val config = SimpleJsonParser.parse(sampleAutoScaleJson)

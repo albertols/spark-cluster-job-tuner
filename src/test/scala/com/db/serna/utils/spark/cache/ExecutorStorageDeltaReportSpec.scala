@@ -22,7 +22,9 @@ class ExecutorStorageDeltaReportSpec extends AnyFunSuite {
           unpersistAfter = true
         )
 
-      println(s"[ESDR] observational before=${delta.beforeUsedBytes} after=${delta.afterUsedBytes} delta=${delta.perExecutorDeltaBytes}")
+      println(
+        s"[ESDR] observational before=${delta.beforeUsedBytes} after=${delta.afterUsedBytes} delta=${delta.perExecutorDeltaBytes}"
+      )
 
       assert(delta.beforeUsedBytes.nonEmpty)
       assert(delta.afterUsedBytes.isEmpty)

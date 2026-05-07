@@ -16,8 +16,7 @@ import java.io.{BufferedWriter, File, FileWriter}
  * }}}
  */
 class RefinementConf(arguments: Seq[String]) extends ScallopConf(arguments) {
-  banner(
-    """
+  banner("""
       |ClusterMachineAndRecipeTunerRefinement
       |
       |Reads tuned JSON configs and applies vitamin boosts based on diagnostic CSV outputs.
@@ -50,8 +49,8 @@ class RefinementConf(arguments: Seq[String]) extends ScallopConf(arguments) {
  * Refinement app entry point.
  *
  * Reads the tuned cluster JSONs produced by [[com.db.serna.orchestration.cluster_tuning.ClusterMachineAndRecipeTuner]],
- * cross-references diagnostic CSVs, and writes refined JSONs with boosted Spark
- * settings for recipes that experienced failures (OOM, etc.).
+ * cross-references diagnostic CSVs, and writes refined JSONs with boosted Spark settings for recipes that experienced
+ * failures (OOM, etc.).
  *
  * Refined output overwrites the original tuned JSONs in `outputs/<date>/` in-place.
  */
@@ -115,7 +114,9 @@ object ClusterMachineAndRecipeTunerRefinement {
         filesWithBoosts += 1
         totalBoosts += result.appliedBoosts.size
         val boostedRecipes = result.boostLists.values.flatten.toSeq.distinct.sorted
-        logger.info(s"[${jsonFile.getName}] ${result.appliedBoosts.size} boost(s) on recipes: ${boostedRecipes.mkString(", ")}:")
+        logger.info(
+          s"[${jsonFile.getName}] ${result.appliedBoosts.size} boost(s) on recipes: ${boostedRecipes.mkString(", ")}:"
+        )
         result.appliedBoosts.foreach(b => logger.info(s"  - ${b.description}"))
       }
 
@@ -129,7 +130,9 @@ object ClusterMachineAndRecipeTunerRefinement {
     if (allUnresolved.nonEmpty) {
       val dedupedUnresolved: Seq[UnresolvedEntry] = allUnresolved.toSeq
         .groupBy(e => (e.vitaminName, e.jobId, e.clusterName))
-        .values.map(_.head).toList
+        .values
+        .map(_.head)
+        .toList
         .sortBy(e => (e.vitaminName, e.clusterName, e.jobId))
       val unresolvedJson = buildUnresolvedJson(dedupedUnresolved, inputDir.getPath)
       writeFile(outputDir, "_not_boosted_recipes.json", unresolvedJson)
@@ -137,7 +140,8 @@ object ClusterMachineAndRecipeTunerRefinement {
       val byCluster = dedupedUnresolved.groupBy(_.clusterName)
       byCluster.foreach { case (cluster, entries) =>
         val jobIds = entries.map(_.jobId).sorted.mkString(", ")
-        val recipeNote = entries.filter(_.rawRecipeFilename.nonEmpty).map(e => s"${e.jobId} -> ${e.rawRecipeFilename}").mkString(", ")
+        val recipeNote =
+          entries.filter(_.rawRecipeFilename.nonEmpty).map(e => s"${e.jobId} -> ${e.rawRecipeFilename}").mkString(", ")
         logger.warn(s"  [$cluster] ${entries.size} unresolved signal(s): $jobIds")
         if (recipeNote.nonEmpty) logger.warn(s"    recipe not found in config: $recipeNote")
       }
@@ -156,8 +160,8 @@ object ClusterMachineAndRecipeTunerRefinement {
     // Group by vitamin/csv source
     val bySource = entries.groupBy(e => (e.vitaminName, e.csvSource))
 
-    val sourceBlocks: Seq[(String, String)] = bySource.toSeq.sortBy(_._1._1).map {
-      case ((vitaminName, csvSource), sourceEntries) =>
+    val sourceBlocks: Seq[(String, String)] =
+      bySource.toSeq.sortBy(_._1._1).map { case ((vitaminName, csvSource), sourceEntries) =>
         val entryJsons = sourceEntries.map { e =>
           obj(
             "job_id" -> str(e.jobId),
@@ -172,7 +176,7 @@ object ClusterMachineAndRecipeTunerRefinement {
           "unresolved_count" -> num(sourceEntries.size),
           "entries" -> arr(entryJsons: _*)
         )
-    }
+      }
 
     Json.pretty(obj(sourceBlocks: _*))
   }
@@ -198,6 +202,7 @@ object ClusterMachineAndRecipeTunerRefinement {
     }
     val f = new File(outDir, fileName)
     val bw = new BufferedWriter(new FileWriter(f))
-    try bw.write(content) finally bw.close()
+    try bw.write(content)
+    finally bw.close()
   }
 }

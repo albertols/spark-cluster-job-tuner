@@ -3,25 +3,20 @@ package com.db.serna.orchestration.cluster_tuning.auto
 import com.db.serna.orchestration.cluster_tuning.single.Json
 
 /**
- * Raw-string JSON surgery for marking preserve_historical recipes inside a tuned
- * cluster JSON. Two operations:
+ * Raw-string JSON surgery for marking preserve_historical recipes inside a tuned cluster JSON. Two operations:
  *
- *   - tagPreservedRecipes(json, names, refDate)
- *       Adds `lastTunedDate` and `keptWithoutCurrentDate: true` keys to the named
- *       recipes inside `recipeSparkConf`. If a recipe already carries a
- *       `lastTunedDate`, that value is preserved (recursive carry across runs).
+ *   - tagPreservedRecipes(json, names, refDate) Adds `lastTunedDate` and `keptWithoutCurrentDate: true` keys to the
+ *     named recipes inside `recipeSparkConf`. If a recipe already carries a `lastTunedDate`, that value is preserved
+ *     (recursive carry across runs).
  *
- *   - mergeRecipeBlocks(json, blocks)
- *       Inserts each `(recipeName -> recipeBlockJson)` into `recipeSparkConf`.
- *       Recipes that already exist are NOT overwritten.
+ *   - mergeRecipeBlocks(json, blocks) Inserts each `(recipeName -> recipeBlockJson)` into `recipeSparkConf`. Recipes
+ *     that already exist are NOT overwritten.
  *
- *   - extractRecipeBlock(json, recipeName)
- *       Returns the raw `{ ... }` JSON object string for a recipe inside
- *       `recipeSparkConf`, or None if absent.
+ *   - extractRecipeBlock(json, recipeName) Returns the raw `{ ... }` JSON object string for a recipe inside
+ *     `recipeSparkConf`, or None if absent.
  *
- * The helpers operate on the raw JSON text because the tuner's existing JSON
- * builder (`Json`) and parser (`SimpleJsonParser`) are intentionally minimal and
- * do not provide a typed AST. Output is always re-prettified.
+ * The helpers operate on the raw JSON text because the tuner's existing JSON builder (`Json`) and parser
+ * (`SimpleJsonParser`) are intentionally minimal and do not provide a typed AST. Output is always re-prettified.
  */
 private[auto] object KeptRecipeCarrier {
 

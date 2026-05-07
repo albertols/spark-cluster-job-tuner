@@ -62,7 +62,9 @@ class BoostMetadataCarrierSpec extends AnyFunSuite with Matchers {
 
   test("injectPriorBoosts copies factor + boosted memory + re-derived totals from ref") {
     val out = BoostMetadataCarrier.injectPriorBoosts(
-      curJson, refJson, Set("_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json")
+      curJson,
+      refJson,
+      Set("_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json")
     )
 
     out should include(""""appliedMemoryHeapBoostFactor": 1.5""")
@@ -79,7 +81,9 @@ class BoostMetadataCarrierSpec extends AnyFunSuite with Matchers {
   test("injectPriorBoosts is a no-op when ref has no prior boost factor") {
     val refNoBoost = refJson.replaceAll(""""appliedMemoryHeapBoostFactor"\s*:\s*[\d.]+\s*,?\s*""", "")
     val out = BoostMetadataCarrier.injectPriorBoosts(
-      curJson, refNoBoost, Set("_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json")
+      curJson,
+      refNoBoost,
+      Set("_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json")
     )
     out shouldBe curJson
     out should not include """"appliedMemoryHeapBoostFactor""""
@@ -87,17 +91,23 @@ class BoostMetadataCarrierSpec extends AnyFunSuite with Matchers {
 
   test("injectPriorBoosts skips recipes missing from cur JSON") {
     val out = BoostMetadataCarrier.injectPriorBoosts(
-      curJson, refJson, Set("_does_not_exist.json")
+      curJson,
+      refJson,
+      Set("_does_not_exist.json")
     )
     out shouldBe curJson
   }
 
   test("injectPriorBoosts is idempotent — running twice yields the same result") {
     val once = BoostMetadataCarrier.injectPriorBoosts(
-      curJson, refJson, Set("_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json")
+      curJson,
+      refJson,
+      Set("_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json")
     )
     val twice = BoostMetadataCarrier.injectPriorBoosts(
-      once, refJson, Set("_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json")
+      once,
+      refJson,
+      Set("_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json")
     )
     // Both have the same factor + memory + totals; whitespace may shift due to
     // pretty-printing but the boost-relevant payload is identical.
@@ -109,17 +119,25 @@ class BoostMetadataCarrierSpec extends AnyFunSuite with Matchers {
   }
 
   test("injectPriorBoosts handles a higher cumulative factor (e.g. 2.25)") {
-    val refWithCum = refJson.replace(
-      """"appliedMemoryHeapBoostFactor": 1.5,""",
-      """"appliedMemoryHeapBoostFactor": 2.25,"""
-    ).replace(""""spark.executor.memory": "12g"""", """"spark.executor.memory": "18g"""")
-      .replace(""""total_executor_minimum_allocated_memory_gb": 24""",
-        """"total_executor_minimum_allocated_memory_gb": 36""")
-      .replace(""""total_executor_maximum_allocated_memory_gb": 36""",
-        """"total_executor_maximum_allocated_memory_gb": 54""")
+    val refWithCum = refJson
+      .replace(
+        """"appliedMemoryHeapBoostFactor": 1.5,""",
+        """"appliedMemoryHeapBoostFactor": 2.25,"""
+      )
+      .replace(""""spark.executor.memory": "12g"""", """"spark.executor.memory": "18g"""")
+      .replace(
+        """"total_executor_minimum_allocated_memory_gb": 24""",
+        """"total_executor_minimum_allocated_memory_gb": 36"""
+      )
+      .replace(
+        """"total_executor_maximum_allocated_memory_gb": 36""",
+        """"total_executor_maximum_allocated_memory_gb": 54"""
+      )
 
     val out = BoostMetadataCarrier.injectPriorBoosts(
-      curJson, refWithCum, Set("_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json")
+      curJson,
+      refWithCum,
+      Set("_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json")
     )
     out should include(""""appliedMemoryHeapBoostFactor": 2.25""")
     out should include(""""spark.executor.memory": "18g"""")

@@ -1,7 +1,12 @@
 package com.db.serna.orchestration.cluster_tuning.auto.frontend.server
 
 import com.db.serna.orchestration.cluster_tuning.auto.{AutoTunerConf, ClusterMachineAndRecipeAutoTuner}
-import com.db.serna.orchestration.cluster_tuning.single.{ClusterMachineAndRecipeTuner, ExecutorTopologyPreset, TuningStrategy, DefaultTuningStrategy}
+import com.db.serna.orchestration.cluster_tuning.single.{
+  ClusterMachineAndRecipeTuner,
+  ExecutorTopologyPreset,
+  TuningStrategy,
+  DefaultTuningStrategy
+}
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import org.slf4j.LoggerFactory
 
@@ -18,26 +23,16 @@ import scala.util.control.NonFatal
  *
  * Bind: 127.0.0.1 only (localhost dev tool — do not expose).
  *
- * Routes:
- *   GET    /api/health
- *   GET    /api/config            — read effective config (config.json + config.local.json overlay)
- *   PUT    /api/config            — write config.local.json (overlay only)
- *   GET    /api/inputs            — list date dirs under <inputsBase>
- *   POST   /api/inputs/<date>     — mkdir
- *   PUT    /api/inputs/<date>/csv?name=<bnn>.csv  — write CSV body
- *   POST   /api/runs/single       — { date, strategy, topology, flattened }
- *   POST   /api/runs/auto         — { ...AutoTunerConf options }
- *   GET    /api/runs/<runId>      — status snapshot
- *   GET    /api/runs/<runId>/log?since=N — long-poll log lines
- *   DELETE /api/runs/<runId>      — interrupt
+ * Routes: GET /api/health GET /api/config — read effective config (config.json + config.local.json overlay) PUT
+ * /api/config — write config.local.json (overlay only) GET /api/inputs — list date dirs under <inputsBase> POST
+ * /api/inputs/<date> — mkdir PUT /api/inputs/<date>/csv?name=<bnn>.csv — write CSV body POST /api/runs/single — { date,
+ * strategy, topology, flattened } POST /api/runs/auto — { ...AutoTunerConf options } GET /api/runs/<runId> — status
+ * snapshot GET /api/runs/<runId>/log?since=N — long-poll log lines DELETE /api/runs/<runId> — interrupt
  *
  * Otherwise: static files from the frontend directory.
  *
- * Modes:
- *   --server        (default) start HTTP server
- *   --cli single|auto [args]    — one-shot CLI; mirrors the original main()
- *                                  signatures so `java -jar tuner.jar --cli`
- *                                  works from CI/cron.
+ * Modes: --server (default) start HTTP server --cli single|auto [args] — one-shot CLI; mirrors the original main()
+ * signatures so `java -jar tuner.jar --cli` works from CI/cron.
  */
 object TunerService {
 
@@ -46,13 +41,13 @@ object TunerService {
   // ── Configuration ─────────────────────────────────────────────────────────
 
   case class ServiceConfig(
-    host: String = "127.0.0.1",
-    port: Int    = 8080,
-    frontendDir: File,
-    inputsBase:  File,
-    outputsBase: File,
-    basePath:    String,  // sets -DclusterTuning.basePath for the tuners
-    sqlDir:      File     // log_analytics/, served at /log_analytics/
+      host: String = "127.0.0.1",
+      port: Int = 8080,
+      frontendDir: File,
+      inputsBase: File,
+      outputsBase: File,
+      basePath: String, // sets -DclusterTuning.basePath for the tuners
+      sqlDir: File // log_analytics/, served at /log_analytics/
   )
 
   // ── Main ──────────────────────────────────────────────────────────────────
@@ -99,7 +94,7 @@ object TunerService {
       System.err.println(s"Frontend directory not found: ${cfg.frontendDir.getAbsolutePath}")
       sys.exit(2)
     }
-    if (!cfg.inputsBase.isDirectory)  cfg.inputsBase.mkdirs()
+    if (!cfg.inputsBase.isDirectory) cfg.inputsBase.mkdirs()
     if (!cfg.outputsBase.isDirectory) cfg.outputsBase.mkdirs()
 
     // Tuners read this property whenever they construct paths.
@@ -114,8 +109,10 @@ object TunerService {
     if (cfg.sqlDir.isDirectory) {
       server.createContext("/log_analytics/", new StaticHandler(cfg.sqlDir, allowDirListing = true))
     } else {
-      logger.warn(s"sqlDir not found (${cfg.sqlDir.getAbsolutePath}); /log_analytics/* will 404. " +
-        "Pass --sql-dir=PATH if your log_analytics folder lives elsewhere.")
+      logger.warn(
+        s"sqlDir not found (${cfg.sqlDir.getAbsolutePath}); /log_analytics/* will 404. " +
+          "Pass --sql-dir=PATH if your log_analytics folder lives elsewhere."
+      )
     }
 
     // app.js's `loadConfig()` resolves `outputsPath` / `inputsPath` against
@@ -145,7 +142,9 @@ object TunerService {
     server.start()
 
     val rootUrl = s"http://${cfg.host}:${cfg.port}/"
-    logger.info(s"TunerService listening on $rootUrl  (frontend=${cfg.frontendDir}, inputs=${cfg.inputsBase}, outputs=${cfg.outputsBase}, sql=${cfg.sqlDir})")
+    logger.info(
+      s"TunerService listening on $rootUrl  (frontend=${cfg.frontendDir}, inputs=${cfg.inputsBase}, outputs=${cfg.outputsBase}, sql=${cfg.sqlDir})"
+    )
     println(s"Open the dashboard at $rootUrl  ·  Ctrl+C to stop.")
 
     Runtime.getRuntime.addShutdownHook(new Thread(() => {
@@ -158,16 +157,18 @@ object TunerService {
 
   /** Read inputsPath + outputsPath from frontendDir/config.json (with overlay). */
   private def readPathsFromConfigJson(frontendDir: File): Option[(String, String)] = {
-    val baseFile  = new File(frontendDir, "config.json")
+    val baseFile = new File(frontendDir, "config.json")
     val localFile = new File(frontendDir, "config.local.json")
     if (!baseFile.isFile) return None
     try {
       val merged = scala.collection.mutable.LinkedHashMap.empty[String, Any]
-      JsonIO.parseObject(new String(Files.readAllBytes(baseFile.toPath), StandardCharsets.UTF_8))
+      JsonIO
+        .parseObject(new String(Files.readAllBytes(baseFile.toPath), StandardCharsets.UTF_8))
         .foreach { case (k, v) => merged.put(k, v) }
       if (localFile.isFile) {
         try {
-          JsonIO.parseObject(new String(Files.readAllBytes(localFile.toPath), StandardCharsets.UTF_8))
+          JsonIO
+            .parseObject(new String(Files.readAllBytes(localFile.toPath), StandardCharsets.UTF_8))
             .foreach { case (k, v) => merged.put(k, v) }
         } catch { case NonFatal(_) => () }
       }
@@ -175,7 +176,7 @@ object TunerService {
       val out = JsonIO.strOpt(merged, "outputsPath")
       (in, out) match {
         case (Some(i), Some(o)) => Some((i, o))
-        case _                  => None
+        case _ => None
       }
     } catch {
       case NonFatal(e) =>
@@ -185,10 +186,9 @@ object TunerService {
   }
 
   /**
-   * Mirror what `new URL(relPath + "/", "http://host/")` gives the browser.
-   * Drops every `..` and `.` segment — `..` segments above root collapse to
-   * nothing under the URL's authority, so we just strip them.
-   * Returns a path with leading + trailing `/`.
+   * Mirror what `new URL(relPath + "/", "http://host/")` gives the browser. Drops every `..` and `.` segment — `..`
+   * segments above root collapse to nothing under the URL's authority, so we just strip them. Returns a path with
+   * leading + trailing `/`.
    */
   private def collapseRelToUrl(relPath: String): String = {
     val parts = relPath
@@ -211,26 +211,28 @@ object TunerService {
 
     val cwd = new File(".").getCanonicalFile
     val defaultFrontend = new File(cwd, "src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend")
-    val defaultBase     = "src/main/resources/composer/dwh/config/cluster_tuning"
-    val basePathArg     = argMap.getOrElse("base-path", defaultBase)
-    val baseDir         = new File(basePathArg)
-    val absBase         = if (baseDir.isAbsolute) baseDir else new File(cwd, basePathArg)
-    val inputsBase      = argMap.get("inputs-dir").map(new File(_)).getOrElse(new File(absBase, "inputs"))
-    val outputsBase     = argMap.get("outputs-dir").map(new File(_)).getOrElse(new File(absBase, "outputs"))
-    val frontendDir     = argMap.get("frontend-dir").map(new File(_)).getOrElse(defaultFrontend)
+    val defaultBase = "src/main/resources/composer/dwh/config/cluster_tuning"
+    val basePathArg = argMap.getOrElse("base-path", defaultBase)
+    val baseDir = new File(basePathArg)
+    val absBase = if (baseDir.isAbsolute) baseDir else new File(cwd, basePathArg)
+    val inputsBase = argMap.get("inputs-dir").map(new File(_)).getOrElse(new File(absBase, "inputs"))
+    val outputsBase = argMap.get("outputs-dir").map(new File(_)).getOrElse(new File(absBase, "outputs"))
+    val frontendDir = argMap.get("frontend-dir").map(new File(_)).getOrElse(defaultFrontend)
     // log_analytics lives at <frontendDir>/../../log_analytics — same layout
     // the wizard's `../../log_analytics/` URL expects.
-    val sqlDir          = argMap.get("sql-dir").map(new File(_))
+    val sqlDir = argMap
+      .get("sql-dir")
+      .map(new File(_))
       .getOrElse(new File(frontendDir, "../../log_analytics").getCanonicalFile)
 
     ServiceConfig(
-      host        = argMap.getOrElse("host", "127.0.0.1"),
-      port        = argMap.get("port").map(_.toInt).getOrElse(8080),
+      host = argMap.getOrElse("host", "127.0.0.1"),
+      port = argMap.get("port").map(_.toInt).getOrElse(8080),
       frontendDir = frontendDir,
-      inputsBase  = inputsBase,
+      inputsBase = inputsBase,
       outputsBase = outputsBase,
-      basePath    = absBase.getAbsolutePath,
-      sqlDir      = sqlDir
+      basePath = absBase.getAbsolutePath,
+      sqlDir = sqlDir
     )
   }
 
@@ -238,7 +240,7 @@ object TunerService {
 
   private def runCli(args: Array[String]): Unit = args.headOption match {
     case Some("single") => ClusterMachineAndRecipeTuner.main(args.drop(1))
-    case Some("auto")   => ClusterMachineAndRecipeAutoTuner.main(args.drop(1))
+    case Some("auto") => ClusterMachineAndRecipeAutoTuner.main(args.drop(1))
     case _ =>
       System.err.println("Usage: --cli single|auto [args...]")
       printHelp()
@@ -293,31 +295,37 @@ object TunerService {
 
     private def serveFile(ex: HttpExchange, target: File): Unit = {
       val mime = mimeFor(target.getName)
-      val len  = target.length()
+      val len = target.length()
       ex.getResponseHeaders.set("Content-Type", mime)
       ex.getResponseHeaders.set("Cache-Control", "no-store")
       ex.sendResponseHeaders(200, len)
       val out = ex.getResponseBody
-      try Files.copy(target.toPath, out) finally out.close()
+      try Files.copy(target.toPath, out)
+      finally out.close()
     }
 
     /**
-     * Mimic python http.server's HTML directory listing — the dashboard's
-     * `parseDirListing` regex (`<a href="…/">`) parses exactly this shape.
+     * Mimic python http.server's HTML directory listing — the dashboard's `parseDirListing` regex (`<a href="…/">`)
+     * parses exactly this shape.
      */
     private def serveDirListing(ex: HttpExchange, dir: File, requestPath: String): Unit = {
       val sb = new StringBuilder
       sb.append("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Index of ")
-        .append(escapeHtmlText(requestPath)).append("</title></head><body><h1>Index of ")
-        .append(escapeHtmlText(requestPath)).append("</h1><hr><ul>")
+        .append(escapeHtmlText(requestPath))
+        .append("</title></head><body><h1>Index of ")
+        .append(escapeHtmlText(requestPath))
+        .append("</h1><hr><ul>")
       val entries = Option(dir.listFiles()).getOrElse(Array.empty[File]).sortBy(_.getName)
       sb.append("<li><a href=\"../\">../</a></li>")
       entries.foreach { f =>
         val name = f.getName
         if (!name.startsWith(".")) {
           val href = if (f.isDirectory) name + "/" else name
-          sb.append("<li><a href=\"").append(escapeHtmlText(href)).append("\">")
-            .append(escapeHtmlText(href)).append("</a></li>")
+          sb.append("<li><a href=\"")
+            .append(escapeHtmlText(href))
+            .append("\">")
+            .append(escapeHtmlText(href))
+            .append("</a></li>")
         }
       }
       sb.append("</ul><hr></body></html>")
@@ -326,7 +334,8 @@ object TunerService {
       ex.getResponseHeaders.set("Cache-Control", "no-store")
       ex.sendResponseHeaders(200, bytes.length.toLong)
       val out = ex.getResponseBody
-      try out.write(bytes) finally out.close()
+      try out.write(bytes)
+      finally out.close()
     }
 
     private def escapeHtmlText(s: String): String =
@@ -335,16 +344,16 @@ object TunerService {
 
   private def mimeFor(name: String): String = name.toLowerCase match {
     case n if n.endsWith(".html") => "text/html; charset=utf-8"
-    case n if n.endsWith(".js")   => "application/javascript; charset=utf-8"
-    case n if n.endsWith(".css")  => "text/css; charset=utf-8"
+    case n if n.endsWith(".js") => "application/javascript; charset=utf-8"
+    case n if n.endsWith(".css") => "text/css; charset=utf-8"
     case n if n.endsWith(".json") => "application/json; charset=utf-8"
-    case n if n.endsWith(".sql")  => "text/plain; charset=utf-8"
-    case n if n.endsWith(".csv")  => "text/csv; charset=utf-8"
-    case n if n.endsWith(".md")   => "text/markdown; charset=utf-8"
-    case n if n.endsWith(".png")  => "image/png"
-    case n if n.endsWith(".svg")  => "image/svg+xml"
-    case n if n.endsWith(".ico")  => "image/x-icon"
-    case _                        => "application/octet-stream"
+    case n if n.endsWith(".sql") => "text/plain; charset=utf-8"
+    case n if n.endsWith(".csv") => "text/csv; charset=utf-8"
+    case n if n.endsWith(".md") => "text/markdown; charset=utf-8"
+    case n if n.endsWith(".png") => "image/png"
+    case n if n.endsWith(".svg") => "image/svg+xml"
+    case n if n.endsWith(".ico") => "image/x-icon"
+    case _ => "application/octet-stream"
   }
 
   // ── API handler ──────────────────────────────────────────────────────────
@@ -354,14 +363,14 @@ object TunerService {
   private final class ApiHandler(cfg: ServiceConfig) extends HttpHandler {
     override def handle(ex: HttpExchange): Unit = withErrorHandling(ex) {
       val method = ex.getRequestMethod.toUpperCase
-      val path   = ex.getRequestURI.getPath
-      val q      = parseQuery(ex.getRequestURI.getRawQuery)
+      val path = ex.getRequestURI.getPath
+      val q = parseQuery(ex.getRequestURI.getRawQuery)
 
       (method, path) match {
-        case ("GET",  "/api/health")  => handleHealth(ex)
-        case ("GET",  "/api/config")  => handleGetConfig(ex)
-        case ("PUT",  "/api/config")  => handlePutConfig(ex)
-        case ("GET",  "/api/inputs")  => handleListInputs(ex)
+        case ("GET", "/api/health") => handleHealth(ex)
+        case ("GET", "/api/config") => handleGetConfig(ex)
+        case ("PUT", "/api/config") => handlePutConfig(ex)
+        case ("GET", "/api/inputs") => handleListInputs(ex)
         case ("POST", p) if p.startsWith("/api/inputs/") && !p.endsWith("/csv") =>
           val date = p.stripPrefix("/api/inputs/").stripSuffix("/")
           handleMkdirInput(ex, date)
@@ -369,11 +378,11 @@ object TunerService {
           val date = p.stripPrefix("/api/inputs/").stripSuffix("/csv").stripSuffix("/")
           handleUploadCsv(ex, date, q.getOrElse("name", ""))
         case ("POST", "/api/runs/single") => handleStartRun(ex, "single")
-        case ("POST", "/api/runs/auto")   => handleStartRun(ex, "auto")
-        case ("GET",  p) if p.startsWith("/api/runs/") && p.endsWith("/log") =>
+        case ("POST", "/api/runs/auto") => handleStartRun(ex, "auto")
+        case ("GET", p) if p.startsWith("/api/runs/") && p.endsWith("/log") =>
           val runId = p.stripPrefix("/api/runs/").stripSuffix("/log").stripSuffix("/")
           handleRunLog(ex, runId, q)
-        case ("GET",  p) if p.startsWith("/api/runs/") =>
+        case ("GET", p) if p.startsWith("/api/runs/") =>
           val runId = p.stripPrefix("/api/runs/").stripSuffix("/")
           handleRunStatus(ex, runId)
         case ("DELETE", p) if p.startsWith("/api/runs/") =>
@@ -389,14 +398,14 @@ object TunerService {
       val m = mutable.LinkedHashMap.empty[String, Any]
       m.put("ok", java.lang.Boolean.TRUE)
       m.put("frontendDir", cfg.frontendDir.getAbsolutePath)
-      m.put("inputsBase",  cfg.inputsBase.getAbsolutePath)
+      m.put("inputsBase", cfg.inputsBase.getAbsolutePath)
       m.put("outputsBase", cfg.outputsBase.getAbsolutePath)
       RunRegistry.active.foreach(r => m.put("activeRunId", r.runId))
       sendJson(ex, 200, JsonIO.stringify(m))
     }
 
     private def handleGetConfig(ex: HttpExchange): Unit = {
-      val baseFile  = new File(cfg.frontendDir, "config.json")
+      val baseFile = new File(cfg.frontendDir, "config.json")
       val localFile = new File(cfg.frontendDir, "config.local.json")
       val merged = mutable.LinkedHashMap.empty[String, Any]
       if (baseFile.isFile) {
@@ -413,13 +422,17 @@ object TunerService {
     }
 
     private def handlePutConfig(ex: HttpExchange): Unit = {
-      val body  = readBody(ex)
-      val patch = try JsonIO.parseObject(body) catch {
-        case e: JsonIO.ParseException => sendJson(ex, 400, errorJson(s"Bad JSON: ${e.getMessage}")); return
-      }
+      val body = readBody(ex)
+      val patch =
+        try JsonIO.parseObject(body)
+        catch {
+          case e: JsonIO.ParseException => sendJson(ex, 400, errorJson(s"Bad JSON: ${e.getMessage}")); return
+        }
       val localFile = new File(cfg.frontendDir, "config.local.json")
-      val current   =
-        if (localFile.isFile) try JsonIO.parseObject(readUtf8(localFile)) catch { case _: Throwable => mutable.LinkedHashMap.empty[String, Any] }
+      val current =
+        if (localFile.isFile)
+          try JsonIO.parseObject(readUtf8(localFile))
+          catch { case _: Throwable => mutable.LinkedHashMap.empty[String, Any] }
         else mutable.LinkedHashMap.empty[String, Any]
       patch.foreach { case (k, v) => current.put(k, v) }
       val out = JsonIO.stringify(current, pretty = true) + "\n"
@@ -432,8 +445,12 @@ object TunerService {
       Option(cfg.inputsBase.listFiles()).getOrElse(Array.empty).filter(_.isDirectory).sortBy(_.getName).foreach { d =>
         val name = d.getName
         if (DateRe.findFirstIn(name).isDefined) {
-          val files = Option(d.listFiles()).getOrElse(Array.empty)
-            .filter(_.isFile).map(_.getName).sorted.toSeq
+          val files = Option(d.listFiles())
+            .getOrElse(Array.empty)
+            .filter(_.isFile)
+            .map(_.getName)
+            .sorted
+            .toSeq
           val entry = mutable.LinkedHashMap.empty[String, Any]
           entry.put("name", name)
           entry.put("files", files)
@@ -458,9 +475,10 @@ object TunerService {
       val dir = new File(cfg.inputsBase, date)
       if (!dir.exists()) dir.mkdirs()
       val target = new File(dir, name).toPath
-      val tmp    = new File(dir, name + ".part").toPath
+      val tmp = new File(dir, name + ".part").toPath
       val in: InputStream = ex.getRequestBody
-      try Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING) finally in.close()
+      try Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING)
+      finally in.close()
       Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
       val resp = mutable.LinkedHashMap[String, Any]("name" -> name, "bytes" -> Files.size(target).asInstanceOf[Any])
       sendJson(ex, 201, JsonIO.stringify(resp))
@@ -468,9 +486,11 @@ object TunerService {
 
     private def handleStartRun(ex: HttpExchange, mode: String): Unit = {
       val body = readBody(ex)
-      val params = try JsonIO.parseObject(body) catch {
-        case e: JsonIO.ParseException => sendJson(ex, 400, errorJson(s"Bad JSON: ${e.getMessage}")); return
-      }
+      val params =
+        try JsonIO.parseObject(body)
+        catch {
+          case e: JsonIO.ParseException => sendJson(ex, 400, errorJson(s"Bad JSON: ${e.getMessage}")); return
+        }
 
       // Validate dates up-front to give a useful error before claiming the gate.
       mode match {
@@ -490,14 +510,17 @@ object TunerService {
           val resp = mutable.LinkedHashMap[String, Any](
             "error" -> "run_in_progress",
             "currentRunId" -> active.runId,
-            "currentMode"  -> active.mode
+            "currentMode" -> active.mode
           )
           sendJson(ex, 409, JsonIO.stringify(resp))
 
         case Right(claimed) =>
-          val t = new Thread(new Runnable {
-            override def run(): Unit = executeRun(claimed, mode, params)
-          }, s"tuner-${claimed.runId}")
+          val t = new Thread(
+            new Runnable {
+              override def run(): Unit = executeRun(claimed, mode, params)
+            },
+            s"tuner-${claimed.runId}"
+          )
           t.setDaemon(true)
           claimed.setRunning(t)
           t.start()
@@ -508,7 +531,7 @@ object TunerService {
     private def handleRunStatus(ex: HttpExchange, runId: String): Unit = {
       RunRegistry.get(runId) match {
         case Some(run) => sendJson(ex, 200, JsonIO.stringify(run.toJsonMap))
-        case None      => sendJson(ex, 404, errorJson(s"No such run: $runId"))
+        case None => sendJson(ex, 404, errorJson(s"No such run: $runId"))
       }
     }
 
@@ -516,8 +539,21 @@ object TunerService {
       RunRegistry.get(runId) match {
         case None => sendJson(ex, 404, errorJson(s"No such run: $runId"))
         case Some(run) =>
-          val since = q.get("since").flatMap(s => try Some(s.toInt) catch { case _: Throwable => None }).getOrElse(0)
-          val waitMs = q.get("waitMs").flatMap(s => try Some(s.toLong) catch { case _: Throwable => None }).getOrElse(8000L).min(25000L)
+          val since = q
+            .get("since")
+            .flatMap(s =>
+              try Some(s.toInt)
+              catch { case _: Throwable => None }
+            )
+            .getOrElse(0)
+          val waitMs = q
+            .get("waitMs")
+            .flatMap(s =>
+              try Some(s.toLong)
+              catch { case _: Throwable => None }
+            )
+            .getOrElse(8000L)
+            .min(25000L)
 
           // Long-poll: if no new lines yet AND run is still running, sleep briefly.
           val deadline = System.currentTimeMillis() + waitMs
@@ -559,8 +595,8 @@ object TunerService {
           run.log.append(s"[run ${run.runId}] mode=$mode params=${JsonIO.stringify(params)}")
           mode match {
             case "single" => runSingle(run, params)
-            case "auto"   => runAuto(run, params)
-            case other    => throw new IllegalArgumentException(s"Unknown mode: $other")
+            case "auto" => runAuto(run, params)
+            case other => throw new IllegalArgumentException(s"Unknown mode: $other")
           }
         }
         run.markDone()
@@ -579,10 +615,10 @@ object TunerService {
     }
 
     private def runSingle(run: RunRegistry.Run, params: collection.Map[String, Any]): Unit = {
-      val date      = JsonIO.str(params, "date")
-      val flat      = JsonIO.boolOpt(params, "flattened").getOrElse(true)
-      val strategy  = JsonIO.strOpt(params, "strategy").flatMap(TuningStrategy.fromName).getOrElse(DefaultTuningStrategy)
-      val topo      = JsonIO.strOpt(params, "topology").flatMap(ExecutorTopologyPreset.fromLabel)
+      val date = JsonIO.str(params, "date")
+      val flat = JsonIO.boolOpt(params, "flattened").getOrElse(true)
+      val strategy = JsonIO.strOpt(params, "strategy").flatMap(TuningStrategy.fromName).getOrElse(DefaultTuningStrategy)
+      val topo = JsonIO.strOpt(params, "topology").flatMap(ExecutorTopologyPreset.fromLabel)
       val effective = wrapTopology(strategy, topo)
 
       // Use applyAt so we feed the resolved inputs/outputs roots from config.
@@ -619,7 +655,8 @@ object TunerService {
       // know topology overrides aren't honoured by AutoTuner today (Phase 1+2 only
       // supports it on the single tuner).
       JsonIO.strOpt(params, "topology").foreach { t =>
-        run.log.append(s"[run] note: --topology=$t is not propagated through AutoTunerConf; the strategy's preset is used.")
+        run.log
+          .append(s"[run] note: --topology=$t is not propagated through AutoTunerConf; the strategy's preset is used.")
       }
 
       run.log.append(s"[run] args: ${args.mkString(" ")}")
@@ -627,27 +664,28 @@ object TunerService {
       ClusterMachineAndRecipeAutoTuner.run(conf)
     }
 
-    private def wrapTopology(base: TuningStrategy, topoOpt: Option[ExecutorTopologyPreset]): TuningStrategy = topoOpt match {
-      case None => base
-      case Some(topo) =>
-        new TuningStrategy {
-          val name                  = s"${base.name}+${topo.label}"
-          val biasMode              = base.biasMode
-          val executorTopology      = topo
-          val machinePreference     = base.machinePreference
-          val quotas                = base.quotas
-          val capHitBoostPct        = base.capHitBoostPct
-          val capHitThreshold       = base.capHitThreshold
-          val preferMaxWorkers      = base.preferMaxWorkers
-          val perWorkerPenaltyPct   = base.perWorkerPenaltyPct
-          val memoryOverheadRatio   = base.memoryOverheadRatio
-          val osAndDaemonsReserveGb = base.osAndDaemonsReserveGb
-          val manualInstancesFrom   = base.manualInstancesFrom
-          val minExecutorInstances  = base.minExecutorInstances
-          val daMinFrom             = base.daMinFrom
-          val daInitialEqualsMin    = base.daInitialEqualsMin
-        }
-    }
+    private def wrapTopology(base: TuningStrategy, topoOpt: Option[ExecutorTopologyPreset]): TuningStrategy =
+      topoOpt match {
+        case None => base
+        case Some(topo) =>
+          new TuningStrategy {
+            val name = s"${base.name}+${topo.label}"
+            val biasMode = base.biasMode
+            val executorTopology = topo
+            val machinePreference = base.machinePreference
+            val quotas = base.quotas
+            val capHitBoostPct = base.capHitBoostPct
+            val capHitThreshold = base.capHitThreshold
+            val preferMaxWorkers = base.preferMaxWorkers
+            val perWorkerPenaltyPct = base.perWorkerPenaltyPct
+            val memoryOverheadRatio = base.memoryOverheadRatio
+            val osAndDaemonsReserveGb = base.osAndDaemonsReserveGb
+            val manualInstancesFrom = base.manualInstancesFrom
+            val minExecutorInstances = base.minExecutorInstances
+            val daMinFrom = base.daMinFrom
+            val daInitialEqualsMin = base.daInitialEqualsMin
+          }
+      }
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -657,7 +695,8 @@ object TunerService {
     catch {
       case e: IOException =>
         // Client disconnected mid-stream, etc. Don't dump to log.
-        try ex.close() catch { case _: Throwable => () }
+        try ex.close()
+        catch { case _: Throwable => () }
       case NonFatal(e) =>
         logger.error(s"Unhandled error in ${ex.getRequestMethod} ${ex.getRequestURI}", e)
         try sendJson(ex, 500, errorJson(s"Server error: ${e.toString}"))
@@ -667,15 +706,19 @@ object TunerService {
 
   private def parseQuery(raw: String): Map[String, String] = {
     if (raw == null || raw.isEmpty) return Map.empty
-    raw.split("&").iterator.flatMap { kv =>
-      val i = kv.indexOf('=')
-      if (i < 0) None
-      else {
-        val k = URLDecoder.decode(kv.substring(0, i), StandardCharsets.UTF_8.name())
-        val v = URLDecoder.decode(kv.substring(i + 1), StandardCharsets.UTF_8.name())
-        Some(k -> v)
+    raw
+      .split("&")
+      .iterator
+      .flatMap { kv =>
+        val i = kv.indexOf('=')
+        if (i < 0) None
+        else {
+          val k = URLDecoder.decode(kv.substring(0, i), StandardCharsets.UTF_8.name())
+          val v = URLDecoder.decode(kv.substring(i + 1), StandardCharsets.UTF_8.name())
+          Some(k -> v)
+        }
       }
-    }.toMap
+      .toMap
   }
 
   private def sendJson(ex: HttpExchange, status: Int, body: String): Unit = {
@@ -684,7 +727,8 @@ object TunerService {
     ex.getResponseHeaders.set("Cache-Control", "no-store")
     ex.sendResponseHeaders(status, bytes.length.toLong)
     val out = ex.getResponseBody
-    try out.write(bytes) finally out.close()
+    try out.write(bytes)
+    finally out.close()
   }
 
   private def sendText(ex: HttpExchange, status: Int, body: String): Unit = {
@@ -692,7 +736,8 @@ object TunerService {
     ex.getResponseHeaders.set("Content-Type", "text/plain; charset=utf-8")
     ex.sendResponseHeaders(status, bytes.length.toLong)
     val out = ex.getResponseBody
-    try out.write(bytes) finally out.close()
+    try out.write(bytes)
+    finally out.close()
   }
 
   private def errorJson(msg: String): String =

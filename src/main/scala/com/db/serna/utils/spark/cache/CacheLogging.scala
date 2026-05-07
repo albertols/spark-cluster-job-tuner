@@ -6,7 +6,8 @@ import org.apache.spark.sql.DataFrame
 import org.slf4j.LoggerFactory
 
 /**
- * Spark listener and helpers that log main.scala.com.db.serna.utils.spark.cache sizes and executor storage/memory usage.
+ * Spark listener and helpers that log main.scala.com.db.serna.utils.spark.cache sizes and executor storage/memory
+ * usage.
  */
 object CacheLogging {
   private val logger = LoggerFactory.getLogger(getClass)
@@ -28,7 +29,10 @@ object CacheLogging {
     logger.info(s"[CacheLogging] \n${report.prettyString}")
   }
 
-  /** Listener that logs block updates (main.scala.com.db.serna.utils.spark.cache puts/evictions) and stage completion summaries. */
+  /**
+   * Listener that logs block updates (main.scala.com.db.serna.utils.spark.cache puts/evictions) and stage completion
+   * summaries.
+   */
   class CacheStorageListener(sc: SparkContext) extends SparkListener {
     private val logger = LoggerFactory.getLogger(getClass)
 

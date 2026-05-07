@@ -6,33 +6,35 @@ import scala.util.Try
 
 /** Parsed representation of a tuned cluster JSON file (auto-scale or manual). */
 final case class TunedClusterConfig(
-                                     rawJson: String,
-                                     clusterName: String,
-                                     clusterConfFields: Seq[(String, String)],
-                                     recipeOrder: Seq[String],
-                                     recipes: Map[String, RecipeConfig]
-                                   )
+    rawJson: String,
+    clusterName: String,
+    clusterConfFields: Seq[(String, String)],
+    recipeOrder: Seq[String],
+    recipes: Map[String, RecipeConfig]
+)
 
 /** Per-recipe Spark configuration extracted from a tuned JSON. */
 final case class RecipeConfig(
-                               parallelizationFactor: Int,
-                               sparkOptsMap: Map[String, String],
-                               totalExecutorMinAllocatedMemoryGb: Int,
-                               totalExecutorMaxAllocatedMemoryGb: Int,
-                               extraFields: Map[String, String]
-                             )
+    parallelizationFactor: Int,
+    sparkOptsMap: Map[String, String],
+    totalExecutorMinAllocatedMemoryGb: Int,
+    totalExecutorMaxAllocatedMemoryGb: Int,
+    extraFields: Map[String, String]
+)
 
 /**
  * Lightweight JSON parser for the machine-generated tuned cluster JSONs.
  *
- * The JSON schema is fixed and well-known (produced by ClusterMachineAndRecipeTuner),
- * so we use targeted regex extraction rather than pulling in a full JSON library.
+ * The JSON schema is fixed and well-known (produced by ClusterMachineAndRecipeTuner), so we use targeted regex
+ * extraction rather than pulling in a full JSON library.
  */
 object SimpleJsonParser {
 
   def parseFile(file: File): TunedClusterConfig = {
     val src = Source.fromFile(file)
-    val raw = try src.mkString finally src.close()
+    val raw =
+      try src.mkString
+      finally src.close()
     parse(raw)
   }
 
@@ -163,7 +165,8 @@ object SimpleJsonParser {
     val numPattern = """"([^"]+)"\s*:\s*(\d+(?:\.\d+)?)""".r
 
     val stringFields = stringPattern.findAllMatchIn(json).map(m => m.group(1) -> m.group(2)).toMap
-    val numFields = numPattern.findAllMatchIn(json)
+    val numFields = numPattern
+      .findAllMatchIn(json)
       .map(m => m.group(1) -> m.group(2))
       .filterNot { case (k, _) => stringFields.contains(k) }
       .toMap

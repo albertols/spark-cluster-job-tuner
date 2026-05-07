@@ -16,7 +16,7 @@ class ParallelismUtilsSpec extends AnyFunSuite with Matchers with SparkTestSessi
     base.repartition(initialPartitions)
   }
 
-  test("getClusterParallelismNum should correctly calculate parallelism or use fallback")  {
+  test("getClusterParallelismNum should correctly calculate parallelism or use fallback") {
     val conf = TestSparkSessionSupport.MinimalLocalConf + ("spark.executor.cores" -> "8")
     TestSparkSessionSupport.withSession(conf) { spark =>
       val result1 = ParallelismUtils.getClusterParallelismNum()(spark)
@@ -81,7 +81,11 @@ class ParallelismUtilsSpec extends AnyFunSuite with Matchers with SparkTestSessi
 
   test("rebalancePartitions multi-column ignores invalid columns but uses valid ones") {
     val df = sampleDF(initialPartitions = 2)
-    val result = ParallelismUtils.rebalancePartitions(df, numPartitions = 6, partitionColumns = Seq("does_not_exist", "grp", "also_missing"))
+    val result = ParallelismUtils.rebalancePartitions(
+      df,
+      numPartitions = 6,
+      partitionColumns = Seq("does_not_exist", "grp", "also_missing")
+    )
     println(s"[PUS] multi with invalid cols -> numPartitions=${result.rdd.getNumPartitions}")
     assert(result.rdd.getNumPartitions === 6)
   }

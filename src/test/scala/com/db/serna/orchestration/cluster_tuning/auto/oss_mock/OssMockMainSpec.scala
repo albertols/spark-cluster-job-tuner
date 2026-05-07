@@ -7,10 +7,9 @@ import java.io.File
 import java.nio.file.Files
 
 /**
- * CLI smoke tests for OssMockMain. The `--full` flag chains the actual tuner
- * + AutoTuner; we deliberately do NOT exercise it here to keep these unit
- * tests fast and side-effect-free. End-to-end coverage of `--full` belongs in
- * a manual / integration smoke run (see _OSS_MOCK.md).
+ * CLI smoke tests for OssMockMain. The `--full` flag chains the actual tuner + AutoTuner; we deliberately do NOT
+ * exercise it here to keep these unit tests fast and side-effect-free. End-to-end coverage of `--full` belongs in a
+ * manual / integration smoke run (see _OSS_MOCK.md).
  */
 class OssMockMainSpec extends AnyFunSuite with Matchers {
 
@@ -39,11 +38,13 @@ class OssMockMainSpec extends AnyFunSuite with Matchers {
 
   test("single-date invocation writes all expected CSVs into <inputs-root>/<date>/") {
     val root = tmpDir()
-    OssMockMain.main(Array(
-      "--date=2099_01_01",
-      "--scenario=baseline",
-      s"--inputs-root=${root.getAbsolutePath}"
-    ))
+    OssMockMain.main(
+      Array(
+        "--date=2099_01_01",
+        "--scenario=baseline",
+        s"--inputs-root=${root.getAbsolutePath}"
+      )
+    )
     val dateDir = new File(root, "2099_01_01")
     dateDir.exists() shouldBe true
     expectedFiles.foreach { name =>
@@ -55,12 +56,14 @@ class OssMockMainSpec extends AnyFunSuite with Matchers {
 
   test("multi-date invocation writes both date directories") {
     val root = tmpDir()
-    OssMockMain.main(Array(
-      "--reference-date=2099_01_01",
-      "--current-date=2099_01_02",
-      "--scenario=multiDateBaseline",
-      s"--inputs-root=${root.getAbsolutePath}"
-    ))
+    OssMockMain.main(
+      Array(
+        "--reference-date=2099_01_01",
+        "--current-date=2099_01_02",
+        "--scenario=multiDateBaseline",
+        s"--inputs-root=${root.getAbsolutePath}"
+      )
+    )
     Seq("2099_01_01", "2099_01_02").foreach { date =>
       val dateDir = new File(root, date)
       withClue(s"missing date dir: $date") { dateDir.exists() shouldBe true }
@@ -75,12 +78,13 @@ class OssMockMainSpec extends AnyFunSuite with Matchers {
   test("seed makes single-date generation byte-deterministic across invocations") {
     val a = tmpDir()
     val b = tmpDir()
-    val args = (root: File) => Array(
-      "--date=2099_01_01",
-      "--scenario=baseline",
-      "--seed=99",
-      s"--inputs-root=${root.getAbsolutePath}"
-    )
+    val args = (root: File) =>
+      Array(
+        "--date=2099_01_01",
+        "--scenario=baseline",
+        "--seed=99",
+        s"--inputs-root=${root.getAbsolutePath}"
+      )
     OssMockMain.main(args(a))
     OssMockMain.main(args(b))
     val nameA = new File(new File(a, "2099_01_01"), "b13_recommendations_inputs_per_recipe_per_cluster.csv")

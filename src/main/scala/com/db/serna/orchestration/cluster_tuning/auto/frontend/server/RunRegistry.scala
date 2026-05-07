@@ -7,28 +7,26 @@ import scala.collection.mutable
 /**
  * In-memory registry for tuner runs.
  *
- *   - Single-run gate: only one run executes at a time. If a second
- *     POST /api/runs/{single,auto} arrives mid-flight, the server returns
- *     409 with the current runId.
+ *   - Single-run gate: only one run executes at a time. If a second POST /api/runs/{single,auto} arrives mid-flight,
+ *     the server returns 409 with the current runId.
  *   - Per-run log buffer (capped) with a `since=N` cursor for long-poll.
  *   - Status enum: Pending → Running → Done | Failed | Cancelled.
  *
- * No disk persistence — restarting the server forgets prior runs. Re-discover
- * via the dashboard's existing `discoverAnalyses()` logic which reads the
- * outputs dir directly.
+ * No disk persistence — restarting the server forgets prior runs. Re-discover via the dashboard's existing
+ * `discoverAnalyses()` logic which reads the outputs dir directly.
  */
 object RunRegistry {
 
   sealed trait Status { def name: String }
-  case object Pending   extends Status { val name = "pending" }
-  case object Running   extends Status { val name = "running" }
-  case object Done      extends Status { val name = "done" }
-  case object Failed    extends Status { val name = "failed" }
+  case object Pending extends Status { val name = "pending" }
+  case object Running extends Status { val name = "running" }
+  case object Done extends Status { val name = "done" }
+  case object Failed extends Status { val name = "failed" }
   case object Cancelled extends Status { val name = "cancelled" }
 
   /** Append-only log buffer with a hard cap. */
   final class LogBuffer(maxLines: Int = 5000) {
-    private val buf  = mutable.ArrayBuffer.empty[String]
+    private val buf = mutable.ArrayBuffer.empty[String]
     private val lock = new Object
     @volatile private var dropped: Int = 0
 
@@ -48,7 +46,7 @@ object RunRegistry {
     /** Read all lines with absolute index >= `since`. Returns (newSince, lines). */
     def readSince(since: Int): (Int, Seq[String]) = lock.synchronized {
       val absStart = math.max(since, dropped)
-      val rel      = absStart - dropped
+      val rel = absStart - dropped
       if (rel >= buf.size) (total, Seq.empty)
       else {
         val out = buf.iterator.slice(rel, buf.size).toVector
@@ -58,14 +56,14 @@ object RunRegistry {
   }
 
   final class Run(
-    val runId: String,
-    val mode: String,                     // "single" | "auto"
-    val params: collection.Map[String, Any],
-    val startedAt: Instant
+      val runId: String,
+      val mode: String, // "single" | "auto"
+      val params: collection.Map[String, Any],
+      val startedAt: Instant
   ) {
     val log: LogBuffer = new LogBuffer()
-    private val statusRef    = new AtomicReference[Status](Pending)
-    private val errorRef     = new AtomicReference[Option[String]](None)
+    private val statusRef = new AtomicReference[Status](Pending)
+    private val errorRef = new AtomicReference[Option[String]](None)
     private val finishedAtRef = new AtomicReference[Option[Instant]](None)
     @volatile private var threadOpt: Option[Thread] = None
 
@@ -107,9 +105,9 @@ object RunRegistry {
 
   // ── Registry state ────────────────────────────────────────────────────────
 
-  private val runs       = new java.util.concurrent.ConcurrentHashMap[String, Run]()
-  private val activeRef  = new AtomicReference[Option[Run]](None)
-  private val seq        = new AtomicInteger(0)
+  private val runs = new java.util.concurrent.ConcurrentHashMap[String, Run]()
+  private val activeRef = new AtomicReference[Option[Run]](None)
+  private val seq = new AtomicInteger(0)
 
   def active: Option[Run] = activeRef.get()
   def get(runId: String): Option[Run] = Option(runs.get(runId))
@@ -137,7 +135,8 @@ object RunRegistry {
 
   private def newRunId(mode: String): String = {
     val n = seq.incrementAndGet()
-    val ts = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
+    val ts = java.time.format.DateTimeFormatter
+      .ofPattern("yyyyMMdd_HHmmss")
       .withZone(java.time.ZoneOffset.UTC)
       .format(Instant.now())
     s"$mode-$ts-$n"

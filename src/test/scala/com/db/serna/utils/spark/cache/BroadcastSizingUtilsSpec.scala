@@ -32,7 +32,9 @@ class BroadcastSizingUtilsSpec extends AnyFunSuite {
       val ssStable = spark
       import ssStable.implicits._
 
-      val df = spark.range(0, 100000).toDF("id")
+      val df = spark
+        .range(0, 100000)
+        .toDF("id")
         .withColumn("s", org.apache.spark.sql.functions.concat(org.apache.spark.sql.functions.lit("name_"), $"id"))
 
       val report = BroadcastSizingUtils.broadcastMemoryPlanReportFromDataFrame(

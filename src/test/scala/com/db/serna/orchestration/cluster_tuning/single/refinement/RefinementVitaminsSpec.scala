@@ -1,6 +1,13 @@
 package com.db.serna.orchestration.cluster_tuning.single.refinement
 
-import com.db.serna.orchestration.cluster_tuning.single.refinement.{MemoryHeapBoost, MemoryHeapBoostVitamin, MemoryHeapOomSignal, RecipeConfig, RecipeResolver, VitaminSignal}
+import com.db.serna.orchestration.cluster_tuning.single.refinement.{
+  MemoryHeapBoost,
+  MemoryHeapBoostVitamin,
+  MemoryHeapOomSignal,
+  RecipeConfig,
+  RecipeResolver,
+  VitaminSignal
+}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
@@ -42,10 +49,18 @@ class RefinementVitaminsSpec extends AnyFunSuite with Matchers {
     csvFile.deleteOnExit()
     val pw = new PrintWriter(csvFile)
     try {
-      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
-      pw.println("job-1,cluster-a,_ETL_recipe_A.json,2026-04-12T13:00:00Z,ERROR,some.Class,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,Java heap space,driver")
-      pw.println("job-2,cluster-b,_ETL_recipe_B.json,2026-04-12T14:00:00Z,ERROR,some.Class,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,Java heap space,driver")
-      pw.println("job-3,cluster-a,_ETL_recipe_C.json,2026-04-12T15:00:00Z,ERROR,some.Class,java.lang.StackOverflowError,FALSE,TRUE,FALSE,Stack overflow,driver")
+      pw.println(
+        "job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name"
+      )
+      pw.println(
+        "job-1,cluster-a,_ETL_recipe_A.json,2026-04-12T13:00:00Z,ERROR,some.Class,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,Java heap space,driver"
+      )
+      pw.println(
+        "job-2,cluster-b,_ETL_recipe_B.json,2026-04-12T14:00:00Z,ERROR,some.Class,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,Java heap space,driver"
+      )
+      pw.println(
+        "job-3,cluster-a,_ETL_recipe_C.json,2026-04-12T15:00:00Z,ERROR,some.Class,java.lang.StackOverflowError,FALSE,TRUE,FALSE,Stack overflow,driver"
+      )
     } finally pw.close()
 
     val signals = vitamin.loadSignals(tmpDir, "cluster-a")
@@ -62,8 +77,12 @@ class RefinementVitaminsSpec extends AnyFunSuite with Matchers {
     csvFile.deleteOnExit()
     val pw = new PrintWriter(csvFile)
     try {
-      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
-      pw.println("etl-m-dq3-ods-f-gr-garantia-20260411-0438,cluster-a,,2026-04-11T02:59:10Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver")
+      pw.println(
+        "job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name"
+      )
+      pw.println(
+        "etl-m-dq3-ods-f-gr-garantia-20260411-0438,cluster-a,,2026-04-11T02:59:10Z,ERROR,main,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,OOM,driver"
+      )
     } finally pw.close()
 
     val signals = vitamin.loadSignals(tmpDir, "cluster-a")
@@ -85,8 +104,12 @@ class RefinementVitaminsSpec extends AnyFunSuite with Matchers {
     csvFile.deleteOnExit()
     val pw = new PrintWriter(csvFile)
     try {
-      pw.println("job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name")
-      pw.println("job-1,cluster-b,_ETL_recipe_B.json,2026-04-12T14:00:00Z,ERROR,some.Class,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,Java heap space,driver")
+      pw.println(
+        "job_id,cluster_name,recipe_filename,latest_driver_log_ts,latest_driver_log_severity,latest_driver_log_class,latest_driver_exception_type,is_lost_task,is_stack_overflow,is_java_heap,latest_driver_message,log_name"
+      )
+      pw.println(
+        "job-1,cluster-b,_ETL_recipe_B.json,2026-04-12T14:00:00Z,ERROR,some.Class,java.lang.OutOfMemoryError,FALSE,FALSE,TRUE,Java heap space,driver"
+      )
     } finally pw.close()
 
     vitamin.loadSignals(tmpDir, "cluster-a") shouldBe empty
@@ -169,8 +192,8 @@ class RefinementVitaminsSpec extends AnyFunSuite with Matchers {
     )
     val result = vitamin.applyBoosts(boosts, sampleRecipes)
     val rc = result("_ETL_recipe_A.json")
-    rc.totalExecutorMinAllocatedMemoryGb shouldBe 24   // 2 min executors x 12g
-    rc.totalExecutorMaxAllocatedMemoryGb shouldBe 60   // 5 max executors x 12g
+    rc.totalExecutorMinAllocatedMemoryGb shouldBe 24 // 2 min executors x 12g
+    rc.totalExecutorMaxAllocatedMemoryGb shouldBe 60 // 5 max executors x 12g
   }
 
   test("applyBoosts: recomputes total memory fields for manual recipe") {
@@ -179,8 +202,8 @@ class RefinementVitaminsSpec extends AnyFunSuite with Matchers {
     )
     val result = vitamin.applyBoosts(boosts, sampleRecipes)
     val rc = result("_ETL_recipe_B.json")
-    rc.totalExecutorMinAllocatedMemoryGb shouldBe 36   // 3 instances x 12g
-    rc.totalExecutorMaxAllocatedMemoryGb shouldBe 36   // 3 instances x 12g
+    rc.totalExecutorMinAllocatedMemoryGb shouldBe 36 // 3 instances x 12g
+    rc.totalExecutorMaxAllocatedMemoryGb shouldBe 36 // 3 instances x 12g
   }
 
   test("applyBoosts: does not modify unaffected recipes") {
@@ -277,8 +300,20 @@ class RefinementVitaminsSpec extends AnyFunSuite with Matchers {
 
   test("RecipeResolver: resolves empty recipe via sibling lookup") {
     val signals: Seq[VitaminSignal] = Seq(
-      MemoryHeapOomSignal("cluster-a", "", "etl-m-dwh-d-otros-bienes-po-update-20260410-0517", "2026-04-10T07:18:46Z", "OOM"),
-      MemoryHeapOomSignal("cluster-a", "_ETL_m_DWH_D_OTROS_BIENES_PO_UPDATE.json", "etl-m-dwh-d-otros-bienes-po-update-20260409-0514", "2026-04-09T07:16:05Z", "OOM")
+      MemoryHeapOomSignal(
+        "cluster-a",
+        "",
+        "etl-m-dwh-d-otros-bienes-po-update-20260410-0517",
+        "2026-04-10T07:18:46Z",
+        "OOM"
+      ),
+      MemoryHeapOomSignal(
+        "cluster-a",
+        "_ETL_m_DWH_D_OTROS_BIENES_PO_UPDATE.json",
+        "etl-m-dwh-d-otros-bienes-po-update-20260409-0514",
+        "2026-04-09T07:16:05Z",
+        "OOM"
+      )
     )
     val (resolved, unresolved) = RecipeResolver.resolve(signals, recipeNames)
     resolved should have size 2
@@ -335,7 +370,13 @@ class RefinementVitaminsSpec extends AnyFunSuite with Matchers {
     // Resolution happens in RefinementPipeline.refine(), not in computeBoosts.
     // Here we pass an already-resolved signal to verify boost computation.
     val signals = Seq(
-      MemoryHeapOomSignal("cluster-a", "_ETL_m_DQ3_ODS_F_GR_GARANTIA.json", "etl-m-dq3-ods-f-gr-garantia-20260411-0438", "2026-04-11T02:59:10Z", "OOM")
+      MemoryHeapOomSignal(
+        "cluster-a",
+        "_ETL_m_DQ3_ODS_F_GR_GARANTIA.json",
+        "etl-m-dq3-ods-f-gr-garantia-20260411-0438",
+        "2026-04-11T02:59:10Z",
+        "OOM"
+      )
     )
     val boosts = vitamin.computeBoosts(signals, resolverRecipes)
     boosts should have size 1

@@ -2,10 +2,9 @@ package com.db.serna.orchestration.cluster_tuning.auto
 
 import com.db.serna.orchestration.cluster_tuning.single.RecipeMetrics
 
-
 /**
- * Classifies performance trends for (cluster, recipe) pairs by comparing
- * reference and current metrics. Uses configurable thresholds for classification.
+ * Classifies performance trends for (cluster, recipe) pairs by comparing reference and current metrics. Uses
+ * configurable thresholds for classification.
  */
 object TrendDetector {
 

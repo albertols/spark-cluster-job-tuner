@@ -119,9 +119,14 @@ class SimpleJsonParserSpec extends AnyFunSuite with Matchers {
     val config = SimpleJsonParser.parse(sampleAutoScaleJson)
     val keys = config.clusterConfFields.map(_._1)
     keys shouldBe Seq(
-      "num_workers", "master_machine_type", "worker_machine_type",
-      "autoscaling_policy", "tuner_version", "total_no_of_jobs",
-      "cluster_max_total_memory_gb", "cluster_max_total_cores",
+      "num_workers",
+      "master_machine_type",
+      "worker_machine_type",
+      "autoscaling_policy",
+      "tuner_version",
+      "total_no_of_jobs",
+      "cluster_max_total_memory_gb",
+      "cluster_max_total_cores",
       "accumulated_max_total_memory_per_jobs_gb"
     )
   }
@@ -130,7 +135,7 @@ class SimpleJsonParserSpec extends AnyFunSuite with Matchers {
 
   test("parse extracts all recipe filenames from auto-scale JSON") {
     val config = SimpleJsonParser.parse(sampleAutoScaleJson)
-    config.recipes.keys should contain allOf(
+    config.recipes.keys should contain allOf (
       "_ETL_m_DQ3_ODS_TGL05.json",
       "_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json"
     )

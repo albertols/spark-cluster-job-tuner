@@ -190,18 +190,18 @@ class ClusterDiagnosticsSpec extends AnyFunSuite with Matchers {
 
   test("parseMachineName round-trips family/variant/cores for all families") {
     val cases = Seq(
-      ("n2-standard-32",  "n2",  "standard", 32),
-      ("n2d-highmem-48",  "n2d", "highmem",  48),
-      ("e2-highcpu-8",    "e2",  "highcpu",   8),
-      ("c3-standard-44",  "c3",  "standard", 44),
-      ("c4-highmem-96",   "c4",  "highmem",  96)
+      ("n2-standard-32", "n2", "standard", 32),
+      ("n2d-highmem-48", "n2d", "highmem", 48),
+      ("e2-highcpu-8", "e2", "highcpu", 8),
+      ("c3-standard-44", "c3", "standard", 44),
+      ("c4-highmem-96", "c4", "highmem", 96)
     )
     cases.foreach { case (name, expectedFamily, expectedVariant, expectedCores) =>
       val (family, variant, cores) = ClusterDiagnosticsProcessor.parseMachineName(name)
       withClue(s"parsing '$name': ") {
-        family  shouldBe expectedFamily
+        family shouldBe expectedFamily
         variant shouldBe expectedVariant
-        cores   shouldBe expectedCores
+        cores shouldBe expectedCores
       }
     }
   }

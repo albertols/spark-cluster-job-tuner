@@ -12,17 +12,16 @@ import java.util.concurrent.atomic.{AtomicInteger, AtomicLong}
 import scala.jdk.CollectionConverters._
 
 /**
- *
  * // References:
- *  - Spark Configuration: https://spark.apache.org/docs/latest/configuration.html
- *  - Memory Management Overview: https://spark.apache.org/docs/latest/tuning.html#memory-management-overview
- *  This listener’s telemetry fields (executor_onheap_memory_mb, memory_overhead, unified region, execution/storage budgets, off-heap)
- *  directly reflect Spark’s unified memory manager model and YARN/Dataproc memory overhead semantics.
- *  See _PARALLELISM.md in this package for more guidance.
+ *   - Spark Configuration: https://spark.apache.org/docs/latest/configuration.html
+ *   - Memory Management Overview: https://spark.apache.org/docs/latest/tuning.html#memory-management-overview This
+ *     listener’s telemetry fields (executor_onheap_memory_mb, memory_overhead, unified region, execution/storage
+ *     budgets, off-heap) directly reflect Spark’s unified memory manager model and YARN/Dataproc memory overhead
+ *     semantics. See _PARALLELISM.md in this package for more guidance.
  *
  * Features:
- *   - Emits a synthetic application_start event at construction time (using SparkContext.startTime) so that late registration still produces an
- *     application_start record.
+ *   - Emits a synthetic application_start event at construction time (using SparkContext.startTime) so that late
+ *     registration still produces an application_start record.
  *   - Avoids duplicate application_start if onApplicationStart is later received.
  *   - Tracks executor add/remove events, min/max/current counts.
  *   - Emits application_end and application_summary.
@@ -31,44 +30,46 @@ import scala.jdk.CollectionConverters._
  *
  * Memory telemetry:
  *   - Logs per-executor on-heap memory (spark.executor.memory).
- *   - Logs effective executor memory overhead (YARN or generic overhead if set; else factor-based estimate with a floor).
- *   - Logs on-heap unified region sizing derived from spark.memory.fraction and storage/exec initial budgets from spark.memory.storageFraction.
+ *   - Logs effective executor memory overhead (YARN or generic overhead if set; else factor-based estimate with a
+ *     floor).
+ *   - Logs on-heap unified region sizing derived from spark.memory.fraction and storage/exec initial budgets from
+ *     spark.memory.storageFraction.
  *   - Logs off-heap enablement and size; includes off-heap in budgeting when enabled.
  *   - Provides totals across all executors and total execution/storage budgets.
  *
  * Dynamic-occupancy (unified memory manager) summary:
  *   - Spark reserves a unified region of the executor heap: onHeapUnified = executorOnHeap * spark.memory.fraction.
- *   - Within that region, initial partitions are:
- *       initialExecution = onHeapUnified * (1 - spark.memory.storageFraction)
- *       initialStorage   = onHeapUnified * spark.memory.storageFraction
- *   - The boundary is SOFT:
- *       * Execution can grow by evicting cached storage blocks (storage is LRU-evictable) when it needs space.
- *       * Storage can temporarily borrow unused execution space, but cannot evict execution memory.
+ *   - Within that region, initial partitions are: initialExecution = onHeapUnified * (1 - spark.memory.storageFraction)
+ *     initialStorage = onHeapUnified * spark.memory.storageFraction
+ *   - The boundary is SOFT: * Execution can grow by evicting cached storage blocks (storage is LRU-evictable) when it
+ *     needs space. * Storage can temporarily borrow unused execution space, but cannot evict execution memory.
  *   - If off-heap is enabled (spark.memory.offHeap.enabled), a separate off-heap unified region is used similarly.
  *
  * Dataproc/YARN specifics:
  *   - Prefer spark.yarn.executor.memoryOverhead for executor container headroom.
  *   - If not set, spark.executor.memoryOverhead may be honored.
  *   - If neither is set, Spark defaults to max(384 MB, 0.10 * spark.executor.memory).
- *   - Ensure memory overhead is sufficient to cover off-heap (spark.memory.offHeap.size) and native/Netty/mmap usage to avoid container OOM.
+ *   - Ensure memory overhead is sufficient to cover off-heap (spark.memory.offHeap.size) and native/Netty/mmap usage to
+ *     avoid container OOM.
  *
  * Usage: val listener = new ExecutorTrackingListener spark.sparkContext.addSparkListener(listener)
  *
  * @param sparkSession
- * SparkSession (required for fallback application start and cores lookup if desired).
+ *   SparkSession (required for fallback application start and cores lookup if desired).
  * @param repartitionFactor
- * Base factor for calculating recommended repartition count (multiplied by current executors and cores per executor).
+ *   Base factor for calculating recommended repartition count (multiplied by current executors and cores per executor).
  * @param eventTypeFamily
- * event_type_family field value for all emitted JSON records. E.g: "DWH-REPLICATOR", "SCALAMATICA-ODS-NAR-ID", "SCALAMATICA-DWH-BUSINESS-DOMAIN"
+ *   event_type_family field value for all emitted JSON records. E.g: "DWH-REPLICATOR", "SCALAMATICA-ODS-NAR-ID",
+ *   "SCALAMATICA-DWH-BUSINESS-DOMAIN"
  * @param baseContext
- * static contextual fields (e.g. pipelineId, submissionId) merged into each JSON record.
+ *   static contextual fields (e.g. pipelineId, submissionId) merged into each JSON record.
  */
 class ExecutorTrackingListener(
-                                sparkSession: SparkSession,
-                                repartitionFactor: Int = 5,
-                                eventTypeFamily: String,
-                                baseContext: Map[String, String] = Map.empty
-                              ) extends SparkListener {
+    sparkSession: SparkSession,
+    repartitionFactor: Int = 5,
+    eventTypeFamily: String,
+    baseContext: Map[String, String] = Map.empty
+) extends SparkListener {
 
   private val log: Logger = LoggerFactory.getLogger(getClass.getName)
 
@@ -78,7 +79,10 @@ class ExecutorTrackingListener(
 
   // Executor counts
   private val initialExecutorCount = math.max(0, ParallelismUtils.currentExecutorCount(sparkSession))
-  private val currentExecutors = new AtomicInteger(initialExecutorCount) // to be replaced with ParallelismUtils.currentExecutorCount(sparkSession) ???
+  private val currentExecutors =
+    new AtomicInteger(
+      initialExecutorCount
+    ) // to be replaced with ParallelismUtils.currentExecutorCount(sparkSession) ???
   private val maxExecutorsSeen = new AtomicInteger(0)
   private val minExecutorsSeen = new AtomicInteger(Int.MaxValue)
 
@@ -93,7 +97,7 @@ class ExecutorTrackingListener(
 
   // constant for tracking status changes (added, removed, application_end)
   val executorStatus = "executor_status"
-  val executorAdded =  "EXECUTOR_ADDED"
+  val executorAdded = "EXECUTOR_ADDED"
   val executorRemoved = "EXECUTOR_REMOVED"
   val executorFinalStatus = "EXECUTOR_FINAL_STATUS"
 
@@ -144,8 +148,10 @@ class ExecutorTrackingListener(
         Seq(
           "executor_event" -> executorFinalStatus,
           "total_no_executors" -> currentExecutors.get(),
-          "current_no_executors" -> ParallelismUtils.currentExecutorCount(sparkSession), // INTERIM: check against total_no_executors
-          "total_no_cores"  -> ParallelismUtils.totalExecutorCores(sparkSession)
+          "current_no_executors" -> ParallelismUtils.currentExecutorCount(
+            sparkSession
+          ), // INTERIM: check against total_no_executors
+          "total_no_cores" -> ParallelismUtils.totalExecutorCores(sparkSession)
         ) ++ memoryTelemetryFields // Memory metrics appended
       )
     }
@@ -163,9 +169,11 @@ class ExecutorTrackingListener(
           "executor_id" -> e.executorId,
           "executor_host" -> e.executorInfo.executorHost,
           "executor_total_cores" -> e.executorInfo.totalCores,
-          "total_no_cores"  -> ParallelismUtils.totalExecutorCores(sparkSession),
+          "total_no_cores" -> ParallelismUtils.totalExecutorCores(sparkSession),
           "total_no_executors" -> nowCount,
-          "current_no_executors" -> ParallelismUtils.currentExecutorCount(sparkSession), // INTERIM: check against total_no_executors
+          "current_no_executors" -> ParallelismUtils.currentExecutorCount(
+            sparkSession
+          ), // INTERIM: check against total_no_executors
           "timestamp_iso" -> iso(e.time),
           "max_executors_seen" -> maxExecutorsSeen.get(),
           "min_executors_seen" -> effectiveMin()
@@ -185,9 +193,11 @@ class ExecutorTrackingListener(
           "executor_event" -> executorRemoved,
           "executor_id" -> e.executorId,
           "removed_reason" -> e.reason,
-          "total_no_cores"  -> ParallelismUtils.totalExecutorCores(sparkSession),
+          "total_no_cores" -> ParallelismUtils.totalExecutorCores(sparkSession),
           "total_no_executors" -> nowCount,
-          "current_no_executors" -> ParallelismUtils.currentExecutorCount(sparkSession), // INTERIM: check against total_no_executors
+          "current_no_executors" -> ParallelismUtils.currentExecutorCount(
+            sparkSession
+          ), // INTERIM: check against total_no_executors
           "timestamp_iso" -> iso(e.time),
           "max_executors_seen" -> maxExecutorsSeen.get(),
           "min_executors_seen" -> effectiveMin()
@@ -201,9 +211,9 @@ class ExecutorTrackingListener(
 
   /* ===== Logging Helper ===== */
   private def logJson(
-                       eventType: String,
-                       dynamicFields: Seq[(String, Any)]
-                     ): Unit = {
+      eventType: String,
+      dynamicFields: Seq[(String, Any)]
+  ): Unit = {
     val sb = new StringBuilder
     sb.append("{")
     // event_type first

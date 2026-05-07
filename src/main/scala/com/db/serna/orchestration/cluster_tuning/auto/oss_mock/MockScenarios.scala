@@ -6,18 +6,15 @@ import java.time.temporal.ChronoUnit
 /**
  * Prebuilt mock scenarios, parameterised by date (and optional seed).
  *
- * Naming convention is deliberately fake: `mock-cluster-NNN` and
- * `mock-recipe-<word>.json`. This makes synthetic vs real data unambiguous
- * when grepping logs and CSVs.
+ * Naming convention is deliberately fake: `mock-cluster-NNN` and `mock-recipe-<word>.json`. This makes synthetic vs
+ * real data unambiguous when grepping logs and CSVs.
  *
- * Each scenario sets its window to `[date 00:00 UTC, +24h)` so the output is
- * reproducible across machines (no dependency on "now"). All incarnation
- * spans and autoscaler events are placed strictly within that window.
+ * Each scenario sets its window to `[date 00:00 UTC, +24h)` so the output is reproducible across machines (no
+ * dependency on "now"). All incarnation spans and autoscaler events are placed strictly within that window.
  *
- * The `multiDateBaseline` factory derives a second-day scenario from the
- * baseline with controlled drift (recipe duration nudges, one cluster
- * dropped, one new cluster added), so the AutoTuner produces non-trivial
- * trends / correlations / divergences for the frontend dashboard.
+ * The `multiDateBaseline` factory derives a second-day scenario from the baseline with controlled drift (recipe
+ * duration nudges, one cluster dropped, one new cluster added), so the AutoTuner produces non-trivial trends /
+ * correlations / divergences for the frontend dashboard.
  */
 object MockScenarios {
 
@@ -25,8 +22,10 @@ object MockScenarios {
   def windowFor(dateYYYYMMDD: String): (Instant, Instant) = {
     require(dateYYYYMMDD.matches("\\d{4}_\\d{2}_\\d{2}"), s"date must be YYYY_MM_DD: $dateYYYYMMDD")
     val parts = dateYYYYMMDD.split("_")
-    val start = LocalDate.of(parts(0).toInt, parts(1).toInt, parts(2).toInt)
-      .atStartOfDay(ZoneOffset.UTC).toInstant
+    val start = LocalDate
+      .of(parts(0).toInt, parts(1).toInt, parts(2).toInt)
+      .atStartOfDay(ZoneOffset.UTC)
+      .toInstant
     (start, start.plus(24, ChronoUnit.HOURS))
   }
 
@@ -35,44 +34,44 @@ object MockScenarios {
 
   private def recipeLight(name: String): MockRecipe = MockRecipe(
     name = name,
-    avgExecutorsPerJob   = 2.0,
-    p95RunMaxExecutors   = 4.0,
-    avgJobDurationMs     = 60000.0,
-    p95JobDurationMs     = 90000.0,
-    runs                 = 50L,
-    secondsAtCap         = Some(0L),
-    runsReachingCap      = Some(0L),
-    totalRuns            = Some(50L),
-    fractionReachingCap  = Some(0.0),
-    maxConcurrentJobs    = Some(2)
+    avgExecutorsPerJob = 2.0,
+    p95RunMaxExecutors = 4.0,
+    avgJobDurationMs = 60000.0,
+    p95JobDurationMs = 90000.0,
+    runs = 50L,
+    secondsAtCap = Some(0L),
+    runsReachingCap = Some(0L),
+    totalRuns = Some(50L),
+    fractionReachingCap = Some(0.0),
+    maxConcurrentJobs = Some(2)
   )
 
   private def recipeMedium(name: String): MockRecipe = MockRecipe(
     name = name,
-    avgExecutorsPerJob   = 6.0,
-    p95RunMaxExecutors   = 12.0,
-    avgJobDurationMs     = 5 * 60000.0,
-    p95JobDurationMs     = 8 * 60000.0,
-    runs                 = 20L,
-    secondsAtCap         = Some(120L),
-    runsReachingCap      = Some(2L),
-    totalRuns            = Some(20L),
-    fractionReachingCap  = Some(0.10),
-    maxConcurrentJobs    = Some(4)
+    avgExecutorsPerJob = 6.0,
+    p95RunMaxExecutors = 12.0,
+    avgJobDurationMs = 5 * 60000.0,
+    p95JobDurationMs = 8 * 60000.0,
+    runs = 20L,
+    secondsAtCap = Some(120L),
+    runsReachingCap = Some(2L),
+    totalRuns = Some(20L),
+    fractionReachingCap = Some(0.10),
+    maxConcurrentJobs = Some(4)
   )
 
   private def recipeHeavy(name: String): MockRecipe = MockRecipe(
     name = name,
-    avgExecutorsPerJob   = 16.0,
-    p95RunMaxExecutors   = 28.0,
-    avgJobDurationMs     = 30 * 60000.0,
-    p95JobDurationMs     = 50 * 60000.0,
-    runs                 = 5L,
-    secondsAtCap         = Some(600L),
-    runsReachingCap      = Some(3L),
-    totalRuns            = Some(5L),
-    fractionReachingCap  = Some(0.60),
-    maxConcurrentJobs    = Some(2)
+    avgExecutorsPerJob = 16.0,
+    p95RunMaxExecutors = 28.0,
+    avgJobDurationMs = 30 * 60000.0,
+    p95JobDurationMs = 50 * 60000.0,
+    runs = 5L,
+    secondsAtCap = Some(600L),
+    runsReachingCap = Some(3L),
+    totalRuns = Some(5L),
+    fractionReachingCap = Some(0.60),
+    maxConcurrentJobs = Some(2)
   )
 
   // ── minimal — 1 cluster, 2 recipes, no diagnostics, no autoscaler ─────────
@@ -80,9 +79,9 @@ object MockScenarios {
   def minimal(date: String, seed: Long = 1234L): MockScenario = {
     val (start, end) = windowFor(date)
     MockScenario(
-      name     = "minimal",
-      seed     = seed,
-      window   = (start, end),
+      name = "minimal",
+      seed = seed,
+      window = (start, end),
       clusters = Seq(
         MockCluster(
           name = "mock-cluster-001",
@@ -93,7 +92,7 @@ object MockScenarios {
           incarnations = Seq(
             MockIncarnation(
               spanStart = start.plus(2, ChronoUnit.HOURS),
-              spanEnd   = start.plus(20, ChronoUnit.HOURS)
+              spanEnd = start.plus(20, ChronoUnit.HOURS)
             )
           )
         )
@@ -106,8 +105,8 @@ object MockScenarios {
   def baseline(date: String, seed: Long = 1234L): MockScenario = {
     val (start, end) = windowFor(date)
     MockScenario(
-      name   = "baseline",
-      seed   = seed,
+      name = "baseline",
+      seed = seed,
       window = (start, end),
       clusters = Seq(
         MockCluster(
@@ -119,19 +118,23 @@ object MockScenarios {
           incarnations = Seq(
             MockIncarnation(
               spanStart = start.plus(1, ChronoUnit.HOURS),
-              spanEnd   = start.plus(7, ChronoUnit.HOURS),
-              autoscaler = Some(MockAutoscalerProfile(
-                minPrimary = 2, maxPrimary = 6, initialPrimary = 2,
-                schedule = Seq((600L, 4), (3000L, 6), (10800L, 4), (18000L, 2))
-              ))
+              spanEnd = start.plus(7, ChronoUnit.HOURS),
+              autoscaler = Some(
+                MockAutoscalerProfile(
+                  minPrimary = 2,
+                  maxPrimary = 6,
+                  initialPrimary = 2,
+                  schedule = Seq((600L, 4), (3000L, 6), (10800L, 4), (18000L, 2))
+                )
+              )
             )
           ),
           driverExitCodes = Seq(
             MockExitCode(
-              jobId    = "mock-job-001a",
-              ts       = start.plus(2, ChronoUnit.HOURS),
+              jobId = "mock-job-001a",
+              ts = start.plus(2, ChronoUnit.HOURS),
               exitCode = 1,
-              msg      = "synthetic non-zero exit"
+              msg = "synthetic non-zero exit"
             )
           )
         ),
@@ -145,7 +148,7 @@ object MockScenarios {
           incarnations = Seq(
             MockIncarnation(
               spanStart = start.plus(3, ChronoUnit.HOURS),
-              spanEnd   = start.plus(11, ChronoUnit.HOURS)
+              spanEnd = start.plus(11, ChronoUnit.HOURS)
             )
           )
         ),
@@ -157,11 +160,15 @@ object MockScenarios {
           incarnations = Seq(
             MockIncarnation(
               spanStart = start.plus(5, ChronoUnit.HOURS),
-              spanEnd   = start.plus(18, ChronoUnit.HOURS),
-              autoscaler = Some(MockAutoscalerProfile(
-                minPrimary = 4, maxPrimary = 16, initialPrimary = 4,
-                schedule = Seq((900L, 8), (1800L, 12), (5400L, 16), (28800L, 8), (39600L, 4))
-              ))
+              spanEnd = start.plus(18, ChronoUnit.HOURS),
+              autoscaler = Some(
+                MockAutoscalerProfile(
+                  minPrimary = 4,
+                  maxPrimary = 16,
+                  initialPrimary = 4,
+                  schedule = Seq((900L, 8), (1800L, 12), (5400L, 16), (28800L, 8), (39600L, 4))
+                )
+              )
             )
           )
         ),
@@ -177,19 +184,27 @@ object MockScenarios {
           incarnations = Seq(
             MockIncarnation(
               spanStart = start.plus(2, ChronoUnit.HOURS),
-              spanEnd   = start.plus(6, ChronoUnit.HOURS),
-              autoscaler = Some(MockAutoscalerProfile(
-                minPrimary = 2, maxPrimary = 6, initialPrimary = 2,
-                schedule = Seq((300L, 4), (1800L, 6), (10800L, 4))
-              ))
+              spanEnd = start.plus(6, ChronoUnit.HOURS),
+              autoscaler = Some(
+                MockAutoscalerProfile(
+                  minPrimary = 2,
+                  maxPrimary = 6,
+                  initialPrimary = 2,
+                  schedule = Seq((300L, 4), (1800L, 6), (10800L, 4))
+                )
+              )
             ),
             MockIncarnation(
               spanStart = start.plus(14, ChronoUnit.HOURS),
-              spanEnd   = start.plus(22, ChronoUnit.HOURS),
-              autoscaler = Some(MockAutoscalerProfile(
-                minPrimary = 2, maxPrimary = 8, initialPrimary = 2,
-                schedule = Seq((600L, 5), (3600L, 8), (18000L, 4), (25200L, 2))
-              ))
+              spanEnd = start.plus(22, ChronoUnit.HOURS),
+              autoscaler = Some(
+                MockAutoscalerProfile(
+                  minPrimary = 2,
+                  maxPrimary = 8,
+                  initialPrimary = 2,
+                  schedule = Seq((600L, 5), (3600L, 8), (18000L, 4), (25200L, 2))
+                )
+              )
             )
           )
         )
@@ -204,56 +219,56 @@ object MockScenarios {
     val recipeA = recipeHeavy("mock-recipe-oom-prone.json")
     val recipeB = recipeMedium("mock-recipe-stable.json")
     MockScenario(
-      name   = "oomHeavy",
-      seed   = seed,
+      name = "oomHeavy",
+      seed = seed,
       window = (start, end),
       clusters = Seq(
         MockCluster(
-          name         = "mock-cluster-oom-001",
-          recipes      = Seq(recipeA, recipeB),
+          name = "mock-cluster-oom-001",
+          recipes = Seq(recipeA, recipeB),
           incarnations = Seq(MockIncarnation(start.plus(1, ChronoUnit.HOURS), start.plus(20, ChronoUnit.HOURS))),
           driverExitCodes = (1 to 3).map { i =>
             MockExitCode(
-              jobId    = f"mock-oom-001-job-$i%03d",
-              ts       = start.plus(2L + i, ChronoUnit.HOURS),
+              jobId = f"mock-oom-001-job-$i%03d",
+              ts = start.plus(2L + i, ChronoUnit.HOURS),
               exitCode = if (i % 2 == 0) 137 else 1,
-              msg      = "synthetic oom-driven exit"
+              msg = "synthetic oom-driven exit"
             )
           },
           oomEvents = Seq(
             MockOomEvent(
-              jobId  = "mock-oom-001-job-001",
+              jobId = "mock-oom-001-job-001",
               recipe = recipeA.name,
-              ts     = start.plus(3, ChronoUnit.HOURS)
+              ts = start.plus(3, ChronoUnit.HOURS)
             )
           )
         ),
         MockCluster(
-          name         = "mock-cluster-oom-002",
-          recipes      = Seq(recipeA),
+          name = "mock-cluster-oom-002",
+          recipes = Seq(recipeA),
           incarnations = Seq(MockIncarnation(start.plus(4, ChronoUnit.HOURS), start.plus(15, ChronoUnit.HOURS))),
           driverExitCodes = Seq(
             MockExitCode(
-              jobId    = "mock-oom-002-job-001",
-              ts       = start.plus(6, ChronoUnit.HOURS),
+              jobId = "mock-oom-002-job-001",
+              ts = start.plus(6, ChronoUnit.HOURS),
               exitCode = 137,
-              msg      = "synthetic kernel oom-killer"
+              msg = "synthetic kernel oom-killer"
             )
           ),
           oomEvents = Seq(
             MockOomEvent(
-              jobId           = "mock-oom-002-job-001",
-              recipe          = recipeA.name,
-              ts              = start.plus(6, ChronoUnit.HOURS).plus(30, ChronoUnit.SECONDS),
+              jobId = "mock-oom-002-job-001",
+              recipe = recipeA.name,
+              ts = start.plus(6, ChronoUnit.HOURS).plus(30, ChronoUnit.SECONDS),
               isStackOverflow = false,
-              isJavaHeap      = true,
-              message         = "synthetic Java heap exhausted"
+              isJavaHeap = true,
+              message = "synthetic Java heap exhausted"
             )
           )
         ),
         MockCluster(
-          name         = "mock-cluster-oom-003",
-          recipes      = Seq(recipeB),
+          name = "mock-cluster-oom-003",
+          recipes = Seq(recipeB),
           incarnations = Seq(MockIncarnation(start.plus(8, ChronoUnit.HOURS), start.plus(19, ChronoUnit.HOURS)))
           // No diagnostics on this cluster — control case.
         )
@@ -266,52 +281,73 @@ object MockScenarios {
   def autoscaling(date: String, seed: Long = 1234L): MockScenario = {
     val (start, end) = windowFor(date)
     MockScenario(
-      name   = "autoscaling",
-      seed   = seed,
+      name = "autoscaling",
+      seed = seed,
       window = (start, end),
       clusters = Seq(
         // Ramp-up early, scale-down late — typical batch.
         MockCluster(
           name = "mock-cluster-as-001",
           recipes = Seq(recipeMedium("mock-recipe-batch-fact.json"), recipeMedium("mock-recipe-batch-dim.json")),
-          incarnations = Seq(MockIncarnation(
-            spanStart  = start.plus(2, ChronoUnit.HOURS),
-            spanEnd    = start.plus(10, ChronoUnit.HOURS),
-            autoscaler = Some(MockAutoscalerProfile(
-              minPrimary = 2, maxPrimary = 12, initialPrimary = 2,
-              schedule   = Seq((300L, 4), (900L, 8), (2400L, 12), (14400L, 8), (24000L, 4), (27600L, 2))
-            ))
-          ))
+          incarnations = Seq(
+            MockIncarnation(
+              spanStart = start.plus(2, ChronoUnit.HOURS),
+              spanEnd = start.plus(10, ChronoUnit.HOURS),
+              autoscaler = Some(
+                MockAutoscalerProfile(
+                  minPrimary = 2,
+                  maxPrimary = 12,
+                  initialPrimary = 2,
+                  schedule = Seq((300L, 4), (900L, 8), (2400L, 12), (14400L, 8), (24000L, 4), (27600L, 2))
+                )
+              )
+            )
+          )
         ),
         // Stable cluster — single NO_SCALE early, no further changes.
         MockCluster(
           name = "mock-cluster-as-002",
           recipes = Seq(recipeLight("mock-recipe-trickle.json")),
-          incarnations = Seq(MockIncarnation(
-            spanStart  = start.plus(1, ChronoUnit.HOURS),
-            spanEnd    = start.plus(20, ChronoUnit.HOURS),
-            autoscaler = Some(MockAutoscalerProfile(
-              minPrimary = 2, maxPrimary = 4, initialPrimary = 2,
-              schedule   = Seq((600L, 2))
-            ))
-          ))
+          incarnations = Seq(
+            MockIncarnation(
+              spanStart = start.plus(1, ChronoUnit.HOURS),
+              spanEnd = start.plus(20, ChronoUnit.HOURS),
+              autoscaler = Some(
+                MockAutoscalerProfile(
+                  minPrimary = 2,
+                  maxPrimary = 4,
+                  initialPrimary = 2,
+                  schedule = Seq((600L, 2))
+                )
+              )
+            )
+          )
         ),
         // Spike pattern — quick scale-up, quick scale-down, repeat.
         MockCluster(
           name = "mock-cluster-as-003",
           recipes = Seq(recipeMedium("mock-recipe-spiky.json")),
-          incarnations = Seq(MockIncarnation(
-            spanStart  = start.plus(3, ChronoUnit.HOURS),
-            spanEnd    = start.plus(15, ChronoUnit.HOURS),
-            autoscaler = Some(MockAutoscalerProfile(
-              minPrimary = 2, maxPrimary = 10, initialPrimary = 2,
-              schedule   = Seq(
-                (300L, 8), (1500L, 2),
-                (3600L, 10), (5400L, 2),
-                (10800L, 6), (14400L, 2)
+          incarnations = Seq(
+            MockIncarnation(
+              spanStart = start.plus(3, ChronoUnit.HOURS),
+              spanEnd = start.plus(15, ChronoUnit.HOURS),
+              autoscaler = Some(
+                MockAutoscalerProfile(
+                  minPrimary = 2,
+                  maxPrimary = 10,
+                  initialPrimary = 2,
+                  schedule = Seq(
+                    (300L, 8),
+                    (1500L, 2),
+                    (3600L, 10),
+                    (5400L, 2),
+                    (10800L, 6),
+                    (14400L, 2)
+                  )
+                )
               )
-            ))
-          ))
+            )
+          )
         )
       )
     )
@@ -328,52 +364,70 @@ object MockScenarios {
   def syntheticSpan(date: String, seed: Long = 1234L): MockScenario = {
     val (start, end) = windowFor(date)
     MockScenario(
-      name   = "syntheticSpan",
-      seed   = seed,
+      name = "syntheticSpan",
+      seed = seed,
       window = (start, end),
       clusters = Seq(
         // Normal control: b20 row present, b21 events present.
         MockCluster(
           name = "mock-cluster-ss-normal-001",
           recipes = Seq(recipeMedium("mock-recipe-control.json")),
-          incarnations = Seq(MockIncarnation(
-            spanStart  = start.plus(2, ChronoUnit.HOURS),
-            spanEnd    = start.plus(8, ChronoUnit.HOURS),
-            autoscaler = Some(MockAutoscalerProfile(
-              minPrimary = 2, maxPrimary = 8, initialPrimary = 2,
-              schedule   = Seq((300L, 4), (1800L, 6), (12000L, 4), (18000L, 2))
-            ))
-          ))
+          incarnations = Seq(
+            MockIncarnation(
+              spanStart = start.plus(2, ChronoUnit.HOURS),
+              spanEnd = start.plus(8, ChronoUnit.HOURS),
+              autoscaler = Some(
+                MockAutoscalerProfile(
+                  minPrimary = 2,
+                  maxPrimary = 8,
+                  initialPrimary = 2,
+                  schedule = Seq((300L, 4), (1800L, 6), (12000L, 4), (18000L, 2))
+                )
+              )
+            )
+          )
         ),
         // b20 missing for this cluster — only b21 events get emitted. The tuner
         // synthesizes the span from event min/max timestamps and flags it.
         MockCluster(
           name = "mock-cluster-ss-synth-002",
           recipes = Seq(recipeMedium("mock-recipe-orphan.json")),
-          incarnations = Seq(MockIncarnation(
-            spanStart      = start.plus(4, ChronoUnit.HOURS),
-            spanEnd        = start.plus(7, ChronoUnit.HOURS),
-            excludeFromB20 = true,
-            autoscaler     = Some(MockAutoscalerProfile(
-              minPrimary = 2, maxPrimary = 6, initialPrimary = 2,
-              schedule   = Seq((120L, 4), (3600L, 6), (7200L, 4), (10200L, 2))
-            ))
-          ))
+          incarnations = Seq(
+            MockIncarnation(
+              spanStart = start.plus(4, ChronoUnit.HOURS),
+              spanEnd = start.plus(7, ChronoUnit.HOURS),
+              excludeFromB20 = true,
+              autoscaler = Some(
+                MockAutoscalerProfile(
+                  minPrimary = 2,
+                  maxPrimary = 6,
+                  initialPrimary = 2,
+                  schedule = Seq((120L, 4), (3600L, 6), (7200L, 4), (10200L, 2))
+                )
+              )
+            )
+          )
         ),
         // Second b20-missing cluster with a different shape so the IPC chart
         // shows multiple synthetic-span clusters at once.
         MockCluster(
           name = "mock-cluster-ss-synth-003",
           recipes = Seq(recipeLight("mock-recipe-stub.json")),
-          incarnations = Seq(MockIncarnation(
-            spanStart      = start.plus(5, ChronoUnit.HOURS).plus(30, ChronoUnit.MINUTES),
-            spanEnd        = start.plus(6, ChronoUnit.HOURS).plus(30, ChronoUnit.MINUTES),
-            excludeFromB20 = true,
-            autoscaler     = Some(MockAutoscalerProfile(
-              minPrimary = 2, maxPrimary = 4, initialPrimary = 2,
-              schedule   = Seq((60L, 3), (1800L, 4), (3000L, 2))
-            ))
-          ))
+          incarnations = Seq(
+            MockIncarnation(
+              spanStart = start.plus(5, ChronoUnit.HOURS).plus(30, ChronoUnit.MINUTES),
+              spanEnd = start.plus(6, ChronoUnit.HOURS).plus(30, ChronoUnit.MINUTES),
+              excludeFromB20 = true,
+              autoscaler = Some(
+                MockAutoscalerProfile(
+                  minPrimary = 2,
+                  maxPrimary = 4,
+                  initialPrimary = 2,
+                  schedule = Seq((60L, 3), (1800L, 4), (3000L, 2))
+                )
+              )
+            )
+          )
         )
       )
     )
@@ -389,32 +443,42 @@ object MockScenarios {
   //   * mock-cluster-NEW: added (new_entry trend)
 
   def multiDateBaseline(refDate: String, curDate: String, seed: Long = 1234L): MultiDateScenario = {
-    val ref      = baseline(refDate, seed)
+    val ref = baseline(refDate, seed)
     val (s2, e2) = windowFor(curDate)
 
     val drifted: Seq[MockCluster] = ref.clusters.flatMap { c =>
       c.name match {
         case "mock-cluster-001" =>
-          Some(c.copy(
-            recipes = c.recipes.map(r => r.copy(
-              avgJobDurationMs   = r.avgJobDurationMs * 1.30,
-              p95JobDurationMs   = r.p95JobDurationMs * 1.30
-            )),
-            incarnations = c.incarnations.map(rebaseIncarnation(_, ref.window._1, s2)),
-            driverExitCodes = c.driverExitCodes.map(rebaseExit(_, ref.window._1, s2))
-          ))
+          Some(
+            c.copy(
+              recipes = c.recipes.map(r =>
+                r.copy(
+                  avgJobDurationMs = r.avgJobDurationMs * 1.30,
+                  p95JobDurationMs = r.p95JobDurationMs * 1.30
+                )
+              ),
+              incarnations = c.incarnations.map(rebaseIncarnation(_, ref.window._1, s2)),
+              driverExitCodes = c.driverExitCodes.map(rebaseExit(_, ref.window._1, s2))
+            )
+          )
         case "mock-cluster-002" =>
-          Some(c.copy(
-            incarnations = c.incarnations.map(rebaseIncarnation(_, ref.window._1, s2))
-          ))
+          Some(
+            c.copy(
+              incarnations = c.incarnations.map(rebaseIncarnation(_, ref.window._1, s2))
+            )
+          )
         case "mock-cluster-003" =>
-          Some(c.copy(
-            recipes = c.recipes.map(r => r.copy(
-              avgJobDurationMs = r.avgJobDurationMs * 0.80,
-              p95JobDurationMs = r.p95JobDurationMs * 0.80
-            )),
-            incarnations = c.incarnations.map(rebaseIncarnation(_, ref.window._1, s2))
-          ))
+          Some(
+            c.copy(
+              recipes = c.recipes.map(r =>
+                r.copy(
+                  avgJobDurationMs = r.avgJobDurationMs * 0.80,
+                  p95JobDurationMs = r.p95JobDurationMs * 0.80
+                )
+              ),
+              incarnations = c.incarnations.map(rebaseIncarnation(_, ref.window._1, s2))
+            )
+          )
         case "mock-cluster-004" =>
           None // dropped between dates
         case _ =>
@@ -425,16 +489,18 @@ object MockScenarios {
     val newcomer = MockCluster(
       name = "mock-cluster-new",
       recipes = Seq(recipeLight("mock-recipe-newcomer.json")),
-      incarnations = Seq(MockIncarnation(
-        spanStart = s2.plus(4, ChronoUnit.HOURS),
-        spanEnd   = s2.plus(10, ChronoUnit.HOURS)
-      ))
+      incarnations = Seq(
+        MockIncarnation(
+          spanStart = s2.plus(4, ChronoUnit.HOURS),
+          spanEnd = s2.plus(10, ChronoUnit.HOURS)
+        )
+      )
     )
 
     val cur = MockScenario(
-      name     = "baseline-current",
-      seed     = seed,
-      window   = (s2, e2),
+      name = "baseline-current",
+      seed = seed,
+      window = (s2, e2),
       clusters = drifted :+ newcomer
     )
 
@@ -473,14 +539,14 @@ object MockScenarios {
       incarnations = Seq(
         MockIncarnation(
           spanStart = s1.plus(2, ChronoUnit.HOURS),
-          spanEnd   = s1.plus(10, ChronoUnit.HOURS)
+          spanEnd = s1.plus(10, ChronoUnit.HOURS)
         )
       )
     )
     val ref = MockScenario(
-      name     = "mixedDropAndDegrade-reference",
-      seed     = seed,
-      window   = (s1, e1),
+      name = "mixedDropAndDegrade-reference",
+      seed = seed,
+      window = (s1, e1),
       clusters = Seq(refCluster)
     )
 
@@ -500,14 +566,14 @@ object MockScenarios {
       incarnations = Seq(
         MockIncarnation(
           spanStart = s2.plus(2, ChronoUnit.HOURS),
-          spanEnd   = s2.plus(10, ChronoUnit.HOURS)
+          spanEnd = s2.plus(10, ChronoUnit.HOURS)
         )
       )
     )
     val cur = MockScenario(
-      name     = "mixedDropAndDegrade-current",
-      seed     = seed,
-      window   = (s2, e2),
+      name = "mixedDropAndDegrade-current",
+      seed = seed,
+      window = (s2, e2),
       clusters = Seq(curCluster)
     )
 
@@ -515,11 +581,15 @@ object MockScenarios {
   }
 
   /** Shift an incarnation's span by `(newWindowStart - oldWindowStart)`. */
-  private def rebaseIncarnation(inc: MockIncarnation, oldWindowStart: Instant, newWindowStart: Instant): MockIncarnation = {
+  private def rebaseIncarnation(
+      inc: MockIncarnation,
+      oldWindowStart: Instant,
+      newWindowStart: Instant
+  ): MockIncarnation = {
     val deltaMs = newWindowStart.toEpochMilli - oldWindowStart.toEpochMilli
     inc.copy(
       spanStart = inc.spanStart.plusMillis(deltaMs),
-      spanEnd   = inc.spanEnd.plusMillis(deltaMs)
+      spanEnd = inc.spanEnd.plusMillis(deltaMs)
     )
   }
 
@@ -580,16 +650,20 @@ object MockScenarios {
           recipeMedium("_DQ3_OOM_RECURRING.json"),
           recipeLight("_DQ3_OOM_COMPANION.json")
         ),
-        incarnations = Seq(MockIncarnation(
-          spanStart = s1.plus(2, ChronoUnit.HOURS),
-          spanEnd   = s1.plus(8, ChronoUnit.HOURS)
-        )),
-        oomEvents = Seq(MockOomEvent(
-          jobId   = "mock-job-show-oom-001",
-          recipe  = "_DQ3_OOM_RECURRING.json",
-          ts      = s1.plus(3, ChronoUnit.HOURS),
-          message = "synthetic recurring heap OOM"
-        ))
+        incarnations = Seq(
+          MockIncarnation(
+            spanStart = s1.plus(2, ChronoUnit.HOURS),
+            spanEnd = s1.plus(8, ChronoUnit.HOURS)
+          )
+        ),
+        oomEvents = Seq(
+          MockOomEvent(
+            jobId = "mock-job-show-oom-001",
+            recipe = "_DQ3_OOM_RECURRING.json",
+            ts = s1.plus(3, ChronoUnit.HOURS),
+            message = "synthetic recurring heap OOM"
+          )
+        )
       ),
       // (2) Cap-touching cluster: B1 will explode in current → executor scale-up.
       MockCluster(
@@ -597,10 +671,12 @@ object MockScenarios {
         recipes = Seq(
           recipeMedium("_DWH_NEEDS_MORE_EXECUTORS.json")
         ),
-        incarnations = Seq(MockIncarnation(
-          spanStart = s1.plus(1, ChronoUnit.HOURS),
-          spanEnd   = s1.plus(7, ChronoUnit.HOURS)
-        ))
+        incarnations = Seq(
+          MockIncarnation(
+            spanStart = s1.plus(1, ChronoUnit.HOURS),
+            spanEnd = s1.plus(7, ChronoUnit.HOURS)
+          )
+        )
       ),
       // (3) Boost-holding cluster: D1 takes b16 in REF only; D2 is the
       //     companion that will degrade in current and force a cluster re-plan.
@@ -610,16 +686,20 @@ object MockScenarios {
           recipeMedium("_RDM_BOOST_HOLDING.json"),
           recipeMedium("_RDM_DEGRADED_COMPANION.json")
         ),
-        incarnations = Seq(MockIncarnation(
-          spanStart = s1.plus(2, ChronoUnit.HOURS),
-          spanEnd   = s1.plus(9, ChronoUnit.HOURS)
-        )),
-        oomEvents = Seq(MockOomEvent(
-          jobId   = "mock-job-show-holding-001",
-          recipe  = "_RDM_BOOST_HOLDING.json",
-          ts      = s1.plus(4, ChronoUnit.HOURS),
-          message = "synthetic one-shot heap OOM"
-        ))
+        incarnations = Seq(
+          MockIncarnation(
+            spanStart = s1.plus(2, ChronoUnit.HOURS),
+            spanEnd = s1.plus(9, ChronoUnit.HOURS)
+          )
+        ),
+        oomEvents = Seq(
+          MockOomEvent(
+            jobId = "mock-job-show-holding-001",
+            recipe = "_RDM_BOOST_HOLDING.json",
+            ts = s1.plus(4, ChronoUnit.HOURS),
+            message = "synthetic one-shot heap OOM"
+          )
+        )
       ),
       // (4-6) Control clusters — light recipes only, keep variance low.
       MockCluster(
@@ -629,10 +709,12 @@ object MockScenarios {
           recipeLight("_CTRL_lookup_2.json"),
           recipeLight("_CTRL_lookup_3.json")
         ),
-        incarnations = Seq(MockIncarnation(
-          spanStart = s1.plus(1, ChronoUnit.HOURS),
-          spanEnd   = s1.plus(6, ChronoUnit.HOURS)
-        ))
+        incarnations = Seq(
+          MockIncarnation(
+            spanStart = s1.plus(1, ChronoUnit.HOURS),
+            spanEnd = s1.plus(6, ChronoUnit.HOURS)
+          )
+        )
       ),
       MockCluster(
         name = "mock-cluster-show-ctrl-2",
@@ -641,10 +723,12 @@ object MockScenarios {
           recipeLight("_CTRL_aggregate_2.json"),
           recipeLight("_CTRL_aggregate_3.json")
         ),
-        incarnations = Seq(MockIncarnation(
-          spanStart = s1.plus(2, ChronoUnit.HOURS),
-          spanEnd   = s1.plus(7, ChronoUnit.HOURS)
-        ))
+        incarnations = Seq(
+          MockIncarnation(
+            spanStart = s1.plus(2, ChronoUnit.HOURS),
+            spanEnd = s1.plus(7, ChronoUnit.HOURS)
+          )
+        )
       ),
       MockCluster(
         name = "mock-cluster-show-ctrl-3",
@@ -654,17 +738,19 @@ object MockScenarios {
           recipeLight("_CTRL_export_3.json"),
           recipeLight("_CTRL_export_4.json")
         ),
-        incarnations = Seq(MockIncarnation(
-          spanStart = s1.plus(3, ChronoUnit.HOURS),
-          spanEnd   = s1.plus(8, ChronoUnit.HOURS)
-        ))
+        incarnations = Seq(
+          MockIncarnation(
+            spanStart = s1.plus(3, ChronoUnit.HOURS),
+            spanEnd = s1.plus(8, ChronoUnit.HOURS)
+          )
+        )
       )
     )
 
     val ref = MockScenario(
-      name     = "divergenceShowcase-reference",
-      seed     = seed,
-      window   = (s1, e1),
+      name = "divergenceShowcase-reference",
+      seed = seed,
+      window = (s1, e1),
       clusters = refClusters
     )
 
@@ -685,7 +771,7 @@ object MockScenarios {
               else r
             },
             incarnations = c.incarnations.map(rebaseIncarnation(_, ref.window._1, s2)),
-            oomEvents    = c.oomEvents.map(rebaseOom(_, ref.window._1, s2))
+            oomEvents = c.oomEvents.map(rebaseOom(_, ref.window._1, s2))
           )
 
         case "mock-cluster-show-needs-execs" =>
@@ -695,8 +781,8 @@ object MockScenarios {
           c.copy(
             recipes = c.recipes.map { r =>
               r.copy(
-                avgJobDurationMs   = r.avgJobDurationMs * 40.0,
-                p95JobDurationMs   = r.p95JobDurationMs * 40.0,
+                avgJobDurationMs = r.avgJobDurationMs * 40.0,
+                p95JobDurationMs = r.p95JobDurationMs * 40.0,
                 p95RunMaxExecutors = math.max(r.p95RunMaxExecutors, 14.0),
                 avgExecutorsPerJob = math.max(r.avgExecutorsPerJob, 12.0)
               )
@@ -718,7 +804,7 @@ object MockScenarios {
               else r
             },
             incarnations = c.incarnations.map(rebaseIncarnation(_, ref.window._1, s2)),
-            oomEvents    = Seq.empty
+            oomEvents = Seq.empty
           )
 
         case _ =>
@@ -737,24 +823,23 @@ object MockScenarios {
     }
 
     val cur = MockScenario(
-      name     = "divergenceShowcase-current",
-      seed     = seed,
-      window   = (s2, e2),
+      name = "divergenceShowcase-current",
+      seed = seed,
+      window = (s2, e2),
       clusters = curClustersWithNewcomer
     )
 
-    MultiDateScenario(name = "divergenceShowcase",
-      perDate = Map(refDate -> ref, curDate -> cur))
+    MultiDateScenario(name = "divergenceShowcase", perDate = Map(refDate -> ref, curDate -> cur))
   }
 
   // ── CLI lookup ─────────────────────────────────────────────────────────────
 
   /** Single-date scenarios callable by name from the CLI. */
   val singleDate: Map[String, (String, Long) => MockScenario] = Map(
-    "minimal"       -> (minimal _),
-    "baseline"      -> (baseline _),
-    "oomHeavy"      -> (oomHeavy _),
-    "autoscaling"   -> (autoscaling _),
+    "minimal" -> (minimal _),
+    "baseline" -> (baseline _),
+    "oomHeavy" -> (oomHeavy _),
+    "autoscaling" -> (autoscaling _),
     "syntheticSpan" -> (syntheticSpan _)
   )
 
@@ -779,10 +864,10 @@ object MockScenarios {
 
   /** Multi-date scenarios callable by name from the CLI. */
   val multiDate: Map[String, (String, String, Long) => MultiDateScenario] = Map(
-    "multiDateBaseline"      -> (multiDateBaseline _),
-    "mixedDropAndDegrade"    -> (mixedDropAndDegrade _),
+    "multiDateBaseline" -> (multiDateBaseline _),
+    "mixedDropAndDegrade" -> (mixedDropAndDegrade _),
     "multiDateSyntheticSpan" -> (multiDateSyntheticSpan _),
-    "divergenceShowcase"     -> (divergenceShowcase _)
+    "divergenceShowcase" -> (divergenceShowcase _)
   )
 
   val multiDateNames: Seq[String] = multiDate.keys.toSeq.sorted

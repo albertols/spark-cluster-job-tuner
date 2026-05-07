@@ -7,7 +7,8 @@ import org.scalatest.matchers.should.Matchers
 class ExecutorTrackingListenerSpec extends AnyFunSuite with Matchers {
 
   // Create a local Spark session once for all tests
-  lazy val spark: SparkSession = SparkSession.builder()
+  lazy val spark: SparkSession = SparkSession
+    .builder()
     .master("local[2]")
     .appName("ExecutorTrackingListenerTest")
     .getOrCreate()

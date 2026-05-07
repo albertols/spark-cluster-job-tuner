@@ -9,7 +9,7 @@ import org.slf4j.{Logger, LoggerFactory}
 import java.io.{ByteArrayOutputStream, ObjectOutputStream}
 
 /**
- * [[ BroadcastSizingUtils ]]
+ * [[BroadcastSizingUtils]]
  *
  * Utilities to help plan and empirically validate executor memory impact of broadcasting large lookup tables.
  */
@@ -18,44 +18,53 @@ object BroadcastSizingUtils {
   private val log: Logger = LoggerFactory.getLogger(getClass)
 
   case class BroadcastMemoryPlanReport(
-                                        label: String,
+      label: String,
 
-                                        // Direct payload estimates (JVM object graph)
-                                        driverObjectGraphEstimateBytes: Long,
+      // Direct payload estimates (JVM object graph)
+      driverObjectGraphEstimateBytes: Long,
 
-                                        // Serialized estimates (bytes shipped approximation)
-                                        javaSerializedBytesEstimate: Option[Long],
-                                        kryoSerializedBytesEstimate: Option[Long],
+      // Serialized estimates (bytes shipped approximation)
+      javaSerializedBytesEstimate: Option[Long],
+      kryoSerializedBytesEstimate: Option[Long],
+      configuredSparkSerializer: String,
 
-                                        configuredSparkSerializer: String,
+      // Planning knobs
+      expectedExecutors: Int,
+      expectedConcurrentBroadcasts: Int,
+      replicationFactor: Int,
+      safetyFactor: Double,
 
-                                        // Planning knobs
-                                        expectedExecutors: Int,
-                                        expectedConcurrentBroadcasts: Int,
-                                        replicationFactor: Int,
-                                        safetyFactor: Double,
+      // Derived guidance
+      estimatedPerExecutorSingleBroadcastBytes: Long,
+      estimatedPerExecutorTotalBroadcastBytes: Long,
+      estimatedClusterTotalBytes: Long,
 
-                                        // Derived guidance
-                                        estimatedPerExecutorSingleBroadcastBytes: Long,
-                                        estimatedPerExecutorTotalBroadcastBytes: Long,
-                                        estimatedClusterTotalBytes: Long,
+      // Optional executor heap comparison (if spark.executor.memory is set)
+      executorHeapBytes: Option[Long],
 
-                                        // Optional executor heap comparison (if spark.executor.memory is set)
-                                        executorHeapBytes: Option[Long],
-
-                                        // Extra context / warnings
-                                        notes: Seq[String]
-                                      ) {
+      // Extra context / warnings
+      notes: Seq[String]
+  ) {
     def prettyString: String = {
       val sb = new StringBuilder
       sb.append(s"BroadcastMemoryPlanReport(label=$label)\n")
       sb.append(s"  driverObjectGraphEstimate=${MemorySizingUtils.fmtBytes(driverObjectGraphEstimateBytes)}\n")
-      sb.append(s"  javaSerializedBytesEstimate=${javaSerializedBytesEstimate.map(MemorySizingUtils.fmtBytes).getOrElse("<unavailable>")}\n")
-      sb.append(s"  kryoSerializedBytesEstimate=${kryoSerializedBytesEstimate.map(MemorySizingUtils.fmtBytes).getOrElse("<unavailable>")}\n")
+      sb.append(
+        s"  javaSerializedBytesEstimate=${javaSerializedBytesEstimate.map(MemorySizingUtils.fmtBytes).getOrElse("<unavailable>")}\n"
+      )
+      sb.append(
+        s"  kryoSerializedBytesEstimate=${kryoSerializedBytesEstimate.map(MemorySizingUtils.fmtBytes).getOrElse("<unavailable>")}\n"
+      )
       sb.append(s"  configuredSparkSerializer=$configuredSparkSerializer\n")
-      sb.append(s"  expectedExecutors=$expectedExecutors expectedConcurrentBroadcasts=$expectedConcurrentBroadcasts replicationFactor=$replicationFactor safetyFactor=$safetyFactor\n")
-      sb.append(s"  estimatedPerExecutorSingleBroadcast=${MemorySizingUtils.fmtBytes(estimatedPerExecutorSingleBroadcastBytes)}\n")
-      sb.append(s"  estimatedPerExecutorTotalBroadcast=${MemorySizingUtils.fmtBytes(estimatedPerExecutorTotalBroadcastBytes)}\n")
+      sb.append(
+        s"  expectedExecutors=$expectedExecutors expectedConcurrentBroadcasts=$expectedConcurrentBroadcasts replicationFactor=$replicationFactor safetyFactor=$safetyFactor\n"
+      )
+      sb.append(
+        s"  estimatedPerExecutorSingleBroadcast=${MemorySizingUtils.fmtBytes(estimatedPerExecutorSingleBroadcastBytes)}\n"
+      )
+      sb.append(
+        s"  estimatedPerExecutorTotalBroadcast=${MemorySizingUtils.fmtBytes(estimatedPerExecutorTotalBroadcastBytes)}\n"
+      )
       sb.append(s"  estimatedClusterTotal=${MemorySizingUtils.fmtBytes(estimatedClusterTotalBytes)}\n")
       sb.append(s"  executorHeap=${executorHeapBytes.map(MemorySizingUtils.fmtBytes).getOrElse("<unknown>")}\n")
       if (notes.nonEmpty) {
@@ -81,8 +90,8 @@ object BroadcastSizingUtils {
   }
 
   /**
-   * Kryo size estimate using Spark's KryoSerializer configured with SparkConf.
-   * Does NOT rely on sparkContext.env (which can be inaccessible).
+   * Kryo size estimate using Spark's KryoSerializer configured with SparkConf. Does NOT rely on sparkContext.env (which
+   * can be inaccessible).
    */
   def estimateKryoSerializedSizeBytes(obj: AnyRef, spark: SparkSession): Option[Long] = {
     try {
@@ -106,14 +115,14 @@ object BroadcastSizingUtils {
    * Planner: build report from an already-materialized broadcast payload (e.g., Array[Row]).
    */
   def broadcastMemoryPlanReport(
-                                 label: String,
-                                 payload: AnyRef,
-                                 spark: SparkSession,
-                                 expectedExecutors: Int,
-                                 expectedConcurrentBroadcasts: Int = 1,
-                                 replicationFactor: Int = 1,
-                                 safetyFactor: Double = 2.0 // default higher for object-heavy payloads like Array[Row]
-                               ): BroadcastMemoryPlanReport = {
+      label: String,
+      payload: AnyRef,
+      spark: SparkSession,
+      expectedExecutors: Int,
+      expectedConcurrentBroadcasts: Int = 1,
+      replicationFactor: Int = 1,
+      safetyFactor: Double = 2.0 // default higher for object-heavy payloads like Array[Row]
+  ): BroadcastMemoryPlanReport = {
 
     val driverEstimate = MemorySizingUtils.estimateObjectSizeBytes(payload)
     val javaSerializedOpt = estimateJavaSerializedSizeBytes(payload)
@@ -126,7 +135,7 @@ object BroadcastSizingUtils {
     // at least as large as the object graph estimate (post-deserialization it often resembles object graph again)
     val baseSingleBroadcast = bestSerializedOpt match {
       case Some(s) => math.max(s, driverEstimate)
-      case None    => driverEstimate
+      case None => driverEstimate
     }
 
     val singleWithSafety = math.ceil(baseSingleBroadcast.toDouble * safetyFactor).toLong
@@ -147,9 +156,13 @@ object BroadcastSizingUtils {
       val heapWarn = execHeapOpt.flatMap { heap =>
         val ratio = perExecutorTotal.toDouble / heap.toDouble
         if (ratio >= 0.7)
-          Some(f"Estimated broadcast resident bytes are ~${ratio * 100}%.1f%% of executor heap. High OOM risk; consider compact payload or broadcast join.")
+          Some(
+            f"Estimated broadcast resident bytes are ~${ratio * 100}%.1f%% of executor heap. High OOM risk; consider compact payload or broadcast join."
+          )
         else if (ratio >= 0.4)
-          Some(f"Estimated broadcast resident bytes are ~${ratio * 100}%.1f%% of executor heap. Ensure enough headroom for execution/shuffle.")
+          Some(
+            f"Estimated broadcast resident bytes are ~${ratio * 100}%.1f%% of executor heap. Ensure enough headroom for execution/shuffle."
+          )
         else None
       }.toSeq
 
@@ -182,20 +195,22 @@ object BroadcastSizingUtils {
    *
    * This avoids full collect of multi-GB lookups just to estimate size.
    *
-   * @param sampleN number of rows to collect for estimation (keep small enough for driver)
-   * @param rowCountHint if provided, avoids df.count()
+   * @param sampleN
+   *   number of rows to collect for estimation (keep small enough for driver)
+   * @param rowCountHint
+   *   if provided, avoids df.count()
    */
   def broadcastMemoryPlanReportFromDataFrame(
-                                              label: String,
-                                              df: DataFrame,
-                                              spark: SparkSession,
-                                              expectedExecutors: Int,
-                                              expectedConcurrentBroadcasts: Int = 1,
-                                              replicationFactor: Int = 1,
-                                              safetyFactor: Double = 2.0,
-                                              sampleN: Int = 20000,
-                                              rowCountHint: Option[Long] = None
-                                            ): BroadcastMemoryPlanReport = {
+      label: String,
+      df: DataFrame,
+      spark: SparkSession,
+      expectedExecutors: Int,
+      expectedConcurrentBroadcasts: Int = 1,
+      replicationFactor: Int = 1,
+      safetyFactor: Double = 2.0,
+      sampleN: Int = 20000,
+      rowCountHint: Option[Long] = None
+  ): BroadcastMemoryPlanReport = {
 
     // Collect a sample and estimate the JVM object graph size of the collected rows.
     val sample = df.limit(sampleN).collect()
@@ -228,7 +243,9 @@ object BroadcastSizingUtils {
       if (ratio >= 0.7)
         Some(f"Estimated broadcast resident bytes are ~${ratio * 100}%.1f%% of executor heap. High OOM risk.")
       else if (ratio >= 0.4)
-        Some(f"Estimated broadcast resident bytes are ~${ratio * 100}%.1f%% of executor heap. Ensure enough headroom for execution/shuffle.")
+        Some(
+          f"Estimated broadcast resident bytes are ~${ratio * 100}%.1f%% of executor heap. Ensure enough headroom for execution/shuffle."
+        )
       else None
     }.toSeq
 
@@ -251,14 +268,14 @@ object BroadcastSizingUtils {
   }
 
   case class BroadcastStorageDeltaReport(
-                                          label: String,
-                                          beforeUsedBytes: Map[String, Long],
-                                          afterUsedBytes: Map[String, Long],
-                                          perExecutorDeltaBytes: Map[String, Long],
-                                          totalDeltaBytes: Long,
-                                          materializationTouchCount: Long,
-                                          notes: Seq[String]
-                                        ) {
+      label: String,
+      beforeUsedBytes: Map[String, Long],
+      afterUsedBytes: Map[String, Long],
+      perExecutorDeltaBytes: Map[String, Long],
+      totalDeltaBytes: Long,
+      materializationTouchCount: Long,
+      notes: Seq[String]
+  ) {
     def prettyString: String = {
       def fmtExec(m: Map[String, Long]): String =
         if (m.isEmpty) "<empty>"
@@ -269,7 +286,9 @@ object BroadcastSizingUtils {
       sb.append(s"  touchCount=$materializationTouchCount\n")
       sb.append(s"  before: ${fmtExec(beforeUsedBytes)}\n")
       sb.append(s"  after:  ${fmtExec(afterUsedBytes)}\n")
-      sb.append(s"  delta:  ${fmtExec(perExecutorDeltaBytes)} totalDelta=${MemorySizingUtils.fmtBytes(totalDeltaBytes)}\n")
+      sb.append(
+        s"  delta:  ${fmtExec(perExecutorDeltaBytes)} totalDelta=${MemorySizingUtils.fmtBytes(totalDeltaBytes)}\n"
+      )
       if (notes.nonEmpty) {
         sb.append("  notes:\n")
         notes.foreach(n => sb.append(s"    - $n\n"))
@@ -279,11 +298,11 @@ object BroadcastSizingUtils {
   }
 
   def broadcastStorageDeltaReport(
-                                   sc: SparkContext,
-                                   label: String,
-                                   payload: AnyRef,
-                                   touchPartitions: Int = 64
-                                 ): BroadcastStorageDeltaReport = {
+      sc: SparkContext,
+      label: String,
+      payload: AnyRef,
+      touchPartitions: Int = 64
+  ): BroadcastStorageDeltaReport = {
 
     def usedByExecutor(): Map[String, Long] =
       sc.getExecutorMemoryStatus.map { case (execAddr, (max, remaining)) =>
@@ -300,7 +319,7 @@ object BroadcastSizingUtils {
         val v = b.value
         val len = v match {
           case arr: Array[_] => arr.length
-          case _             => 1
+          case _ => 1
         }
         Iterator(len.toLong)
       }

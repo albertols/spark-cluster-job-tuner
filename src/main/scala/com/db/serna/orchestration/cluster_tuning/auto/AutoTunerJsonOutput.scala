@@ -8,35 +8,31 @@ import scala.io.Source
 /**
  * Produces analysis JSON and CSV outputs for the auto-tuner.
  *
- * Output files:
- *   _auto_tuner_analysis.json  — fleet-wide analysis (frontend-ready)
- *   _correlations.csv          — metric correlation results
- *   _divergences.csv           — outlier divergence detection
- *   _trend_summary.csv         — per-(cluster, recipe) trend summary
+ * Output files: _auto_tuner_analysis.json — fleet-wide analysis (frontend-ready) _correlations.csv — metric correlation
+ * results _divergences.csv — outlier divergence detection _trend_summary.csv — per-(cluster, recipe) trend summary
  *
- * And at the outputs root (one level above each run):
- *   _analyses_index.json       — frontend landing-page index of every run
+ * And at the outputs root (one level above each run): _analyses_index.json — frontend landing-page index of every run
  */
 object AutoTunerJsonOutput {
 
   import Json._
 
   def analysisOutputJson(
-    referenceDate: String,
-    currentDate: String,
-    strategyName: String,
-    trends: Seq[TrendAssessment],
-    correlations: Seq[CorrelationResult],
-    correlationsCurrentSnapshot: Seq[CorrelationResult],
-    correlationsPerCluster: Map[String, Seq[CorrelationResult]],
-    divergences: Seq[DivergenceResult],
-    divergencesCurrentSnapshot: Seq[DivergenceResult],
-    divergencesPerCluster: Map[String, Seq[DivergenceResult]],
-    scatterDataDelta: Map[String, Seq[ScatterPoint]],
-    scatterDataCurrentSnapshot: Map[String, Seq[ScatterPoint]],
-    newEntryCurrentMetrics: Map[(String, String), RecipeMetrics],
-    droppedEntryReferenceMetrics: Map[(String, String), RecipeMetrics],
-    decisions: Seq[EvolutionDecision]
+      referenceDate: String,
+      currentDate: String,
+      strategyName: String,
+      trends: Seq[TrendAssessment],
+      correlations: Seq[CorrelationResult],
+      correlationsCurrentSnapshot: Seq[CorrelationResult],
+      correlationsPerCluster: Map[String, Seq[CorrelationResult]],
+      divergences: Seq[DivergenceResult],
+      divergencesCurrentSnapshot: Seq[DivergenceResult],
+      divergencesPerCluster: Map[String, Seq[DivergenceResult]],
+      scatterDataDelta: Map[String, Seq[ScatterPoint]],
+      scatterDataCurrentSnapshot: Map[String, Seq[ScatterPoint]],
+      newEntryCurrentMetrics: Map[(String, String), RecipeMetrics],
+      droppedEntryReferenceMetrics: Map[(String, String), RecipeMetrics],
+      decisions: Seq[EvolutionDecision]
   ): String = {
 
     val trendCounts = trends.groupBy(_.trend.label).mapValues(_.size)
@@ -89,12 +85,12 @@ object AutoTunerJsonOutput {
           case NewEntry =>
             newEntryCurrentMetrics.get((clusterName, t.recipe)) match {
               case Some(m) => baseFields :+ ("current_metrics" -> recipeMetricsJson(m))
-              case None    => baseFields
+              case None => baseFields
             }
           case DroppedEntry =>
             droppedEntryReferenceMetrics.get((clusterName, t.recipe)) match {
               case Some(m) => baseFields :+ ("reference_metrics" -> recipeMetricsJson(m))
-              case None    => baseFields
+              case None => baseFields
             }
           case _ => baseFields
         }
@@ -132,18 +128,20 @@ object AutoTunerJsonOutput {
       }: _*)
     )
 
-    Json.pretty(obj(
-      "metadata" -> metadata,
-      "trends_summary" -> trendsSummary,
-      "cluster_trends" -> arr(clusterTrendsJson: _*),
-      "correlations" -> arr(correlationsJson: _*),
-      "correlations_current_snapshot" -> arr(correlationsCurrentJson: _*),
-      "correlations_per_cluster" -> correlationsPerClusterJson,
-      "divergences" -> arr(divergencesJson: _*),
-      "divergences_current_snapshot" -> arr(divergencesCurrentJson: _*),
-      "divergences_per_cluster" -> divergencesPerClusterJson,
-      "scatter_data" -> scatterDataJson
-    ))
+    Json.pretty(
+      obj(
+        "metadata" -> metadata,
+        "trends_summary" -> trendsSummary,
+        "cluster_trends" -> arr(clusterTrendsJson: _*),
+        "correlations" -> arr(correlationsJson: _*),
+        "correlations_current_snapshot" -> arr(correlationsCurrentJson: _*),
+        "correlations_per_cluster" -> correlationsPerClusterJson,
+        "divergences" -> arr(divergencesJson: _*),
+        "divergences_current_snapshot" -> arr(divergencesCurrentJson: _*),
+        "divergences_per_cluster" -> divergencesPerClusterJson,
+        "scatter_data" -> scatterDataJson
+      )
+    )
   }
 
   private def correlationJson(c: CorrelationResult): String = obj(
@@ -185,25 +183,32 @@ object AutoTunerJsonOutput {
   )
 
   def writeAnalysisCsvs(
-    outDir: File,
-    trends: Seq[TrendAssessment],
-    correlations: Seq[CorrelationResult],
-    divergences: Seq[DivergenceResult],
-    decisions: Seq[EvolutionDecision]
+      outDir: File,
+      trends: Seq[TrendAssessment],
+      correlations: Seq[CorrelationResult],
+      divergences: Seq[DivergenceResult],
+      decisions: Seq[EvolutionDecision]
   ): Unit = {
     writeTrendSummaryCsv(outDir, trends, decisions)
     writeCorrelationsCsv(outDir, correlations)
     writeDivergencesCsv(outDir, divergences)
   }
 
-  private def writeTrendSummaryCsv(outDir: File, trends: Seq[TrendAssessment], decisions: Seq[EvolutionDecision]): Unit = {
+  private def writeTrendSummaryCsv(
+      outDir: File,
+      trends: Seq[TrendAssessment],
+      decisions: Seq[EvolutionDecision]
+  ): Unit = {
     val decisionMap = decisions.map(d => (d.cluster, d.recipe) -> d).toMap
-    val header = "cluster,recipe,trend,confidence,action,reason,p95_duration_ref,p95_duration_cur,p95_duration_pct_change"
+    val header =
+      "cluster,recipe,trend,confidence,action,reason,p95_duration_ref,p95_duration_cur,p95_duration_pct_change"
     val rows = trends.sortBy(t => (t.cluster, t.recipe)).map { t =>
       val d = decisionMap.get((t.cluster, t.recipe))
       val p95 = t.deltas.find(_.metricName == "p95_job_duration_ms")
       Seq(
-        t.cluster, t.recipe, t.trend.label,
+        t.cluster,
+        t.recipe,
+        t.trend.label,
         formatValue(t.confidenceLevel),
         d.map(_.action.label).getOrElse(""),
         d.map(_.reason).getOrElse("").replace(",", ";"),
@@ -235,7 +240,8 @@ object AutoTunerJsonOutput {
     if (!outDir.exists()) outDir.mkdirs()
     val f = new File(outDir, fileName)
     val bw = new BufferedWriter(new FileWriter(f))
-    try bw.write(content) finally bw.close()
+    try bw.write(content)
+    finally bw.close()
   }
 
   private def formatValue(d: Double): String = {
@@ -251,17 +257,17 @@ object AutoTunerJsonOutput {
   }
 
   /**
-   * Rebuild `<outputsRoot>/_analyses_index.json` by scanning every sibling
-   * directory that contains an `_auto_tuner_analysis.json` and extracting
-   * its metadata. The index powers the frontend landing page.
+   * Rebuild `<outputsRoot>/_analyses_index.json` by scanning every sibling directory that contains an
+   * `_auto_tuner_analysis.json` and extracting its metadata. The index powers the frontend landing page.
    *
-   * Format is stable and produced by this same object, so a light regex
-   * extraction is enough — we avoid pulling in a JSON parser dependency.
+   * Format is stable and produced by this same object, so a light regex extraction is enough — we avoid pulling in a
+   * JSON parser dependency.
    */
   def writeAnalysesIndex(outputsRoot: File): Unit = {
     if (!outputsRoot.isDirectory) return
 
-    val children = Option(outputsRoot.listFiles()).getOrElse(Array.empty[File])
+    val children = Option(outputsRoot.listFiles())
+      .getOrElse(Array.empty[File])
       .filter(_.isDirectory)
       .sortBy(_.getName)
 
@@ -294,31 +300,35 @@ object AutoTunerJsonOutput {
       )
     }
 
-    val doc = Json.pretty(obj(
-      "generated_at" -> str(java.time.Instant.now().toString),
-      "entries" -> arr(entriesJson: _*)
-    ))
+    val doc = Json.pretty(
+      obj(
+        "generated_at" -> str(java.time.Instant.now().toString),
+        "entries" -> arr(entriesJson: _*)
+      )
+    )
     writeFile(outputsRoot, "_analyses_index.json", doc)
   }
 
   private case class AnalysisIndexEntry(
-    dir: String,
-    referenceDate: String,
-    currentDate: String,
-    strategy: String,
-    totalClusters: Int,
-    totalRecipes: Int,
-    improved: Int,
-    degraded: Int,
-    stable: Int,
-    newEntries: Int,
-    droppedEntries: Int,
-    generatedAt: String
+      dir: String,
+      referenceDate: String,
+      currentDate: String,
+      strategy: String,
+      totalClusters: Int,
+      totalRecipes: Int,
+      improved: Int,
+      degraded: Int,
+      stable: Int,
+      newEntries: Int,
+      droppedEntries: Int,
+      generatedAt: String
   )
 
   private def readIndexEntry(dirName: String, analysisFile: File): Option[AnalysisIndexEntry] = {
     val src = Source.fromFile(analysisFile, "UTF-8")
-    val body = try src.mkString finally src.close()
+    val body =
+      try src.mkString
+      finally src.close()
 
     // These fields are guaranteed to exist — we wrote the file ourselves.
     for {

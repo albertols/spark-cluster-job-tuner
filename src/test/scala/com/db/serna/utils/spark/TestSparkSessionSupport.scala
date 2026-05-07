@@ -5,10 +5,9 @@ import org.apache.spark.sql.SparkSession
 /**
  * TestSparkSessionSupport centralizes SparkSession creation/stopping with consistent configs.
  *
- * Usage:
- *   TestSparkSessionSupport.withSession { spark => ... }                      // default minimal local session
- *   TestSparkSessionSupport.withCacheSession { spark => ... }                 // cache-friendly config (Kryo, compression)
- *   TestSparkSessionSupport.withSession(TestSparkSessionSupport.CacheConf) { spark => ... } // explicit conf map
+ * Usage: TestSparkSessionSupport.withSession { spark => ... } // default minimal local session
+ * TestSparkSessionSupport.withCacheSession { spark => ... } // cache-friendly config (Kryo, compression)
+ * TestSparkSessionSupport.withSession(TestSparkSessionSupport.CacheConf) { spark => ... } // explicit conf map
  */
 object TestSparkSessionSupport {
 
@@ -32,8 +31,8 @@ object TestSparkSessionSupport {
   )
 
   /**
-   * Build, run, and tear down a SparkSession with the given config map.
-   * Ensures active/default sessions are cleared and driver port is reset to avoid reuse issues.
+   * Build, run, and tear down a SparkSession with the given config map. Ensures active/default sessions are cleared and
+   * driver port is reset to avoid reuse issues.
    */
   def withSession[A](conf: Map[String, String])(f: SparkSession => A): A = {
     val builder = SparkSession
@@ -41,10 +40,12 @@ object TestSparkSessionSupport {
       .appName("TestSparkSession")
       .master(conf.getOrElse("spark.master", "local[1]"))
 
-    val spark = conf.foldLeft(builder) { case (b, (k, v)) =>
-      // Some keys like spark.master are applied earlier; skip duplicates
-      if (k != "spark.master") b.config(k, v) else b
-    }.getOrCreate()
+    val spark = conf
+      .foldLeft(builder) { case (b, (k, v)) =>
+        // Some keys like spark.master are applied earlier; skip duplicates
+        if (k != "spark.master") b.config(k, v) else b
+      }
+      .getOrCreate()
 
     // Ensure this session is the active/default for Spark SQL implicits
     SparkSession.setActiveSession(spark)

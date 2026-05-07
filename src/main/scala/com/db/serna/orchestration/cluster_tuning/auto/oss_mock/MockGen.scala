@@ -7,28 +7,24 @@ import java.time.Instant
 import java.time.format.DateTimeFormatter
 
 /**
- * Pure CSV writers for the OSS mock generator. Each `b*Csv` returns the file
- * content as a `String`; each `writeB*` wraps that with a small file-write
- * helper. Splitting like this lets `MockGenSpec` assert content without disk I/O.
+ * Pure CSV writers for the OSS mock generator. Each `b*Csv` returns the file content as a `String`; each `writeB*`
+ * wraps that with a small file-write helper. Splitting like this lets `MockGenSpec` assert content without disk I/O.
  *
  * Schemas mirror the existing tuner loaders exactly:
- *   - b13              -> ClusterMachineAndRecipeTuner.loadFlattened (12 cols)
- *   - b1..b12          -> ClusterMachineAndRecipeTuner.loadFromIndividualCSVs (per-file headers verified against real exports)
- *   - b14              -> ClusterDiagnostics.loadExitCodes (cluster_name triple-quoted to match BigQuery export)
- *   - b16              -> b16_oom_job_driver_exceptions.csv shape (currently unconsumed by run() but emitted for parity)
- *   - b20              -> ClusterMachineAndRecipeTuner.loadClusterSpans (10 cols)
- *   - b21              -> ClusterMachineAndRecipeTuner.loadAutoscalerEvents (15 cols, only RECOMMENDING + non-NULL target are read)
+ *   - b13 -> ClusterMachineAndRecipeTuner.loadFlattened (12 cols)
+ *   - b1..b12 -> ClusterMachineAndRecipeTuner.loadFromIndividualCSVs (per-file headers verified against real exports)
+ *   - b14 -> ClusterDiagnostics.loadExitCodes (cluster_name triple-quoted to match BigQuery export)
+ *   - b16 -> b16_oom_job_driver_exceptions.csv shape (currently unconsumed by run() but emitted for parity)
+ *   - b20 -> ClusterMachineAndRecipeTuner.loadClusterSpans (10 cols)
+ *   - b21 -> ClusterMachineAndRecipeTuner.loadAutoscalerEvents (15 cols, only RECOMMENDING + non-NULL target are read)
  *
  * Notes:
- *   - DAG / timer maps live at canonical project-wide paths
- *     (`src/main/resources/composer/dwh/config/_dag_*.csv`); this generator does
- *     NOT write those to avoid clobbering real data. Mock clusters resolve to
+ *   - DAG / timer maps live at canonical project-wide paths (`src/main/resources/composer/dwh/config/_dag_*.csv`); this
+ *     generator does NOT write those to avoid clobbering real data. Mock clusters resolve to
  *     `UNKNOWN_DAG_ID`/`ZERO_TIMER` in summaries — the tuner handles this.
- *   - Free-text fields (b14 `msg`, b16 `latest_driver_message`) avoid commas
- *     because the project's `Csv.parse` splits on comma without honoring CSV
- *     quoting. Real exports DO contain commas in those fields, but real
- *     loaders don't read them as rich content (b14 ignores `msg`; b16 isn't
- *     consumed by `run()`).
+ *   - Free-text fields (b14 `msg`, b16 `latest_driver_message`) avoid commas because the project's `Csv.parse` splits
+ *     on comma without honoring CSV quoting. Real exports DO contain commas in those fields, but real loaders don't
+ *     read them as rich content (b14 ignores `msg`; b16 isn't consumed by `run()`).
  */
 object MockGen {
 
@@ -44,7 +40,7 @@ object MockGen {
 
   private def fmtNum(d: Double): String = {
     if (d == d.toLong) d.toLong.toString
-    else                f"$d%.6f"
+    else f"$d%.6f"
   }
 
   private def emptyOrNum[N](o: Option[N]): String = o.map(_.toString).getOrElse("")
@@ -61,17 +57,28 @@ object MockGen {
     sb.append("avg_job_duration_ms,p95_job_duration_ms,runs,seconds_at_cap,")
     sb.append("runs_reaching_cap,total_runs,fraction_reaching_cap,max_concurrent_jobs\n")
     for (c <- scenario.clusters; r <- c.recipes) {
-      sb.append(c.name).append(',')
-        .append(r.name).append(',')
-        .append(fmtNum(r.avgExecutorsPerJob)).append(',')
-        .append(fmtNum(r.p95RunMaxExecutors)).append(',')
-        .append(fmtNum(r.avgJobDurationMs)).append(',')
-        .append(fmtNum(r.p95JobDurationMs)).append(',')
-        .append(r.runs).append(',')
-        .append(emptyOrNum(r.secondsAtCap)).append(',')
-        .append(emptyOrNum(r.runsReachingCap)).append(',')
-        .append(emptyOrNum(r.totalRuns)).append(',')
-        .append(r.fractionReachingCap.map(fmtNum).getOrElse("")).append(',')
+      sb.append(c.name)
+        .append(',')
+        .append(r.name)
+        .append(',')
+        .append(fmtNum(r.avgExecutorsPerJob))
+        .append(',')
+        .append(fmtNum(r.p95RunMaxExecutors))
+        .append(',')
+        .append(fmtNum(r.avgJobDurationMs))
+        .append(',')
+        .append(fmtNum(r.p95JobDurationMs))
+        .append(',')
+        .append(r.runs)
+        .append(',')
+        .append(emptyOrNum(r.secondsAtCap))
+        .append(',')
+        .append(emptyOrNum(r.runsReachingCap))
+        .append(',')
+        .append(emptyOrNum(r.totalRuns))
+        .append(',')
+        .append(r.fractionReachingCap.map(fmtNum).getOrElse(""))
+        .append(',')
         .append(emptyOrNum(r.maxConcurrentJobs))
         .append('\n')
     }
@@ -118,10 +125,16 @@ object MockGen {
     // Real-export schema is 5 cols (no seconds_at_cap; that's in b9).
     val sb = new StringBuilder("cluster_name,recipe_filename,runs_reaching_cap,total_runs,fraction_reaching_cap\n")
     for (c <- scenario.clusters; r <- c.recipes)
-      sb.append(c.name).append(',').append(r.name).append(',')
-        .append(emptyOrNum(r.runsReachingCap)).append(',')
-        .append(emptyOrNum(r.totalRuns)).append(',')
-        .append(r.fractionReachingCap.map(fmtNum).getOrElse("")).append('\n')
+      sb.append(c.name)
+        .append(',')
+        .append(r.name)
+        .append(',')
+        .append(emptyOrNum(r.runsReachingCap))
+        .append(',')
+        .append(emptyOrNum(r.totalRuns))
+        .append(',')
+        .append(r.fractionReachingCap.map(fmtNum).getOrElse(""))
+        .append('\n')
     sb.toString
   }
 
@@ -139,9 +152,15 @@ object MockGen {
     for (c <- scenario.clusters) {
       val ms = c.recipes.map(r => r.avgJobDurationMs * r.runs).sum
       val min = ms / 60000.0
-      val hr  = ms / 3600000.0
-      sb.append(c.name).append(',').append(fmtNum(ms)).append(',')
-        .append(fmtNum(min)).append(',').append(fmtNum(hr)).append('\n')
+      val hr = ms / 3600000.0
+      sb.append(c.name)
+        .append(',')
+        .append(fmtNum(ms))
+        .append(',')
+        .append(fmtNum(min))
+        .append(',')
+        .append(fmtNum(hr))
+        .append('\n')
     }
     sb.toString
   }
@@ -149,18 +168,28 @@ object MockGen {
   def b8Csv(scenario: MockScenario): String = {
     val sb = new StringBuilder("cluster_name,recipe_filename,p95_job_duration_ms,avg_job_duration_ms,runs\n")
     for (c <- scenario.clusters; r <- c.recipes)
-      sb.append(c.name).append(',').append(r.name).append(',')
-        .append(fmtNum(r.p95JobDurationMs)).append(',')
-        .append(fmtNum(r.avgJobDurationMs)).append(',')
-        .append(r.runs).append('\n')
+      sb.append(c.name)
+        .append(',')
+        .append(r.name)
+        .append(',')
+        .append(fmtNum(r.p95JobDurationMs))
+        .append(',')
+        .append(fmtNum(r.avgJobDurationMs))
+        .append(',')
+        .append(r.runs)
+        .append('\n')
     sb.toString
   }
 
   def b9Csv(scenario: MockScenario): String = {
     val sb = new StringBuilder("cluster_name,recipe_filename,seconds_at_cap\n")
     for (c <- scenario.clusters; r <- c.recipes)
-      sb.append(c.name).append(',').append(r.name).append(',')
-        .append(emptyOrNum(r.secondsAtCap)).append('\n')
+      sb.append(c.name)
+        .append(',')
+        .append(r.name)
+        .append(',')
+        .append(emptyOrNum(r.secondsAtCap))
+        .append('\n')
     sb.toString
   }
 
@@ -169,8 +198,14 @@ object MockGen {
     for (c <- scenario.clusters; r <- c.recipes) {
       // Synthetic churn proxy — real loader doesn't currently consume b10.
       val adds = (r.avgExecutorsPerJob * r.runs).toLong
-      sb.append(c.name).append(',').append(r.name).append(',')
-        .append(adds).append(',').append(adds).append('\n')
+      sb.append(c.name)
+        .append(',')
+        .append(r.name)
+        .append(',')
+        .append(adds)
+        .append(',')
+        .append(adds)
+        .append('\n')
     }
     sb.toString
   }
@@ -187,10 +222,16 @@ object MockGen {
   def b12Csv(scenario: MockScenario): String = {
     val sb = new StringBuilder("cluster_name,recipe_filename,p95_run_max_executors,avg_run_max_executors,runs\n")
     for (c <- scenario.clusters; r <- c.recipes)
-      sb.append(c.name).append(',').append(r.name).append(',')
-        .append(fmtNum(r.p95RunMaxExecutors)).append(',')
-        .append(fmtNum(r.avgExecutorsPerJob)).append(',')
-        .append(r.runs).append('\n')
+      sb.append(c.name)
+        .append(',')
+        .append(r.name)
+        .append(',')
+        .append(fmtNum(r.p95RunMaxExecutors))
+        .append(',')
+        .append(fmtNum(r.avgExecutorsPerJob))
+        .append(',')
+        .append(r.runs)
+        .append('\n')
     sb.toString
   }
 
@@ -205,11 +246,18 @@ object MockGen {
     val sb = new StringBuilder("timestamp,job_id,cluster_name,driver_exit_code,msg\n")
     for (c <- scenario.clusters; e <- c.driverExitCodes) {
       val safeMsg = e.msg.replace(',', ' ').replace('"', '\'').replace('\n', ' ')
-      sb.append(e.ts.toString).append(',')
-        .append(e.jobId).append(',')
-        .append("\"\"\"").append(c.name).append("\"\"\"").append(',')
-        .append(e.exitCode).append(',')
-        .append(safeMsg).append('\n')
+      sb.append(e.ts.toString)
+        .append(',')
+        .append(e.jobId)
+        .append(',')
+        .append("\"\"\"")
+        .append(c.name)
+        .append("\"\"\"")
+        .append(',')
+        .append(e.exitCode)
+        .append(',')
+        .append(safeMsg)
+        .append('\n')
     }
     sb.toString
   }
@@ -229,18 +277,30 @@ object MockGen {
     sb.append("is_java_heap,latest_driver_message,log_name\n")
     for (c <- scenario.clusters; o <- c.oomEvents) {
       val safeMsg = o.message.replace(',', ' ').replace('"', '\'').replace('\n', ' ')
-      sb.append(o.jobId).append(',')
-        .append(c.name).append(',')
-        .append(o.recipe).append(',')
-        .append(o.ts.toString).append(',')
-        .append(o.severity).append(',')
-        .append(o.driverClass).append(',')
-        .append(o.exceptionType).append(',')
-        .append(o.isLostTask).append(',')
-        .append(o.isStackOverflow).append(',')
-        .append(o.isJavaHeap).append(',')
-        .append(safeMsg).append(',')
-        .append(o.logName).append('\n')
+      sb.append(o.jobId)
+        .append(',')
+        .append(c.name)
+        .append(',')
+        .append(o.recipe)
+        .append(',')
+        .append(o.ts.toString)
+        .append(',')
+        .append(o.severity)
+        .append(',')
+        .append(o.driverClass)
+        .append(',')
+        .append(o.exceptionType)
+        .append(',')
+        .append(o.isLostTask)
+        .append(',')
+        .append(o.isStackOverflow)
+        .append(',')
+        .append(o.isJavaHeap)
+        .append(',')
+        .append(safeMsg)
+        .append(',')
+        .append(o.logName)
+        .append('\n')
     }
     sb.toString
   }
@@ -260,20 +320,30 @@ object MockGen {
       // ones that ARE emitted), but they don't produce a row here.
       c.incarnations.zipWithIndex.foreach { case (inc, i) =>
         if (!inc.excludeFromB20) {
-          val idx          = i + 1
-          val spanMinutes  = (inc.spanEnd.toEpochMilli - inc.spanStart.toEpochMilli) / 60000.0
-          val totalEvents  = inc.autoscaler.map(_.schedule.size + 2).getOrElse(0) // schedule + initial + final markers (synthetic)
-          val createTs     = if (inc.hasExplicitCreate) fmtTs(inc.spanStart) else ""
-          val deleteTs     = if (inc.hasExplicitDelete) fmtTs(inc.spanEnd)   else ""
-          sb.append(c.name).append(',')
-            .append(idx).append(',')
-            .append(fmtTs(inc.spanStart)).append(',')
-            .append(fmtTs(inc.spanEnd)).append(',')
-            .append(fmtNum(spanMinutes)).append(',')
-            .append(createTs).append(',')
-            .append(deleteTs).append(',')
-            .append(inc.hasExplicitCreate).append(',')
-            .append(inc.hasExplicitDelete).append(',')
+          val idx = i + 1
+          val spanMinutes = (inc.spanEnd.toEpochMilli - inc.spanStart.toEpochMilli) / 60000.0
+          val totalEvents =
+            inc.autoscaler.map(_.schedule.size + 2).getOrElse(0) // schedule + initial + final markers (synthetic)
+          val createTs = if (inc.hasExplicitCreate) fmtTs(inc.spanStart) else ""
+          val deleteTs = if (inc.hasExplicitDelete) fmtTs(inc.spanEnd) else ""
+          sb.append(c.name)
+            .append(',')
+            .append(idx)
+            .append(',')
+            .append(fmtTs(inc.spanStart))
+            .append(',')
+            .append(fmtTs(inc.spanEnd))
+            .append(',')
+            .append(fmtNum(spanMinutes))
+            .append(',')
+            .append(createTs)
+            .append(',')
+            .append(deleteTs)
+            .append(',')
+            .append(inc.hasExplicitCreate)
+            .append(',')
+            .append(inc.hasExplicitDelete)
+            .append(',')
             .append(totalEvents)
             .append('\n')
         }
@@ -305,21 +375,35 @@ object MockGen {
         // Clip to span boundary if a scenario inadvertently overshoots.
         val tsClipped = if (ts.isAfter(inc.spanEnd)) inc.spanEnd else ts
         val decision = if (target > prev) "SCALE_UP" else if (target < prev) "SCALE_DOWN" else "NO_SCALE"
-        val recId    = f"mock-rec-${c.name}%s-${i + 1}%04d"
-        sb.append(c.name).append(',')
-          .append(fmtTs(tsClipped)).append(',')
-          .append("RECOMMENDING").append(',')
-          .append(decision).append(',')
-          .append("YARN_MEMORY").append(',')
-          .append(prev).append(',')
-          .append(target).append(',')
-          .append(auto.minPrimary).append(',')
-          .append(auto.maxPrimary).append(',')
-          .append("").append(',')   // current_secondary_workers
-          .append("").append(',')   // target_secondary_workers
-          .append("").append(',')   // min_secondary_workers
-          .append("").append(',')   // max_secondary_workers
-          .append(recId).append(',')
+        val recId = f"mock-rec-${c.name}%s-${i + 1}%04d"
+        sb.append(c.name)
+          .append(',')
+          .append(fmtTs(tsClipped))
+          .append(',')
+          .append("RECOMMENDING")
+          .append(',')
+          .append(decision)
+          .append(',')
+          .append("YARN_MEMORY")
+          .append(',')
+          .append(prev)
+          .append(',')
+          .append(target)
+          .append(',')
+          .append(auto.minPrimary)
+          .append(',')
+          .append(auto.maxPrimary)
+          .append(',')
+          .append("")
+          .append(',') // current_secondary_workers
+          .append("")
+          .append(',') // target_secondary_workers
+          .append("")
+          .append(',') // min_secondary_workers
+          .append("")
+          .append(',') // max_secondary_workers
+          .append(recId)
+          .append(',')
           .append("synthetic mock recommendation")
           .append('\n')
         prev = target
@@ -331,41 +415,44 @@ object MockGen {
   // ── File-write wrappers ────────────────────────────────────────────────────
 
   /**
-   * Write all input CSVs for a scenario into `dir` (which is created if absent).
-   * Returns the list of files written, in the order produced.
+   * Write all input CSVs for a scenario into `dir` (which is created if absent). Returns the list of files written, in
+   * the order produced.
    */
   def writeAll(scenario: MockScenario, dir: File): Seq[File] = {
     if (!dir.exists()) dir.mkdirs()
     val files = Seq(
       "b13_recommendations_inputs_per_recipe_per_cluster.csv" -> b13Csv(scenario),
       "b1_average_number_of_executors_per_job_by_cluster.csv" -> b1Csv(scenario),
-      "b2_peak_executors_seen.csv"                            -> b2Csv(scenario),
-      "b3_average_recipefilename_per_cluster.csv"             -> b3Csv(scenario),
-      "b4_peak_job_duration_per_cluster.csv"                  -> b4Csv(scenario),
-      "b5_a_times_job_reaches_max_executor_per_cluster.csv"   -> b5Csv(scenario),
-      "b6_total_jobs_per_cluster.csv"                         -> b6Csv(scenario),
-      "b7_total_runtime_all_jobs_per_cluster.csv"             -> b7Csv(scenario),
-      "b8_P95_job_duration_per_recipe_per_cluster.csv"        -> b8Csv(scenario),
-      "b9_time_at_cap_per_run_and_per_cluster.csv"            -> b9Csv(scenario),
-      "b10_executor_churn_per_job_adds_removes.csv"           -> b10Csv(scenario),
-      "b11_max_concurrent_jobs_per_cluster_in_window.csv"     -> b11Csv(scenario),
-      "b12_p95_max_executors_per_recipe_per_cluster.csv"      -> b12Csv(scenario),
-      "b14_clusters_with_nonzero_exit_codes.csv"              -> b14Csv(scenario),
-      "b16_oom_job_driver_exceptions.csv"                     -> b16Csv(scenario),
-      "b20_cluster_span_time.csv"                             -> b20Csv(scenario),
-      "b21_cluster_autoscaler_values.csv"                     -> b21Csv(scenario)
+      "b2_peak_executors_seen.csv" -> b2Csv(scenario),
+      "b3_average_recipefilename_per_cluster.csv" -> b3Csv(scenario),
+      "b4_peak_job_duration_per_cluster.csv" -> b4Csv(scenario),
+      "b5_a_times_job_reaches_max_executor_per_cluster.csv" -> b5Csv(scenario),
+      "b6_total_jobs_per_cluster.csv" -> b6Csv(scenario),
+      "b7_total_runtime_all_jobs_per_cluster.csv" -> b7Csv(scenario),
+      "b8_P95_job_duration_per_recipe_per_cluster.csv" -> b8Csv(scenario),
+      "b9_time_at_cap_per_run_and_per_cluster.csv" -> b9Csv(scenario),
+      "b10_executor_churn_per_job_adds_removes.csv" -> b10Csv(scenario),
+      "b11_max_concurrent_jobs_per_cluster_in_window.csv" -> b11Csv(scenario),
+      "b12_p95_max_executors_per_recipe_per_cluster.csv" -> b12Csv(scenario),
+      "b14_clusters_with_nonzero_exit_codes.csv" -> b14Csv(scenario),
+      "b16_oom_job_driver_exceptions.csv" -> b16Csv(scenario),
+      "b20_cluster_span_time.csv" -> b20Csv(scenario),
+      "b21_cluster_autoscaler_values.csv" -> b21Csv(scenario)
     )
     val written = files.map { case (name, body) =>
       val f = new File(dir, name)
       writeString(f, body)
       f
     }
-    logger.info(s"oss_mock: wrote ${written.size} CSVs to ${dir.getPath} (scenario='${scenario.name}', clusters=${scenario.clusters.size}, seed=${scenario.seed})")
+    logger.info(
+      s"oss_mock: wrote ${written.size} CSVs to ${dir.getPath} (scenario='${scenario.name}', clusters=${scenario.clusters.size}, seed=${scenario.seed})"
+    )
     written
   }
 
   private def writeString(f: File, s: String): Unit = {
     val bw = new BufferedWriter(new FileWriter(f))
-    try bw.write(s) finally bw.close()
+    try bw.write(s)
+    finally bw.close()
   }
 }
