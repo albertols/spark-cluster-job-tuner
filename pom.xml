@@ -15,7 +15,7 @@
 
         <scala.version.major>2.12</scala.version.major>
         <scala.version.minor>18</scala.version.minor>
-        <spark.version>3.5.3</spark.version>
+        <spark.version>3.5.8</spark.version>
         <spark.test.version>3.5.3</spark.test.version>
     </properties>
 
