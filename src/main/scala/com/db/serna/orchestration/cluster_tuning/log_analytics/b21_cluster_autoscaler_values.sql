@@ -1,3 +1,15 @@
+-- =============================================================================
+-- b21_cluster_autoscaler_values.sql
+--
+-- Purpose:    Autoscaler scale events (min/max executor changes over time)
+--             — drives autoscaling-lens visualisation + step-function cost.
+-- Telemetry:  GCP-native
+-- GCP source: dataproc.googleapis.com/autoscaler (dedicated autoscaler
+--             log stream — distinct from cluster events)
+-- App source: n/a
+-- Consumed:   ClusterMachineAndRecipeTuner (autoscaler step cost path)
+-- =============================================================================
+
 -- b21_cluster_autoscaler_values.sql
 --
 -- Purpose: emit ONE ROW PER AUTOSCALER EVENT carrying primary / secondary worker

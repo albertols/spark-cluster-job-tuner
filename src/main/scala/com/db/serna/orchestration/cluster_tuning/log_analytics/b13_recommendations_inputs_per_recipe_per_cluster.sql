@@ -1,3 +1,17 @@
+-- =============================================================================
+-- b13_recommendations_inputs_per_recipe_per_cluster.sql
+--
+-- Purpose:    Per-recipe / per-cluster baseline metrics (avg, p95 duration,
+--             max executors, run counts) — primary input to SingleTuner +
+--             AutoTuner cluster sizing.
+-- Telemetry:  both
+-- GCP source: resource.type='cloud_dataproc_cluster'
+-- App source: ExecutorTrackingListener (executor lifecycle events emitted
+--             from your Spark application — wire it via
+--             spark.extraListeners=com.db.serna.utils.spark.parallelism.ExecutorTrackingListener)
+-- Consumed:   ClusterMachineAndRecipeTuner (single tuner load path)
+-- =============================================================================
+
 -- One-stop input for tuner: per (cluster, recipe)
 -- Includes: avg executors per job, p95 run max executors, avg and p95 durations,
 -- fraction reaching cap (requires capacity table), seconds at cap, total runs,

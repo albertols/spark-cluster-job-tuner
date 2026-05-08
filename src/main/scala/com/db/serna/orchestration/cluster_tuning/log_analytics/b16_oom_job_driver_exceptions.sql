@@ -1,3 +1,15 @@
+-- =============================================================================
+-- b16_oom_job_driver_exceptions.sql
+--
+-- Purpose:    Driver-side OOM events per recipe — feeds the heap-boost
+--             vitamin (Holding / ReBoost lifecycle).
+-- Telemetry:  both
+-- GCP source: resource.type='cloud_dataproc_cluster' (cluster log stream)
+-- App source: ExecutorTrackingListener (driver OOM correlation —
+--             same listener as b13)
+-- Consumed:   ClusterMachineAndRecipeAutoTuner (b16 boost classification)
+-- =============================================================================
+
 /*
 Purpose:
 This query analyzes Dataproc driver logs to retrieve the latest relevant
