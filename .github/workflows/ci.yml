@@ -51,7 +51,7 @@ jobs:
       - name: Run instrumented tests + report
         run: ./mvnw -B -Pcoverage verify scoverage:report
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         with:
           files: ./target/scoverage.xml
           fail_ci_if_error: false
