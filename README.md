@@ -44,9 +44,35 @@ The pipeline has three stages: **telemetry → analysis → recommendation**. Th
 
 Together they feed five CSV exports (`b13`, `b14`, `b16`, `b20`, `b21`) — the "Boosted Vitamins" the recipes take to get fit. (Yes, that's why `RefinementVitamins.scala` exists.)
 
-> **Telemetry flow diagram** — added in the next commit (T6).
+```mermaid
+flowchart LR
+  app["Your Spark App<br/><i>+ ExecutorTrackingListener</i>"] -->|"executor lifecycle JSON logs"| logs["GCP Log Analytics"]
+  cluster["Dataproc cluster events<br/><i>resource.type=cloud_dataproc_cluster</i>"] -->|"native log stream"| logs
+  autoscaler["Dataproc autoscaler events<br/><i>dataproc.googleapis.com/autoscaler</i>"] -->|"native log stream"| logs
+  logs -->|"BigQuery exports<br/>b13 b14 b16 b20 b21"| csv["inputs/&lt;date&gt;/*.csv"]
+  csv -->|"mvn"| tuner["SingleTuner / AutoTuner"]
+  tuner -->|"_*.json + _*.csv"| dashboard["Dashboard<br/><i>./serve.sh</i>"]
+```
 
-> **Job virtualization diagram** — added in the next commit (T6).
+```mermaid
+flowchart TB
+  subgraph N2-32 ["N2-32 worker — 32 vCPU, 128 GB"]
+    direction TB
+    n1["Executor 1<br/>8 cores · 32 GB"]
+    n2["Executor 2<br/>8 cores · 32 GB"]
+    n3["Executor 3<br/>8 cores · 32 GB"]
+    n4["Executor 4<br/>8 cores · 32 GB"]
+  end
+```
+
+```mermaid
+flowchart TB
+  subgraph E2-32 ["E2-32 worker — 32 vCPU, 128 GB"]
+    direction TB
+    e1["Executor 1<br/>16 cores · 64 GB"]
+    e2["Executor 2<br/>16 cores · 64 GB"]
+  end
+```
 
 See [`_LOG_ANALYTICS.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/log_analytics/_LOG_ANALYTICS.md) for the full SQL schema and [`_PARALLELISM.md`](src/main/scala/com/db/serna/utils/spark/parallelism/_PARALLELISM.md) for the listener.
 
@@ -73,7 +99,18 @@ References: [Dataproc Autoscaling docs](https://cloud.google.com/dataproc/docs/c
 
 When a recipe's driver gets evicted (`b14`) or its heap OOMs (`b16`), the tuner stamps a **boost** on the next replan. Across snapshots, the boost lifecycle keeps state: a recipe boosted last week and still showing pain this week gets **re-boosted** (compounded factor). A recipe whose pain has subsided **holds** the prior boost without re-applying. Cluster retired? Boost decays to zero.
 
-> **Boost lifecycle state diagram** — added in the next commit (T6).
+```mermaid
+stateDiagram-v2
+  [*] --> New: fresh signal (b14 / b16 / z-score)
+  New --> Holding: next snapshot, signal absent
+  Holding --> ReBoost: signal returns
+  ReBoost --> Holding: signal absent again
+  Holding --> [*]: factor decays / cluster retired
+  note right of Holding
+    Boost factor preserved across replans
+    via BoostMetadataCarrier.
+  end note
+```
 
 See [`_REFINEMENT.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/_REFINEMENT.md) and [`_AUTO_TUNING.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/_AUTO_TUNING.md) for the lifecycle FSM and `BoostMetadataCarrier` mechanics.
 
