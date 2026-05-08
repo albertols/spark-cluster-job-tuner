@@ -56,7 +56,7 @@ if [ "${1:-}" = "--api" ]; then
 
   JAR="$PROJECT_ROOT/target/spark-cluster-job-tuner-server.jar"
   LIB="$PROJECT_ROOT/target/lib"
-  OPEN_URL="http://127.0.0.1:$PORT/"
+  OPEN_URL="http://127.0.0.1:$PORT/dashboard.html"
 
   echo "Booting TunerService on $OPEN_URL"
   echo "  Project root: $PROJECT_ROOT"
@@ -125,13 +125,13 @@ if [ $# -ge 1 ]; then
   PARENT_DIR="$(dirname "$OUTPUT_DIR")"
   CUR_NAME="$(basename "$OUTPUT_DIR")"
 
-  cp -n "$SCRIPT_DIR/index.html"  "$OUTPUT_DIR/" 2>/dev/null || true
+  cp -n "$SCRIPT_DIR/dashboard.html"  "$OUTPUT_DIR/" 2>/dev/null || true
   cp -n "$SCRIPT_DIR/style.css"   "$OUTPUT_DIR/" 2>/dev/null || true
   cp -n "$SCRIPT_DIR/app.js"      "$OUTPUT_DIR/" 2>/dev/null || true
   cp -n "$SCRIPT_DIR/config.json" "$OUTPUT_DIR/" 2>/dev/null || true
 
   SERVE_DIR="$PARENT_DIR"
-  OPEN_URL="http://localhost:$PORT/$CUR_NAME/?data=_auto_tuner_analysis.json"
+  OPEN_URL="http://localhost:$PORT/$CUR_NAME/dashboard.html?data=_auto_tuner_analysis.json"
 
   echo "Serving auto-tuner dashboard at $OPEN_URL"
   echo "Directory: $SERVE_DIR"
@@ -206,7 +206,7 @@ IFS=$'\t' read -r SERVE_DIR REL_FRONTEND REL_OUTPUTS OUTPUTS_DIR <<<"$RESOLVED"
 if [ "$REL_FRONTEND" = "." ]; then
   OPEN_URL="http://localhost:$PORT/"
 else
-  OPEN_URL="http://localhost:$PORT/$REL_FRONTEND/"
+  OPEN_URL="http://localhost:$PORT/$REL_FRONTEND/dashboard.html"
 fi
 
 echo "Serving auto-tuner landing page"
