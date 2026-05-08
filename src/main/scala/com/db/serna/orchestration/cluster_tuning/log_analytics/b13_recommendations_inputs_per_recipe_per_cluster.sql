@@ -5,7 +5,9 @@
 --             max executors, run counts) — primary input to SingleTuner +
 --             AutoTuner cluster sizing.
 -- Telemetry:  both
--- GCP source: resource.type='cloud_dataproc_cluster'
+-- GCP source: resource.type='cloud_dataproc_job' (Spark application log stream
+--             — where executor lifecycle events surface, including those
+--             emitted by ExecutorTrackingListener)
 -- App source: ExecutorTrackingListener (executor lifecycle events emitted
 --             from your Spark application — wire it via
 --             spark.extraListeners=com.db.serna.utils.spark.parallelism.ExecutorTrackingListener)
