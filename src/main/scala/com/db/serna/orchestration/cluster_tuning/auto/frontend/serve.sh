@@ -42,6 +42,9 @@ copy_landing_assets() {
   if [ -f "$project_root/README.md" ]; then
     cp "$project_root/README.md" "$served_dir/README.md"
   fi
+  if [ -f "$project_root/ROADMAP.md" ]; then
+    cp "$project_root/ROADMAP.md" "$served_dir/ROADMAP.md"
+  fi
   if [ -d "$project_root/docs/images" ]; then
     mkdir -p "$served_dir/docs/images"
     cp -R "$project_root/docs/images/." "$served_dir/docs/images/"

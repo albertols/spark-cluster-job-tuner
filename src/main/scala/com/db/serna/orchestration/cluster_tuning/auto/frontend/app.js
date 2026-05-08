@@ -227,7 +227,7 @@ async function loadConfig() {
   } catch (e) {
     showFatalError(
       'Missing or invalid <code>config.json</code>',
-      'Create a <code>config.json</code> next to <code>index.html</code> with <code>gcpProjectId</code>, <code>inputsPath</code> and <code>outputsPath</code>.<br>' +
+      'Create a <code>config.json</code> next to <code>dashboard.html</code> with <code>gcpProjectId</code>, <code>inputsPath</code> and <code>outputsPath</code>.<br>' +
       `Error: ${escapeHtml(e.message || String(e))}`
     );
     return;
