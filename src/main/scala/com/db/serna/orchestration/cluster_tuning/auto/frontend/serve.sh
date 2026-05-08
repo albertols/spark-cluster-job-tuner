@@ -23,6 +23,31 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PORT="${PORT:-8080}"
 
+# ─── SP-2: copy README + docs/images into the served dir for the landing ────
+# The landing page (index.html) fetches /README.md and renders it via
+# marked.js. The README and its images live at the repo root, but the
+# static server only sees the served directory. Copy them in on every
+# boot. Both copies are gitignored.
+copy_landing_assets() {
+  local served_dir="$1"
+  # Find the project root (the dir containing pom.xml).
+  local project_root="$SCRIPT_DIR"
+  while [ "$project_root" != "/" ] && [ ! -f "$project_root/pom.xml" ]; do
+    project_root="$(dirname "$project_root")"
+  done
+  if [ ! -f "$project_root/pom.xml" ]; then
+    echo "WARN: could not find pom.xml above $SCRIPT_DIR; landing README + images may be missing" >&2
+    return 0
+  fi
+  if [ -f "$project_root/README.md" ]; then
+    cp "$project_root/README.md" "$served_dir/README.md"
+  fi
+  if [ -d "$project_root/docs/images" ]; then
+    mkdir -p "$served_dir/docs/images"
+    cp -R "$project_root/docs/images/." "$served_dir/docs/images/"
+  fi
+}
+
 # ─── --api mode: launch TunerService ────────────────────────────────────────
 if [ "${1:-}" = "--api" ]; then
   shift
@@ -106,6 +131,8 @@ if [ "${1:-}" = "--api" ]; then
   elif command -v xdg-open &>/dev/null; then ( sleep 1.2 && xdg-open "$OPEN_URL" ) &
   fi
 
+  copy_landing_assets "$SCRIPT_DIR"
+
   cd "$PROJECT_ROOT"
   echo "  Mode: java -jar $(basename "$JAR")"
   exec java -jar "$JAR" \
@@ -136,6 +163,8 @@ if [ $# -ge 1 ]; then
   echo "Serving auto-tuner dashboard at $OPEN_URL"
   echo "Directory: $SERVE_DIR"
   echo "Press Ctrl+C to stop."
+
+  copy_landing_assets "$SCRIPT_DIR"
 
   if command -v open &>/dev/null;      then open "$OPEN_URL" &
   elif command -v xdg-open &>/dev/null; then xdg-open "$OPEN_URL" &
@@ -203,18 +232,20 @@ PY
 IFS=$'\t' read -r SERVE_DIR REL_FRONTEND REL_OUTPUTS OUTPUTS_DIR <<<"$RESOLVED"
 
 # On the off-chance REL_FRONTEND == ".", we're already at the web root.
-if [ "$REL_FRONTEND" = "." ]; then
+if [ -z "$REL_FRONTEND" ] || [ "$REL_FRONTEND" = "." ]; then
   OPEN_URL="http://localhost:$PORT/"
 else
-  OPEN_URL="http://localhost:$PORT/$REL_FRONTEND/dashboard.html"
+  OPEN_URL="http://localhost:$PORT/$REL_FRONTEND/"
 fi
 
-echo "Serving auto-tuner landing page"
+echo "Serving OSS landing page (renders README.md). Click 'Skip to dashboard →' for the auto-tuner UI."
 echo "  Serving root: $SERVE_DIR"
 echo "  Frontend URL: $OPEN_URL"
 echo "  Outputs URL:  http://localhost:$PORT/$REL_OUTPUTS/"
 echo "  Outputs dir:  $OUTPUTS_DIR"
 echo "Press Ctrl+C to stop."
+
+copy_landing_assets "$SCRIPT_DIR"
 
 if command -v open &>/dev/null;      then open "$OPEN_URL" &
 elif command -v xdg-open &>/dev/null; then xdg-open "$OPEN_URL" &
