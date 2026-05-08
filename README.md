@@ -54,6 +54,8 @@ flowchart LR
   tuner -->|"_*.json + _*.csv"| dashboard["Dashboard<br/><i>./serve.sh</i>"]
 ```
 
+The tuner's job is then to pack executor slots inside Dataproc workers — different machine families give you different topology choices for the same per-recipe demand. The pair below shows two ways to hit the same 32-vCPU / 128-GB envelope:
+
 ```mermaid
 flowchart TB
   subgraph N2-32 ["N2-32 worker — 32 vCPU, 128 GB"]
