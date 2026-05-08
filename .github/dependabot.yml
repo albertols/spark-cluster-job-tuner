@@ -8,6 +8,11 @@ updates:
     labels:
       - dependencies
       - maven
+    ignore:
+      # scoverage-maven-plugin 2.0.1+ requires Java 17; project is on Java 11.
+      # See pom.xml comment near the scoverage <plugin> block.
+      - dependency-name: "org.scoverage:scoverage-maven-plugin"
+        versions: [">= 2.0.1"]
 
   - package-ecosystem: github-actions
     directory: "/"

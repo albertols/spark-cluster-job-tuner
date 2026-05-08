@@ -278,10 +278,17 @@
             <id>coverage</id>
             <build>
                 <plugins>
+                    <!--
+                      scoverage-maven-plugin pinned to 2.0.0 — DO NOT BUMP without bumping
+                      Java baseline. Versions 2.0.1 through current (2.1.5+) ship class file
+                      version 61 (Java 17 required). The project's maven.compiler.source is 11.
+                      See `.github/dependabot.yml` for the matching ignore rule that prevents
+                      Dependabot from re-opening this bump.
+                    -->
                     <plugin>
                         <groupId>org.scoverage</groupId>
                         <artifactId>scoverage-maven-plugin</artifactId>
-                        <version>2.1.5</version>
+                        <version>2.0.0</version>
                         <configuration>
                             <scalaVersion>${scala.version.major}.${scala.version.minor}</scalaVersion>
                         </configuration>
