@@ -27,8 +27,20 @@
     fetch('README.md')
       .then(r => r.ok ? r.text() : Promise.reject(`HTTP ${r.status}`))
       .then(md => {
+        // marked.js v13 does NOT sanitize HTML by default; README is repo-controlled
+        // content so this is acceptable for v1. SP-3 follow-up: add DOMPurify if
+        // README ever ingests untrusted input.
         document.getElementById('readme').innerHTML = marked.parse(md);
-        return mermaid.run({ querySelector: '.language-mermaid' });
+        // Re-class <pre> wrappers around fenced ```mermaid blocks so mermaid.run()
+        // replaces the whole <pre> with SVG (otherwise SVG ends up nested inside
+        // the <pre>, inheriting code-block padding/border).
+        document.querySelectorAll('#readme pre:has(code.language-mermaid)').forEach(pre => {
+          pre.classList.add('mermaid');
+          // Lift the diagram source out of the <code> so mermaid sees the textContent
+          // it expects directly on the <pre>.
+          pre.textContent = pre.querySelector('code').textContent;
+        });
+        return mermaid.run({ querySelector: '#readme pre.mermaid' });
       })
       .catch(e => {
         document.getElementById('readme').innerHTML =
