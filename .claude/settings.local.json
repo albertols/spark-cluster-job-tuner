@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(sort:*)",
+      "Read(//private/tmp/**)",
+      "Bash(rm -rf scalac-out)",
+      "Bash(mkdir -p scalac-out)",
+      "Bash(java -cp ~/.m2/repository/org/scala-lang/scala-compiler/2.12.18/scala-compiler-2.12.18.jar:~/.m2/repository/org/scala-lang/scala-library/2.12.18/scala-library-2.12.18.jar:~/.m2/repository/org/scala-lang/scala-reflect/2.12.18/scala-reflect-2.12.18.jar scala.tools.nsc.Main -d /tmp/scalac-out -classpath ~/.m2/repository/org/scala-lang/scala-library/2.12.18/scala-library-2.12.18.jar:~/.m2/repository/org/slf4j/slf4j-api/1.7.7/slf4j-api-1.7.7.jar /Users/serna/IdeaProjects/spark-cluster-job-tuner/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/*.scala)",
+      "Read(//Users/serna/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/subagent-driven-development/**)"
+    ]
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true
+  }
+}

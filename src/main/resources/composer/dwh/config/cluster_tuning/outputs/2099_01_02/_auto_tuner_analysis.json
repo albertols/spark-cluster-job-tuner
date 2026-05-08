@@ -1,0 +1,1804 @@
+{
+  "metadata": {
+    "generated_at": "2026-05-04T19:04:05.345352Z",
+    "reference_date": "2099_01_01",
+    "current_date": "2099_01_02",
+    "total_clusters": 6,
+    "total_recipes": 16,
+    "strategy": "default"
+  },
+  "trends_summary": {
+    "improved": 0,
+    "degraded": 3,
+    "stable": 12,
+    "new_entries": 1,
+    "dropped_entries": 0
+  },
+  "cluster_trends": [
+    {
+      "cluster": "mock-cluster-show-ctrl-1",
+      "overall_trend": "stable",
+      "recipes": [
+        {
+          "recipe": "_CTRL_lookup_1.json",
+          "trend": "stable",
+          "confidence": 1,
+          "action": "keep_as_is",
+          "reason": "Performance stable (confidence=1.0). Keeping reference config.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 2,
+              "current": 2,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 4,
+              "current": 4,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 60000,
+              "current": 60000,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 90000,
+              "current": 90000,
+              "pct_change": 0
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0,
+              "current": 0,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 50,
+              "current": 50,
+              "pct_change": 0
+            }
+          ]
+        },
+        {
+          "recipe": "_CTRL_lookup_2.json",
+          "trend": "stable",
+          "confidence": 1,
+          "action": "keep_as_is",
+          "reason": "Performance stable (confidence=1.0). Keeping reference config.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 2,
+              "current": 2,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 4,
+              "current": 4,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 60000,
+              "current": 60000,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 90000,
+              "current": 90000,
+              "pct_change": 0
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0,
+              "current": 0,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 50,
+              "current": 50,
+              "pct_change": 0
+            }
+          ]
+        },
+        {
+          "recipe": "_CTRL_lookup_3.json",
+          "trend": "stable",
+          "confidence": 1,
+          "action": "keep_as_is",
+          "reason": "Performance stable (confidence=1.0). Keeping reference config.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 2,
+              "current": 2,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 4,
+              "current": 4,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 60000,
+              "current": 60000,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 90000,
+              "current": 90000,
+              "pct_change": 0
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0,
+              "current": 0,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 50,
+              "current": 50,
+              "pct_change": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "cluster": "mock-cluster-show-ctrl-2",
+      "overall_trend": "stable",
+      "recipes": [
+        {
+          "recipe": "_CTRL_aggregate_1.json",
+          "trend": "stable",
+          "confidence": 1,
+          "action": "keep_as_is",
+          "reason": "Performance stable (confidence=1.0). Keeping reference config.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 2,
+              "current": 2,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 4,
+              "current": 4,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 60000,
+              "current": 60000,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 90000,
+              "current": 90000,
+              "pct_change": 0
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0,
+              "current": 0,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 50,
+              "current": 50,
+              "pct_change": 0
+            }
+          ]
+        },
+        {
+          "recipe": "_CTRL_aggregate_2.json",
+          "trend": "stable",
+          "confidence": 1,
+          "action": "keep_as_is",
+          "reason": "Performance stable (confidence=1.0). Keeping reference config.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 2,
+              "current": 2,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 4,
+              "current": 4,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 60000,
+              "current": 60000,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 90000,
+              "current": 90000,
+              "pct_change": 0
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0,
+              "current": 0,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 50,
+              "current": 50,
+              "pct_change": 0
+            }
+          ]
+        },
+        {
+          "recipe": "_CTRL_aggregate_3.json",
+          "trend": "stable",
+          "confidence": 1,
+          "action": "keep_as_is",
+          "reason": "Performance stable (confidence=1.0). Keeping reference config.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 2,
+              "current": 2,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 4,
+              "current": 4,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 60000,
+              "current": 60000,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 90000,
+              "current": 90000,
+              "pct_change": 0
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0,
+              "current": 0,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 50,
+              "current": 50,
+              "pct_change": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "cluster": "mock-cluster-show-ctrl-3",
+      "overall_trend": "stable",
+      "recipes": [
+        {
+          "recipe": "_CTRL_NEWCOMER.json",
+          "trend": "new_entry",
+          "confidence": 0,
+          "action": "generate_fresh",
+          "reason": "New recipe not present in reference date. Generating fresh config.",
+          "deltas": [
+            
+          ],
+          "current_metrics": {
+            "avg_executors_per_job": 2,
+            "p95_run_max_executors": 4,
+            "avg_job_duration_ms": 60000,
+            "p95_job_duration_ms": 90000,
+            "fraction_reaching_cap": 0,
+            "runs": 50
+          }
+        },
+        {
+          "recipe": "_CTRL_export_1.json",
+          "trend": "stable",
+          "confidence": 1,
+          "action": "keep_as_is",
+          "reason": "Performance stable (confidence=1.0). Keeping reference config.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 2,
+              "current": 2,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 4,
+              "current": 4,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 60000,
+              "current": 60000,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 90000,
+              "current": 90000,
+              "pct_change": 0
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0,
+              "current": 0,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 50,
+              "current": 50,
+              "pct_change": 0
+            }
+          ]
+        },
+        {
+          "recipe": "_CTRL_export_2.json",
+          "trend": "stable",
+          "confidence": 1,
+          "action": "keep_as_is",
+          "reason": "Performance stable (confidence=1.0). Keeping reference config.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 2,
+              "current": 2,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 4,
+              "current": 4,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 60000,
+              "current": 60000,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 90000,
+              "current": 90000,
+              "pct_change": 0
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0,
+              "current": 0,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 50,
+              "current": 50,
+              "pct_change": 0
+            }
+          ]
+        },
+        {
+          "recipe": "_CTRL_export_3.json",
+          "trend": "stable",
+          "confidence": 1,
+          "action": "keep_as_is",
+          "reason": "Performance stable (confidence=1.0). Keeping reference config.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 2,
+              "current": 2,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 4,
+              "current": 4,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 60000,
+              "current": 60000,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 90000,
+              "current": 90000,
+              "pct_change": 0
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0,
+              "current": 0,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 50,
+              "current": 50,
+              "pct_change": 0
+            }
+          ]
+        },
+        {
+          "recipe": "_CTRL_export_4.json",
+          "trend": "stable",
+          "confidence": 1,
+          "action": "keep_as_is",
+          "reason": "Performance stable (confidence=1.0). Keeping reference config.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 2,
+              "current": 2,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 4,
+              "current": 4,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 60000,
+              "current": 60000,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 90000,
+              "current": 90000,
+              "pct_change": 0
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0,
+              "current": 0,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 50,
+              "current": 50,
+              "pct_change": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "cluster": "mock-cluster-show-holding",
+      "overall_trend": "degraded",
+      "recipes": [
+        {
+          "recipe": "_RDM_BOOST_HOLDING.json",
+          "trend": "stable",
+          "confidence": 1,
+          "action": "keep_as_is",
+          "reason": "Performance stable (confidence=1.0). Keeping reference config.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 6,
+              "current": 6,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 12,
+              "current": 12,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 300000,
+              "current": 300000,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 480000,
+              "current": 480000,
+              "pct_change": 0
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0.1000,
+              "current": 0.1000,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 20,
+              "current": 20,
+              "pct_change": 0
+            }
+          ]
+        },
+        {
+          "recipe": "_RDM_DEGRADED_COMPANION.json",
+          "trend": "degraded",
+          "confidence": 1,
+          "action": "boost_resources",
+          "reason": "Performance degraded: p95_job_duration_ms changed 40.0%. Re-planning with current metrics.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 6,
+              "current": 6,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 12,
+              "current": 12,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 300000,
+              "current": 420000,
+              "pct_change": 40
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 480000,
+              "current": 672000,
+              "pct_change": 40
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0.1000,
+              "current": 0.1000,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 20,
+              "current": 20,
+              "pct_change": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "cluster": "mock-cluster-show-needs-execs",
+      "overall_trend": "degraded",
+      "recipes": [
+        {
+          "recipe": "_DWH_NEEDS_MORE_EXECUTORS.json",
+          "trend": "degraded",
+          "confidence": 1,
+          "action": "boost_resources",
+          "reason": "Performance degraded: p95_job_duration_ms changed 3900.0%. Re-planning with current metrics.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 6,
+              "current": 12,
+              "pct_change": 100
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 12,
+              "current": 14,
+              "pct_change": 16.6667
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 300000,
+              "current": 12000000,
+              "pct_change": 3900
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 480000,
+              "current": 19200000,
+              "pct_change": 3900
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0.1000,
+              "current": 0.1000,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 20,
+              "current": 20,
+              "pct_change": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "cluster": "mock-cluster-show-oom",
+      "overall_trend": "degraded",
+      "recipes": [
+        {
+          "recipe": "_DQ3_OOM_COMPANION.json",
+          "trend": "stable",
+          "confidence": 1,
+          "action": "keep_as_is",
+          "reason": "Performance stable (confidence=1.0). Keeping reference config.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 2,
+              "current": 2,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 4,
+              "current": 4,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 60000,
+              "current": 60000,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 90000,
+              "current": 90000,
+              "pct_change": 0
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0,
+              "current": 0,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 50,
+              "current": 50,
+              "pct_change": 0
+            }
+          ]
+        },
+        {
+          "recipe": "_DQ3_OOM_RECURRING.json",
+          "trend": "degraded",
+          "confidence": 1,
+          "action": "boost_resources",
+          "reason": "Performance degraded: p95_job_duration_ms changed 40.0%. Re-planning with current metrics.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 6,
+              "current": 6,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 12,
+              "current": 12,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 300000,
+              "current": 420000,
+              "pct_change": 40
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 480000,
+              "current": 672000,
+              "pct_change": 40
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0.1000,
+              "current": 0.1000,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 20,
+              "current": 20,
+              "pct_change": 0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "correlations": [
+    {
+      "metric_a": "delta_p95_run_max_executors",
+      "metric_b": "delta_p95_job_duration_ms",
+      "pearson": 0.9999,
+      "covariance": 2326186.6667,
+      "n": 15,
+      "view": "delta"
+    },
+    {
+      "metric_a": "delta_avg_executors_per_job",
+      "metric_b": "delta_avg_job_duration_ms",
+      "pearson": 0.9999,
+      "covariance": 4361600.0000,
+      "n": 15,
+      "view": "delta"
+    },
+    {
+      "metric_a": "delta_fraction_reaching_cap",
+      "metric_b": "delta_p95_job_duration_ms",
+      "pearson": 0,
+      "covariance": 0,
+      "n": 15,
+      "view": "delta"
+    },
+    {
+      "metric_a": "delta_runs",
+      "metric_b": "delta_avg_job_duration_ms",
+      "pearson": 0,
+      "covariance": 0,
+      "n": 15,
+      "view": "delta"
+    }
+  ],
+  "correlations_current_snapshot": [
+    {
+      "metric_a": "p95_run_max_executors",
+      "metric_b": "p95_job_duration_ms",
+      "pearson": 0.5845,
+      "covariance": 9976312.5000,
+      "n": 16,
+      "view": "current_snapshot"
+    },
+    {
+      "metric_a": "avg_executors_per_job",
+      "metric_b": "avg_job_duration_ms",
+      "pearson": 0.8447,
+      "covariance": 6593906.2500,
+      "n": 16,
+      "view": "current_snapshot"
+    },
+    {
+      "metric_a": "fraction_reaching_cap",
+      "metric_b": "p95_job_duration_ms",
+      "pearson": 0.4857,
+      "covariance": 96862.5000,
+      "n": 16,
+      "view": "current_snapshot"
+    },
+    {
+      "metric_a": "runs",
+      "metric_b": "avg_job_duration_ms",
+      "pearson": -0.4853,
+      "covariance": -18140625,
+      "n": 16,
+      "view": "current_snapshot"
+    }
+  ],
+  "correlations_per_cluster": {
+    
+  },
+  "divergences": [
+    {
+      "cluster": "mock-cluster-show-needs-execs",
+      "recipe": "_DWH_NEEDS_MORE_EXECUTORS.json",
+      "metric": "delta_avg_executors_per_job",
+      "reference": 6,
+      "current": 12,
+      "z_score": 3.7417,
+      "is_outlier": true,
+      "view": "delta",
+      "is_new_entry": false
+    },
+    {
+      "cluster": "mock-cluster-show-needs-execs",
+      "recipe": "_DWH_NEEDS_MORE_EXECUTORS.json",
+      "metric": "delta_p95_run_max_executors",
+      "reference": 12,
+      "current": 14,
+      "z_score": 3.7417,
+      "is_outlier": true,
+      "view": "delta",
+      "is_new_entry": false
+    },
+    {
+      "cluster": "mock-cluster-show-needs-execs",
+      "recipe": "_DWH_NEEDS_MORE_EXECUTORS.json",
+      "metric": "delta_avg_job_duration_ms",
+      "reference": 300000,
+      "current": 12000000,
+      "z_score": 3.7413,
+      "is_outlier": true,
+      "view": "delta",
+      "is_new_entry": false
+    },
+    {
+      "cluster": "mock-cluster-show-needs-execs",
+      "recipe": "_DWH_NEEDS_MORE_EXECUTORS.json",
+      "metric": "delta_p95_job_duration_ms",
+      "reference": 480000,
+      "current": 19200000,
+      "z_score": 3.7413,
+      "is_outlier": true,
+      "view": "delta",
+      "is_new_entry": false
+    }
+  ],
+  "divergences_current_snapshot": [
+    {
+      "cluster": "mock-cluster-show-needs-execs",
+      "recipe": "_DWH_NEEDS_MORE_EXECUTORS.json",
+      "metric": "avg_job_duration_ms",
+      "reference": 0,
+      "current": 12000000,
+      "z_score": 3.8692,
+      "is_outlier": true,
+      "view": "current_snapshot",
+      "is_new_entry": false
+    },
+    {
+      "cluster": "mock-cluster-show-needs-execs",
+      "recipe": "_DWH_NEEDS_MORE_EXECUTORS.json",
+      "metric": "p95_job_duration_ms",
+      "reference": 0,
+      "current": 19200000,
+      "z_score": 3.8692,
+      "is_outlier": true,
+      "view": "current_snapshot",
+      "is_new_entry": false
+    },
+    {
+      "cluster": "mock-cluster-show-needs-execs",
+      "recipe": "_DWH_NEEDS_MORE_EXECUTORS.json",
+      "metric": "avg_executors_per_job",
+      "reference": 0,
+      "current": 12,
+      "z_score": 3.1794,
+      "is_outlier": true,
+      "view": "current_snapshot",
+      "is_new_entry": false
+    },
+    {
+      "cluster": "mock-cluster-show-needs-execs",
+      "recipe": "_DWH_NEEDS_MORE_EXECUTORS.json",
+      "metric": "p95_run_max_executors",
+      "reference": 0,
+      "current": 14,
+      "z_score": 2.1249,
+      "is_outlier": true,
+      "view": "current_snapshot",
+      "is_new_entry": false
+    }
+  ],
+  "divergences_per_cluster": {
+    
+  },
+  "scatter_data": {
+    "delta": {
+      "delta_avg_executors_per_job__delta_avg_job_duration_ms": [
+        {
+          "cluster": "mock-cluster-show-holding",
+          "recipe": "_RDM_DEGRADED_COMPANION.json",
+          "x": 0,
+          "y": 120000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-oom",
+          "recipe": "_DQ3_OOM_COMPANION.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_1.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_3.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_1.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-oom",
+          "recipe": "_DQ3_OOM_RECURRING.json",
+          "x": 0,
+          "y": 120000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-holding",
+          "recipe": "_RDM_BOOST_HOLDING.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_4.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_2.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_1.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_3.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_2.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_3.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-needs-execs",
+          "recipe": "_DWH_NEEDS_MORE_EXECUTORS.json",
+          "x": 6,
+          "y": 11700000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_2.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        }
+      ],
+      "delta_fraction_reaching_cap__delta_p95_job_duration_ms": [
+        {
+          "cluster": "mock-cluster-show-holding",
+          "recipe": "_RDM_DEGRADED_COMPANION.json",
+          "x": 0,
+          "y": 192000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-oom",
+          "recipe": "_DQ3_OOM_COMPANION.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_1.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_3.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_1.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-oom",
+          "recipe": "_DQ3_OOM_RECURRING.json",
+          "x": 0,
+          "y": 192000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-holding",
+          "recipe": "_RDM_BOOST_HOLDING.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_4.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_2.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_1.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_3.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_2.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_3.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-needs-execs",
+          "recipe": "_DWH_NEEDS_MORE_EXECUTORS.json",
+          "x": 0,
+          "y": 18720000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_2.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        }
+      ],
+      "delta_p95_run_max_executors__delta_p95_job_duration_ms": [
+        {
+          "cluster": "mock-cluster-show-holding",
+          "recipe": "_RDM_DEGRADED_COMPANION.json",
+          "x": 0,
+          "y": 192000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-oom",
+          "recipe": "_DQ3_OOM_COMPANION.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_1.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_3.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_1.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-oom",
+          "recipe": "_DQ3_OOM_RECURRING.json",
+          "x": 0,
+          "y": 192000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-holding",
+          "recipe": "_RDM_BOOST_HOLDING.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_4.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_2.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_1.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_3.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_2.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_3.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-needs-execs",
+          "recipe": "_DWH_NEEDS_MORE_EXECUTORS.json",
+          "x": 2,
+          "y": 18720000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_2.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        }
+      ],
+      "delta_runs__delta_avg_job_duration_ms": [
+        {
+          "cluster": "mock-cluster-show-holding",
+          "recipe": "_RDM_DEGRADED_COMPANION.json",
+          "x": 0,
+          "y": 120000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-oom",
+          "recipe": "_DQ3_OOM_COMPANION.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_1.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_3.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_1.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-oom",
+          "recipe": "_DQ3_OOM_RECURRING.json",
+          "x": 0,
+          "y": 120000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-holding",
+          "recipe": "_RDM_BOOST_HOLDING.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_4.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_2.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_1.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_3.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_2.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_3.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-needs-execs",
+          "recipe": "_DWH_NEEDS_MORE_EXECUTORS.json",
+          "x": 0,
+          "y": 11700000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_2.json",
+          "x": 0,
+          "y": 0,
+          "is_new": false
+        }
+      ]
+    },
+    "current_snapshot": {
+      "avg_executors_per_job__avg_job_duration_ms": [
+        {
+          "cluster": "mock-cluster-show-holding",
+          "recipe": "_RDM_DEGRADED_COMPANION.json",
+          "x": 6,
+          "y": 420000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-oom",
+          "recipe": "_DQ3_OOM_COMPANION.json",
+          "x": 2,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_1.json",
+          "x": 2,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_3.json",
+          "x": 2,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_1.json",
+          "x": 2,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_NEWCOMER.json",
+          "x": 2,
+          "y": 60000,
+          "is_new": true
+        },
+        {
+          "cluster": "mock-cluster-show-oom",
+          "recipe": "_DQ3_OOM_RECURRING.json",
+          "x": 6,
+          "y": 420000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-holding",
+          "recipe": "_RDM_BOOST_HOLDING.json",
+          "x": 6,
+          "y": 300000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_4.json",
+          "x": 2,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_2.json",
+          "x": 2,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_1.json",
+          "x": 2,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_3.json",
+          "x": 2,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_2.json",
+          "x": 2,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_3.json",
+          "x": 2,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-needs-execs",
+          "recipe": "_DWH_NEEDS_MORE_EXECUTORS.json",
+          "x": 12,
+          "y": 12000000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_2.json",
+          "x": 2,
+          "y": 60000,
+          "is_new": false
+        }
+      ],
+      "fraction_reaching_cap__p95_job_duration_ms": [
+        {
+          "cluster": "mock-cluster-show-holding",
+          "recipe": "_RDM_DEGRADED_COMPANION.json",
+          "x": 0.1000,
+          "y": 672000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-oom",
+          "recipe": "_DQ3_OOM_COMPANION.json",
+          "x": 0,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_1.json",
+          "x": 0,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_3.json",
+          "x": 0,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_1.json",
+          "x": 0,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_NEWCOMER.json",
+          "x": 0,
+          "y": 90000,
+          "is_new": true
+        },
+        {
+          "cluster": "mock-cluster-show-oom",
+          "recipe": "_DQ3_OOM_RECURRING.json",
+          "x": 0.1000,
+          "y": 672000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-holding",
+          "recipe": "_RDM_BOOST_HOLDING.json",
+          "x": 0.1000,
+          "y": 480000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_4.json",
+          "x": 0,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_2.json",
+          "x": 0,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_1.json",
+          "x": 0,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_3.json",
+          "x": 0,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_2.json",
+          "x": 0,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_3.json",
+          "x": 0,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-needs-execs",
+          "recipe": "_DWH_NEEDS_MORE_EXECUTORS.json",
+          "x": 0.1000,
+          "y": 19200000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_2.json",
+          "x": 0,
+          "y": 90000,
+          "is_new": false
+        }
+      ],
+      "p95_run_max_executors__p95_job_duration_ms": [
+        {
+          "cluster": "mock-cluster-show-holding",
+          "recipe": "_RDM_DEGRADED_COMPANION.json",
+          "x": 12,
+          "y": 672000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-oom",
+          "recipe": "_DQ3_OOM_COMPANION.json",
+          "x": 4,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_1.json",
+          "x": 4,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_3.json",
+          "x": 4,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_1.json",
+          "x": 4,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_NEWCOMER.json",
+          "x": 4,
+          "y": 90000,
+          "is_new": true
+        },
+        {
+          "cluster": "mock-cluster-show-oom",
+          "recipe": "_DQ3_OOM_RECURRING.json",
+          "x": 12,
+          "y": 672000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-holding",
+          "recipe": "_RDM_BOOST_HOLDING.json",
+          "x": 12,
+          "y": 480000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_4.json",
+          "x": 4,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_2.json",
+          "x": 4,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_1.json",
+          "x": 4,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_3.json",
+          "x": 4,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_2.json",
+          "x": 4,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_3.json",
+          "x": 4,
+          "y": 90000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-needs-execs",
+          "recipe": "_DWH_NEEDS_MORE_EXECUTORS.json",
+          "x": 14,
+          "y": 19200000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_2.json",
+          "x": 4,
+          "y": 90000,
+          "is_new": false
+        }
+      ],
+      "runs__avg_job_duration_ms": [
+        {
+          "cluster": "mock-cluster-show-holding",
+          "recipe": "_RDM_DEGRADED_COMPANION.json",
+          "x": 20,
+          "y": 420000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-oom",
+          "recipe": "_DQ3_OOM_COMPANION.json",
+          "x": 50,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_1.json",
+          "x": 50,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_3.json",
+          "x": 50,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_1.json",
+          "x": 50,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_NEWCOMER.json",
+          "x": 50,
+          "y": 60000,
+          "is_new": true
+        },
+        {
+          "cluster": "mock-cluster-show-oom",
+          "recipe": "_DQ3_OOM_RECURRING.json",
+          "x": 20,
+          "y": 420000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-holding",
+          "recipe": "_RDM_BOOST_HOLDING.json",
+          "x": 20,
+          "y": 300000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_4.json",
+          "x": 50,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_2.json",
+          "x": 50,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_1.json",
+          "x": 50,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_3.json",
+          "x": 50,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-2",
+          "recipe": "_CTRL_aggregate_2.json",
+          "x": 50,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-1",
+          "recipe": "_CTRL_lookup_3.json",
+          "x": 50,
+          "y": 60000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-needs-execs",
+          "recipe": "_DWH_NEEDS_MORE_EXECUTORS.json",
+          "x": 20,
+          "y": 12000000,
+          "is_new": false
+        },
+        {
+          "cluster": "mock-cluster-show-ctrl-3",
+          "recipe": "_CTRL_export_2.json",
+          "x": 50,
+          "y": 60000,
+          "is_new": false
+        }
+      ]
+    }
+  }
+}

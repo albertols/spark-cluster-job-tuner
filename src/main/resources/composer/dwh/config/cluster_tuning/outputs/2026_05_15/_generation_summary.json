@@ -1,0 +1,65 @@
+{
+  "generated_at": "2026-05-04T15:54:29.835348Z",
+  "date": "2026_05_15",
+  "strategy": "default",
+  "bias_mode": "cost_performance_balance",
+  "topology_preset": "8cx1GBpc",
+  "total_clusters": 1,
+  "total_predicted_nodes": 5,
+  "total_max_nodes": 5,
+  "clusters_with_diagnostic_overrides": 0,
+  "quota_usage_by_family": {
+    "c3": {
+      "used_cores": 0,
+      "quota_cores": 500,
+      "pct_used": "0.0"
+    },
+    "c4": {
+      "used_cores": 0,
+      "quota_cores": 500,
+      "pct_used": "0.0"
+    },
+    "e2": {
+      "used_cores": 0,
+      "quota_cores": 5000,
+      "pct_used": "0.0"
+    },
+    "n2": {
+      "used_cores": 0,
+      "quota_cores": 5000,
+      "pct_used": "0.0"
+    },
+    "n2d": {
+      "used_cores": 192,
+      "quota_cores": 3000,
+      "pct_used": "6.4"
+    },
+    "n4": {
+      "used_cores": 0,
+      "quota_cores": 500,
+      "pct_used": "0.0"
+    },
+    "n4d": {
+      "used_cores": 0,
+      "quota_cores": 500,
+      "pct_used": "0.0"
+    }
+  },
+  "clusters": [
+    {
+      "cluster_name": "cluster-wf-yarn-driver-demo",
+      "worker_machine_type": "n2d-highcpu-48",
+      "worker_family": "n2d",
+      "num_workers": 4,
+      "max_workers_from_policy": 4,
+      "total_cores": 192,
+      "max_total_cores": 192,
+      "strategy": "default",
+      "bias_mode": "cost_performance_balance",
+      "topology_preset": "8cx1GBpc",
+      "diagnostic_signals": [
+        
+      ]
+    }
+  ]
+}

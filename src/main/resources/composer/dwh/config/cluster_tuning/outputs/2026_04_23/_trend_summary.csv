@@ -1,0 +1,2 @@
+cluster,recipe,trend,confidence,action,reason,p95_duration_ref,p95_duration_cur,p95_duration_pct_change
+cluster-wf-dmr-load-t-23-05-2305,_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json,degraded,0.4000,boost_resources,Performance degraded: p95_job_duration_ms changed 57.3%. Re-planning with current metrics.,649349,1021255,57.2737

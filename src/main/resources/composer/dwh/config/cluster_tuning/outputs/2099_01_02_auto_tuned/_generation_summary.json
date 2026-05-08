@@ -1,0 +1,65 @@
+{
+  "generated_at": "2026-05-03T17:50:46.892628Z",
+  "date": "2099_01_02",
+  "strategy": "default",
+  "bias_mode": "cost_performance_balance",
+  "topology_preset": "8cx1GBpc",
+  "total_clusters": 1,
+  "total_predicted_nodes": 3,
+  "total_max_nodes": 5,
+  "clusters_with_diagnostic_overrides": 0,
+  "quota_usage_by_family": {
+    "c3": {
+      "used_cores": 0,
+      "quota_cores": 500,
+      "pct_used": "0.0"
+    },
+    "c4": {
+      "used_cores": 0,
+      "quota_cores": 500,
+      "pct_used": "0.0"
+    },
+    "e2": {
+      "used_cores": 64,
+      "quota_cores": 5000,
+      "pct_used": "1.3"
+    },
+    "n2": {
+      "used_cores": 0,
+      "quota_cores": 5000,
+      "pct_used": "0.0"
+    },
+    "n2d": {
+      "used_cores": 0,
+      "quota_cores": 3000,
+      "pct_used": "0.0"
+    },
+    "n4": {
+      "used_cores": 0,
+      "quota_cores": 500,
+      "pct_used": "0.0"
+    },
+    "n4d": {
+      "used_cores": 0,
+      "quota_cores": 500,
+      "pct_used": "0.0"
+    }
+  },
+  "clusters": [
+    {
+      "cluster_name": "cluster-wf-anonimiza-636bf97f-main",
+      "worker_machine_type": "e2-highcpu-32",
+      "worker_family": "e2",
+      "num_workers": 2,
+      "max_workers_from_policy": 4,
+      "total_cores": 64,
+      "max_total_cores": 128,
+      "strategy": "default",
+      "bias_mode": "cost_performance_balance",
+      "topology_preset": "8cx1GBpc",
+      "diagnostic_signals": [
+        
+      ]
+    }
+  ]
+}

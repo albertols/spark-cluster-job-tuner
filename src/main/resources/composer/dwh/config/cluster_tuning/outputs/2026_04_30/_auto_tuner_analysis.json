@@ -1,0 +1,166 @@
+{
+  "metadata": {
+    "generated_at": "2026-05-04T15:21:57.701064Z",
+    "reference_date": "2026_04_23",
+    "current_date": "2026_04_30",
+    "total_clusters": 1,
+    "total_recipes": 1,
+    "strategy": "default"
+  },
+  "trends_summary": {
+    "improved": 1,
+    "degraded": 0,
+    "stable": 0,
+    "new_entries": 0,
+    "dropped_entries": 0
+  },
+  "cluster_trends": [
+    {
+      "cluster": "cluster-wf-dmr-load-t-23-05-2305",
+      "overall_trend": "improved",
+      "recipes": [
+        {
+          "recipe": "_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json",
+          "trend": "improved",
+          "confidence": 0.1000,
+          "action": "keep_as_is",
+          "reason": "Performance improved (confidence=0.1). Keeping reference config.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 0.9519,
+              "current": 0,
+              "pct_change": -100
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 2,
+              "current": 1,
+              "pct_change": -50
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 774135,
+              "current": 528478,
+              "pct_change": -31.7331
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 1021255,
+              "current": 528478,
+              "pct_change": -48.2521
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0,
+              "current": 0,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 4,
+              "current": 1,
+              "pct_change": -75
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "correlations": [
+    
+  ],
+  "correlations_current_snapshot": [
+    
+  ],
+  "correlations_per_cluster": {
+    
+  },
+  "divergences": [
+    
+  ],
+  "divergences_current_snapshot": [
+    
+  ],
+  "divergences_per_cluster": {
+    
+  },
+  "scatter_data": {
+    "delta": {
+      "delta_avg_executors_per_job__delta_avg_job_duration_ms": [
+        {
+          "cluster": "cluster-wf-dmr-load-t-23-05-2305",
+          "recipe": "_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json",
+          "x": -0.9519,
+          "y": -245657,
+          "is_new": false
+        }
+      ],
+      "delta_fraction_reaching_cap__delta_p95_job_duration_ms": [
+        {
+          "cluster": "cluster-wf-dmr-load-t-23-05-2305",
+          "recipe": "_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json",
+          "x": 0,
+          "y": -492777,
+          "is_new": false
+        }
+      ],
+      "delta_p95_run_max_executors__delta_p95_job_duration_ms": [
+        {
+          "cluster": "cluster-wf-dmr-load-t-23-05-2305",
+          "recipe": "_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json",
+          "x": -1,
+          "y": -492777,
+          "is_new": false
+        }
+      ],
+      "delta_runs__delta_avg_job_duration_ms": [
+        {
+          "cluster": "cluster-wf-dmr-load-t-23-05-2305",
+          "recipe": "_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json",
+          "x": -3,
+          "y": -245657,
+          "is_new": false
+        }
+      ]
+    },
+    "current_snapshot": {
+      "avg_executors_per_job__avg_job_duration_ms": [
+        {
+          "cluster": "cluster-wf-dmr-load-t-23-05-2305",
+          "recipe": "_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json",
+          "x": 0,
+          "y": 528478,
+          "is_new": false
+        }
+      ],
+      "fraction_reaching_cap__p95_job_duration_ms": [
+        {
+          "cluster": "cluster-wf-dmr-load-t-23-05-2305",
+          "recipe": "_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json",
+          "x": 0,
+          "y": 528478,
+          "is_new": false
+        }
+      ],
+      "p95_run_max_executors__p95_job_duration_ms": [
+        {
+          "cluster": "cluster-wf-dmr-load-t-23-05-2305",
+          "recipe": "_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json",
+          "x": 1,
+          "y": 528478,
+          "is_new": false
+        }
+      ],
+      "runs__avg_job_duration_ms": [
+        {
+          "cluster": "cluster-wf-dmr-load-t-23-05-2305",
+          "recipe": "_ETL_m_DQ3_ODS_F_AF_OPE_MERCADO.json",
+          "x": 1,
+          "y": 528478,
+          "is_new": false
+        }
+      ]
+    }
+  }
+}

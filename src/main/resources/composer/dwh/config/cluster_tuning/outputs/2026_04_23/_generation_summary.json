@@ -1,0 +1,65 @@
+{
+  "generated_at": "2026-05-04T15:21:27.899125Z",
+  "date": "2026_04_23",
+  "strategy": "default",
+  "bias_mode": "cost_performance_balance",
+  "topology_preset": "8cx1GBpc",
+  "total_clusters": 1,
+  "total_predicted_nodes": 6,
+  "total_max_nodes": 7,
+  "clusters_with_diagnostic_overrides": 0,
+  "quota_usage_by_family": {
+    "c3": {
+      "used_cores": 0,
+      "quota_cores": 500,
+      "pct_used": "0.0"
+    },
+    "c4": {
+      "used_cores": 0,
+      "quota_cores": 500,
+      "pct_used": "0.0"
+    },
+    "e2": {
+      "used_cores": 0,
+      "quota_cores": 5000,
+      "pct_used": "0.0"
+    },
+    "n2": {
+      "used_cores": 0,
+      "quota_cores": 5000,
+      "pct_used": "0.0"
+    },
+    "n2d": {
+      "used_cores": 240,
+      "quota_cores": 3000,
+      "pct_used": "8.0"
+    },
+    "n4": {
+      "used_cores": 0,
+      "quota_cores": 500,
+      "pct_used": "0.0"
+    },
+    "n4d": {
+      "used_cores": 0,
+      "quota_cores": 500,
+      "pct_used": "0.0"
+    }
+  },
+  "clusters": [
+    {
+      "cluster_name": "cluster-wf-dmr-load-t-23-05-2305",
+      "worker_machine_type": "n2d-highcpu-48",
+      "worker_family": "n2d",
+      "num_workers": 5,
+      "max_workers_from_policy": 6,
+      "total_cores": 240,
+      "max_total_cores": 288,
+      "strategy": "default",
+      "bias_mode": "cost_performance_balance",
+      "topology_preset": "8cx1GBpc",
+      "diagnostic_signals": [
+        
+      ]
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+cluster,recipe,trend,confidence,action,reason,p95_duration_ref,p95_duration_cur,p95_duration_pct_change
+cluster-wf-yarn-driver-demo,_ETL_m_DRIVER_DEMO_LOAD.json,degraded,1,boost_resources,Performance degraded: fraction_reaching_cap changed 500.0%. Re-planning with current metrics.,300000,420000,40

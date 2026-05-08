@@ -1,0 +1,65 @@
+{
+  "clusterConf": {
+    "mock-cluster-show-needs-execs": {
+      "num_workers": 12,
+      "master_machine_type": "n2-highcpu-48",
+      "worker_machine_type": "n2-highcpu-48",
+      "autoscaling_policy": "extra-large-workload-autoscaling",
+      "tuner_version": "2099_02_01",
+      "total_no_of_jobs": 1,
+      "cluster_max_total_memory_gb": 1152,
+      "cluster_max_total_cores": 576,
+      "accumulated_max_total_memory_per_jobs_gb": 112
+    }
+  },
+  "recipeSparkConf": {
+    "_DWH_NEEDS_MORE_EXECUTORS.json": {
+      "parallelizationFactor": 5,
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "14",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 112,
+      "total_executor_maximum_allocated_memory_gb": 112
+    }
+  },
+  "cost_timeline": {
+    "worker_machine_type": "n2-highcpu-48",
+    "master_machine_type": "n2-highcpu-48",
+    "worker_hourly_eur": 2.8800,
+    "master_hourly_eur": 2.8800,
+    "real_used_avg_num_of_workers": 12.00,
+    "real_used_min_workers": 12,
+    "real_used_max_workers": 12,
+    "total_cost_eur": 224.6400,
+    "has_synthetic_span": false,
+    "incarnations": [
+      {
+        "idx": 1,
+        "span_start_ts": "2099-01-02T01:00:00Z",
+        "span_end_ts": "2099-01-02T07:00:00Z",
+        "span_minutes": 360.00,
+        "avg_workers": 12.00,
+        "min_workers": 12,
+        "max_workers": 12,
+        "worker_cost_eur": 207.3600,
+        "master_cost_eur": 17.2800,
+        "total_cost_eur": 224.6400,
+        "synthetic_span": false,
+        "events_count": 0,
+        "intervals": [
+          {
+            "from_ts": "2099-01-02T01:00:00Z",
+            "to_ts": "2099-01-02T07:00:00Z",
+            "workers": 12.0,
+            "seg_seconds": 21600,
+            "seg_cost_eur": 224.6400
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+cluster,recipe,trend,confidence,action,reason,p95_duration_ref,p95_duration_cur,p95_duration_pct_change
+cluster-wf-anonimiza-636bf97f-main,_ETL_m_DM_LKP_CLIENTE_BORRADO.json,new_entry,0,generate_fresh,New recipe not present in reference date. Generating fresh config.,,,
+cluster-wf-anonimiza-636bf97f-main,_ETL_m_DM_LKP_CONTRATOS_CLIENTES_GDPR.json,new_entry,0,generate_fresh,New recipe not present in reference date. Generating fresh config.,,,
+cluster-wf-anonimiza-636bf97f-main,_ETL_m_DWH_D_CONTRATOS_CLIENTES_GDPR.json,new_entry,0,generate_fresh,New recipe not present in reference date. Generating fresh config.,,,
+cluster-wf-anonimiza-636bf97f-main,_ETL_m_DWH_LKP_CLIENTE_BORRADO.json,new_entry,0,generate_fresh,New recipe not present in reference date. Generating fresh config.,,,
+cluster-wf-anonimiza-636bf97f-main,_ETL_m_ODS_CLIENTE_BORRADO.json,new_entry,0,generate_fresh,New recipe not present in reference date. Generating fresh config.,,,
+cluster-wf-anonimiza-636bf97f-main,_ETL_m_ODS_CONTRATOS_CLIENTES_GDPR.json,new_entry,0,generate_fresh,New recipe not present in reference date. Generating fresh config.,,,
+mock-cluster-ss-normal-001,mock-recipe-control.json,stable,1,keep_as_is,Performance stable (confidence=1.0). Keeping reference config.,480000,480000,0
+mock-cluster-ss-synth-002,mock-recipe-orphan.json,stable,1,keep_as_is,Performance stable (confidence=1.0). Keeping reference config.,480000,480000,0
+mock-cluster-ss-synth-003,mock-recipe-stub.json,stable,1,keep_as_is,Performance stable (confidence=1.0). Keeping reference config.,90000,90000,0

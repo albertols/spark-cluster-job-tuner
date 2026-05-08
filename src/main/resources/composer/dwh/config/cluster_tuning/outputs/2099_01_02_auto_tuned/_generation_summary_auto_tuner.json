@@ -1,0 +1,10 @@
+{
+  "metadata":{"reference_date":"2099_01_01","current_date":"2099_01_02","strategy":"default","generated_at":"2026-05-03T17:50:46.916512Z"},
+  "trend_summary":{"total_clusters":4,"total_recipes":9,"improved":0,"degraded":0,"stable":3,"new_entries":6,"dropped_entries":0},
+  "evolution_actions":{"kept":3,"boosted":0,"fresh":1,"preserved":0,"skipped":0},
+  "boost_groups":[
+    {"code":"b14","title":"Driver Boosts","kind":"cluster","count":0,"entries":[]},
+    {"code":"b16","title":"OOM Reboosting","kind":"recipe","count":0,"cluster_count":0,"entries":[]}
+  ],
+  "statistical_analysis":{"correlation_pairs":4,"divergences":0}
+}

@@ -1,0 +1,4 @@
+MACHINE_TYPE, ESTIMATED_MAX_NO_OF_WORKERS, ESTIMATED_MAX_NO_OF_CORES, REAL_MAX_NO_OF_WORKERS, REAL_MAX_NO_OF_CORES, CLUSTERS_LIST
+n2d-highcpu-48,20,960,20,960,mock-cluster-show-holding;mock-cluster-show-needs-execs
+n2-highcpu-48,14,672,18,864,mock-cluster-show-ctrl-1;mock-cluster-show-ctrl-2;mock-cluster-show-oom
+c3-highcpu-44,2,88,4,176,mock-cluster-show-ctrl-3

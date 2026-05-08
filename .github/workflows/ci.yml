@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (scalafmt + scalafix)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+          cache: 'maven'
+      - name: scalafmt check (via Spotless)
+        run: ./mvnw -B spotless:check
+      - name: scalafix check
+        run: ./mvnw -B compile test-compile scalafix:scalafix -Dscalafix.mode=CHECK
+
+  test:
+    name: Test (ScalaTest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+          cache: 'maven'
+      - name: Run tests
+        run: ./mvnw -B test
+
+  coverage:
+    name: Coverage (Scoverage → Codecov)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+          cache: 'maven'
+      - name: Run instrumented tests + report
+        run: ./mvnw -B -Pcoverage verify scoverage:report
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./target/scoverage.xml
+          fail_ci_if_error: false

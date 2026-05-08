@@ -1,0 +1,7 @@
+cluster_name,max_concurrent_jobs
+mock-cluster-show-oom,4
+mock-cluster-show-needs-execs,4
+mock-cluster-show-holding,4
+mock-cluster-show-ctrl-1,2
+mock-cluster-show-ctrl-2,2
+mock-cluster-show-ctrl-3,2

@@ -1,0 +1,2 @@
+cluster_name,worker_machine_type,worker_family,num_workers,max_workers_from_policy,total_cores,max_total_cores,strategy,bias_mode,topology_preset,diagnostic_signals
+cluster-wf-yarn-driver-demo,n2d-highcpu-48,n2d,15,15,720,720,default,cost_performance_balance,8cx1GBpc,"YARN driver evicted 5 time(s) (exit 247). Sample jobs: etl-m-driver-demo-load-20260605-0108; etl-m-driver-demo-load-20260605-0322; etl-m-driver-demo-load-20260605-0604"

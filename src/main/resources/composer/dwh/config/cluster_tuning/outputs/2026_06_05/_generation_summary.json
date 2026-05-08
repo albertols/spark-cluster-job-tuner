@@ -1,0 +1,65 @@
+{
+  "generated_at": "2026-05-04T15:55:05.527784Z",
+  "date": "2026_06_05",
+  "strategy": "default",
+  "bias_mode": "cost_performance_balance",
+  "topology_preset": "8cx1GBpc",
+  "total_clusters": 1,
+  "total_predicted_nodes": 16,
+  "total_max_nodes": 16,
+  "clusters_with_diagnostic_overrides": 1,
+  "quota_usage_by_family": {
+    "c3": {
+      "used_cores": 0,
+      "quota_cores": 500,
+      "pct_used": "0.0"
+    },
+    "c4": {
+      "used_cores": 0,
+      "quota_cores": 500,
+      "pct_used": "0.0"
+    },
+    "e2": {
+      "used_cores": 0,
+      "quota_cores": 5000,
+      "pct_used": "0.0"
+    },
+    "n2": {
+      "used_cores": 0,
+      "quota_cores": 5000,
+      "pct_used": "0.0"
+    },
+    "n2d": {
+      "used_cores": 720,
+      "quota_cores": 3000,
+      "pct_used": "24.0"
+    },
+    "n4": {
+      "used_cores": 0,
+      "quota_cores": 500,
+      "pct_used": "0.0"
+    },
+    "n4d": {
+      "used_cores": 0,
+      "quota_cores": 500,
+      "pct_used": "0.0"
+    }
+  },
+  "clusters": [
+    {
+      "cluster_name": "cluster-wf-yarn-driver-demo",
+      "worker_machine_type": "n2d-highcpu-48",
+      "worker_family": "n2d",
+      "num_workers": 15,
+      "max_workers_from_policy": 15,
+      "total_cores": 720,
+      "max_total_cores": 720,
+      "strategy": "default",
+      "bias_mode": "cost_performance_balance",
+      "topology_preset": "8cx1GBpc",
+      "diagnostic_signals": [
+        "YARN driver evicted 5 time(s) (exit 247). Sample jobs: etl-m-driver-demo-load-20260605-0108, etl-m-driver-demo-load-20260605-0322, etl-m-driver-demo-load-20260605-0604"
+      ]
+    }
+  ]
+}

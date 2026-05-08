@@ -1,0 +1,166 @@
+{
+  "metadata": {
+    "generated_at": "2026-05-04T15:55:05.433416Z",
+    "reference_date": "2026_05_29",
+    "current_date": "2026_06_05",
+    "total_clusters": 1,
+    "total_recipes": 1,
+    "strategy": "default"
+  },
+  "trends_summary": {
+    "improved": 0,
+    "degraded": 1,
+    "stable": 0,
+    "new_entries": 0,
+    "dropped_entries": 0
+  },
+  "cluster_trends": [
+    {
+      "cluster": "cluster-wf-yarn-driver-demo",
+      "overall_trend": "degraded",
+      "recipes": [
+        {
+          "recipe": "_ETL_m_DRIVER_DEMO_LOAD.json",
+          "trend": "degraded",
+          "confidence": 1,
+          "action": "boost_resources",
+          "reason": "Performance degraded: fraction_reaching_cap changed 900.0%. Re-planning with current metrics.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 4,
+              "current": 10,
+              "pct_change": 150
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 8,
+              "current": 18,
+              "pct_change": 125
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 175000,
+              "current": 300000,
+              "pct_change": 71.4286
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 290000,
+              "current": 480000,
+              "pct_change": 65.5172
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0.0400,
+              "current": 0.4000,
+              "pct_change": 900
+            },
+            {
+              "metric": "runs",
+              "reference": 20,
+              "current": 20,
+              "pct_change": 0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "correlations": [
+    
+  ],
+  "correlations_current_snapshot": [
+    
+  ],
+  "correlations_per_cluster": {
+    
+  },
+  "divergences": [
+    
+  ],
+  "divergences_current_snapshot": [
+    
+  ],
+  "divergences_per_cluster": {
+    
+  },
+  "scatter_data": {
+    "delta": {
+      "delta_avg_executors_per_job__delta_avg_job_duration_ms": [
+        {
+          "cluster": "cluster-wf-yarn-driver-demo",
+          "recipe": "_ETL_m_DRIVER_DEMO_LOAD.json",
+          "x": 6,
+          "y": 125000,
+          "is_new": false
+        }
+      ],
+      "delta_fraction_reaching_cap__delta_p95_job_duration_ms": [
+        {
+          "cluster": "cluster-wf-yarn-driver-demo",
+          "recipe": "_ETL_m_DRIVER_DEMO_LOAD.json",
+          "x": 0.3600,
+          "y": 190000,
+          "is_new": false
+        }
+      ],
+      "delta_p95_run_max_executors__delta_p95_job_duration_ms": [
+        {
+          "cluster": "cluster-wf-yarn-driver-demo",
+          "recipe": "_ETL_m_DRIVER_DEMO_LOAD.json",
+          "x": 10,
+          "y": 190000,
+          "is_new": false
+        }
+      ],
+      "delta_runs__delta_avg_job_duration_ms": [
+        {
+          "cluster": "cluster-wf-yarn-driver-demo",
+          "recipe": "_ETL_m_DRIVER_DEMO_LOAD.json",
+          "x": 0,
+          "y": 125000,
+          "is_new": false
+        }
+      ]
+    },
+    "current_snapshot": {
+      "avg_executors_per_job__avg_job_duration_ms": [
+        {
+          "cluster": "cluster-wf-yarn-driver-demo",
+          "recipe": "_ETL_m_DRIVER_DEMO_LOAD.json",
+          "x": 10,
+          "y": 300000,
+          "is_new": false
+        }
+      ],
+      "fraction_reaching_cap__p95_job_duration_ms": [
+        {
+          "cluster": "cluster-wf-yarn-driver-demo",
+          "recipe": "_ETL_m_DRIVER_DEMO_LOAD.json",
+          "x": 0.4000,
+          "y": 480000,
+          "is_new": false
+        }
+      ],
+      "p95_run_max_executors__p95_job_duration_ms": [
+        {
+          "cluster": "cluster-wf-yarn-driver-demo",
+          "recipe": "_ETL_m_DRIVER_DEMO_LOAD.json",
+          "x": 18,
+          "y": 480000,
+          "is_new": false
+        }
+      ],
+      "runs__avg_job_duration_ms": [
+        {
+          "cluster": "cluster-wf-yarn-driver-demo",
+          "recipe": "_ETL_m_DRIVER_DEMO_LOAD.json",
+          "x": 20,
+          "y": 300000,
+          "is_new": false
+        }
+      ]
+    }
+  }
+}

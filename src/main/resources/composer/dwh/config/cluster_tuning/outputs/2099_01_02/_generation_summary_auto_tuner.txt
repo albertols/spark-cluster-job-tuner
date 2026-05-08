@@ -1,0 +1,55 @@
+========================================================================
+  AUTO-TUNER GENERATION SUMMARY
+========================================================================
+
+  Reference date:  2099_01_01
+  Current date:    2099_01_02
+  Strategy:        default
+  Generated at:    2026-05-04T19:04:05.451684Z
+
+------------------------------------------------------------------------
+  TREND SUMMARY
+------------------------------------------------------------------------
+  Total clusters:      6
+  Total recipes:       16
+    Improved:          0
+    Degraded:          3
+    Stable:            12
+    New entries:       1
+    Dropped entries:   0
+
+------------------------------------------------------------------------
+  EVOLUTION ACTIONS (cluster level)
+------------------------------------------------------------------------
+  Kept (stable/improved):   2
+  Boosted (degraded):       3
+  Fresh (new):              1
+  Preserved (historical):   0
+  Skipped (no metrics):     0
+
+------------------------------------------------------------------------
+  b14 DRIVER BOOSTS
+------------------------------------------------------------------------
+  (none)
+
+------------------------------------------------------------------------
+  b16 OOM REBOOSTING  (2 recipe(s) across 2 cluster(s))
+------------------------------------------------------------------------
+  mock-cluster-show-holding  (1 recipe(s))
+    RDM_BOOST_HOLDING                                             spark.executor.memory: 12g -> 12g  (x1.5)  [holding]
+  mock-cluster-show-oom  (1 recipe(s))
+    DQ3_OOM_RECURRING                                             spark.executor.memory: 12g -> 18g  (x1.5)  [re-boost · cumulative x2.25]
+
+------------------------------------------------------------------------
+  Z-SCORE EXECUTOR SCALE-UP  (1 recipe(s) across 1 cluster(s))
+------------------------------------------------------------------------
+  mock-cluster-show-needs-execs  (1 recipe(s))
+    DWH_NEEDS_MORE_EXECUTORS                                      spark.dynamicAllocation.maxExecutors: 14 -> 21  (x1.5)
+
+------------------------------------------------------------------------
+  STATISTICAL ANALYSIS
+------------------------------------------------------------------------
+  Correlation pairs computed: 4
+  Divergences detected:      4
+
+========================================================================

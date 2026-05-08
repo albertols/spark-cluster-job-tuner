@@ -1,0 +1,7 @@
+cluster_name,worker_machine_type,worker_family,num_workers,max_workers_from_policy,total_cores,max_total_cores,strategy,bias_mode,topology_preset,diagnostic_signals
+mock-cluster-show-holding,n2d-highcpu-48,n2d,10,10,480,480,default,cost_performance_balance,8cx1GBpc,""
+mock-cluster-show-oom,n2-highcpu-48,n2,10,10,480,480,default,cost_performance_balance,8cx1GBpc,""
+mock-cluster-show-needs-execs,n2d-highcpu-48,n2d,10,10,480,480,default,cost_performance_balance,8cx1GBpc,""
+mock-cluster-show-ctrl-3,c3-highcpu-44,c3,2,4,88,176,default,cost_performance_balance,8cx1GBpc,""
+mock-cluster-show-ctrl-2,n2-highcpu-48,n2,2,4,96,192,default,cost_performance_balance,8cx1GBpc,""
+mock-cluster-show-ctrl-1,n2-highcpu-48,n2,2,4,96,192,default,cost_performance_balance,8cx1GBpc,""

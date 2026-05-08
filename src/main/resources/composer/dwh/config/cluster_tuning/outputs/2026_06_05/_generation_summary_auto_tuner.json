@@ -1,0 +1,10 @@
+{
+  "metadata":{"reference_date":"2026_05_29","current_date":"2026_06_05","strategy":"default","generated_at":"2026-05-04T15:55:05.563047Z"},
+  "trend_summary":{"total_clusters":1,"total_recipes":1,"improved":0,"degraded":1,"stable":0,"new_entries":0,"dropped_entries":0},
+  "evolution_actions":{"kept":0,"boosted":1,"fresh":0,"preserved":0,"skipped":0},
+  "boost_groups":[
+    {"code":"b14","title":"Driver Boosts","kind":"cluster","count":1,"count_new":1,"count_holding":0,"entries":[{"cluster":"cluster-wf-yarn-driver-demo","state":"re-boost","reason":"Current-date b14 driver eviction (247). Promoted n2d-standard-48 -> n2d-highmem-48","persistence":"current","promotion":{"from":"n2d-standard-48","to":"n2d-highmem-48"},"evictions":{"cur":247}}]},
+    {"code":"b16","title":"OOM Reboosting","kind":"recipe","count":0,"count_new":0,"count_holding":0,"cluster_count":0,"entries":[]}
+  ],
+  "statistical_analysis":{"correlation_pairs":0,"divergences":0}
+}
