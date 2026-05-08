@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spark Cluster Job Tuner — Cost-optimise GCP Dataproc</title>
+  <link rel="stylesheet" href="landing.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <header class="landing-header">
+    <span class="landing-title">Spark Cluster Job Tuner</span>
+    <a class="skip-to-dashboard" href="dashboard.html">Already know this? Skip to dashboard →</a>
+  </header>
+  <main>
+    <article id="readme" class="rendered-md">Loading…</article>
+  </main>
+  <footer class="landing-footer">
+    <a href="https://github.com/albertols/spark-cluster-job-tuner">GitHub</a> ·
+    <a href="dashboard.html">Open dashboard</a> ·
+    <a href="ROADMAP.md">Roadmap</a>
+  </footer>
+  <script>
+    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default' });
+    fetch('README.md')
+      .then(r => r.ok ? r.text() : Promise.reject(`HTTP ${r.status}`))
+      .then(md => {
+        document.getElementById('readme').innerHTML = marked.parse(md);
+        return mermaid.run({ querySelector: '.language-mermaid' });
+      })
+      .catch(e => {
+        document.getElementById('readme').innerHTML =
+          `<p style="color:#c00">Failed to load README.md (${e}). Try restarting <code>./serve.sh</code>.</p>`;
+      });
+  </script>
+</body>
+</html>
