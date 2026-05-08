@@ -1,3 +1,15 @@
+-- =============================================================================
+-- b14_clusters_with_nonzero_exit_codes.sql
+--
+-- Purpose:    Clusters with non-zero job exit codes — driver eviction signal
+--             feeding the boost lifecycle (RefinementVitamins).
+-- Telemetry:  GCP-native
+-- GCP source: resource.type='cloud_dataproc_cluster' (Dataproc cluster
+--             lifecycle + job exit-code events)
+-- App source: n/a
+-- Consumed:   ClusterDiagnostics.loadExitCodes
+-- =============================================================================
+
 WITH base AS (
   SELECT
     timestamp,

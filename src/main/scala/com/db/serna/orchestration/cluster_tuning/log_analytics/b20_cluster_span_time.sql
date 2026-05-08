@@ -1,3 +1,15 @@
+-- =============================================================================
+-- b20_cluster_span_time.sql
+--
+-- Purpose:    Per-cluster wall-clock active window (from / to timestamps)
+--             — required for cluster cost computation and per-recipe
+--             attribution windows.
+-- Telemetry:  GCP-native
+-- GCP source: resource.type='cloud_dataproc_cluster'
+-- App source: n/a
+-- Consumed:   ClusterMachineAndRecipeTuner (cost computation path)
+-- =============================================================================
+
 -- b20_cluster_span_time.sql
 --
 -- Purpose: emit ONE ROW PER CLUSTER INCARNATION (Create -> Delete cycle)

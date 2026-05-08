@@ -3,189 +3,49 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Spark Cluster Auto-Tuner Dashboard</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+  <title>Spark Cluster Job Tuner — Cost-optimise GCP Dataproc</title>
+  <link rel="stylesheet" href="landing.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
 </head>
 <body>
-<header>
-  <div class="header-row">
-    <h1>Spark Cluster Auto-Tuner Dashboard</h1>
-    <button id="back-to-landing" class="back-to-landing" style="display:none;">&larr; Back to runs</button>
-    <span id="project-chip" class="project-chip" style="display:none;"></span>
-  </div>
-  <div id="metadata-bar"></div>
-</header>
-
-<nav id="tabs" style="display:none;">
-  <button class="tab active" data-tab="overview">Fleet Overview</button>
-  <button class="tab" data-tab="correlations">Correlations <span class="info-icon" data-doc-key="pearson_full">ⓘ</span></button>
-  <button class="tab" data-tab="divergences">Divergences <span class="info-icon" data-doc-key="divergence_full">ⓘ</span></button>
-</nav>
-
-<main>
-  <!-- Landing page: list of available auto-tuner analyses -->
-  <section id="landing" class="landing" style="display:none;">
-    <section id="landing-inputs" class="landing-inputs" style="display:none;">
-      <h2>Inputs</h2>
-      <p class="landing-help">CSV inputs available under <code id="landing-inputs-path"></code>. Click a date to expand.</p>
-      <div id="landing-inputs-tree" class="inputs-tree"></div>
-    </section>
-
-    <div class="landing-header">
-      <div>
-        <h2>Pick an analysis run</h2>
-        <p class="landing-help">Choose which <code>_auto_tuner_analysis.json</code> to explore. You can return here anytime to pick another run.</p>
-      </div>
-      <div class="landing-actions">
-        <button id="new-single-tuning" class="cta-primary" title="Run the per-date tuner against a fresh date">+ New single tuning</button>
-        <button id="new-auto-tuning" class="cta-primary" title="Compare a new date against a prior tuned date">+ New auto tuning</button>
-        <button id="landing-refresh" class="landing-refresh" title="Re-scan outputs directory">&#x21bb; Refresh</button>
-      </div>
-    </div>
-    <div id="landing-grid" class="landing-grid"></div>
-    <div id="landing-empty" class="empty-msg" style="display:none;padding:40px;text-align:center;"></div>
-  </section>
-
-  <!-- Fleet Overview -->
-  <section id="overview" class="tab-content">
-    <div id="summary-cards"></div>
-    <div id="boost-overview"></div>
-    <div id="clusters-summary-section"></div>
-    <details id="cluster-ip-count-section" class="cs-graphs">
-      <summary>
-        <h3 style="display:inline">Total estimated IP count</h3>
-        <span class="cs-graphs-help">Workers + master IPs over time · stacked per cluster · click chart to anchor crosshair</span>
-      </summary>
-      <div id="ipc-body">
-        <div class="ipc-controls">
-          <div class="seg-toggle" id="ipc-date-toggle" role="tablist">
-            <button class="seg" data-side="reference" role="tab" aria-selected="false">Reference</button>
-            <button class="seg active" data-side="current" role="tab" aria-selected="true">Current</button>
-            <button class="seg" data-side="both" role="tab" aria-selected="false">Both</button>
-          </div>
-          <span class="ipc-cap-note">IP cap <code id="ipc-cap-num">256</code> · warn ≥<span id="ipc-warn-pct">70</span>% · crit ≥<span id="ipc-crit-pct">90</span>% (configurable in <code>config.json</code> → <code>ipQuota</code>)</span>
-        </div>
-        <div class="ipc-pair" data-mode="current">
-          <section class="ipc-side" data-side="reference"></section>
-          <section class="ipc-side" data-side="current"></section>
-        </div>
-      </div>
-    </details>
-    <details id="cluster-summary-graphs-section" class="cs-graphs">
-      <summary>
-        <h3 style="display:inline">Cluster Summary Graphs</h3>
-        <span class="cs-graphs-help">Historical trends across all runs · current-date highlighted</span>
-      </summary>
-      <div id="cs-graphs-body"><div class="empty-msg">Expand to load…</div></div>
-    </details>
-    <h3 class="section-heading">Cluster Overview</h3>
-    <div id="filters">
-      <input type="text" id="cluster-search" placeholder="Filter clusters..." />
-      <select id="trend-filter">
-        <option value="all">All trends</option>
-        <option value="degraded">Degraded</option>
-        <option value="improved">Improved</option>
-        <option value="stable">Stable</option>
-        <option value="new_entry">New</option>
-        <option value="dropped_entry">Dropped</option>
-      </select>
-    </div>
-    <div id="cluster-grid"></div>
-  </section>
-
-  <!-- Cluster Detail (shown when clicking a cluster) -->
-  <section id="cluster-detail" class="tab-content" style="display:none;">
-    <button id="back-to-overview">&larr; Back to Fleet</button>
-    <h2 id="detail-cluster-name"></h2>
-    <div id="detail-cluster-boosts"></div>
-    <div id="detail-cluster-conf"></div>
-    <details id="detail-cluster-cost" class="detail-foldout" open>
-      <summary>Cluster cost &amp; autoscaling <span class="info-icon" data-doc-key="cluster_cost_autoscaling" title="Per-incarnation worker timeline + cost breakdown from b20 spans + b21 events">ⓘ</span></summary>
-      <div id="detail-cluster-cost-body"><div class="empty-msg">Loading cost timeline…</div></div>
-    </details>
-    <div id="detail-recipes"></div>
-    <details id="detail-correlations" class="detail-foldout" open>
-      <summary>Correlations for this cluster <span class="info-icon" data-doc-key="pearson_full">ⓘ</span></summary>
-      <div id="detail-correlations-body"></div>
-    </details>
-    <details id="detail-outliers" class="detail-foldout" open>
-      <summary>Outliers in this cluster <span class="info-icon" data-doc-key="z_score_full">ⓘ</span></summary>
-      <div id="detail-outliers-body"></div>
-    </details>
-    <div id="detail-charts"></div>
-  </section>
-
-  <!-- Correlations -->
-  <section id="correlations" class="tab-content">
-    <h2>Metric Correlations <span class="info-icon" data-doc-key="pearson_full">ⓘ</span></h2>
-    <p class="tab-help">How strongly two metric changes move together. <strong>Deltas</strong>: change vs reference (paired entries only). <strong>Current snapshot</strong>: raw current values — includes new jobs.</p>
-    <div class="view-controls">
-      <div class="seg-toggle" id="corr-view-toggle">
-        <button class="seg active" data-view="delta">Deltas</button>
-        <button class="seg" data-view="current_snapshot">Current snapshot (incl. new)</button>
-      </div>
-      <label class="cluster-filter">Cluster:
-        <select id="corr-cluster-filter"><option value="">All clusters (fleet)</option></select>
-      </label>
-    </div>
-    <div id="correlation-cards"></div>
-  </section>
-
-  <!-- Divergences -->
-  <section id="divergences" class="tab-content">
-    <h2>Outlier Divergences <span class="info-icon" data-doc-key="z_score_full">ⓘ</span></h2>
-    <p class="tab-help">Recipes whose values stand far from the fleet average. <strong>Deltas</strong>: outliers in the size of change. <strong>Current snapshot</strong>: outliers in raw current values — flags new jobs whose level is unusual.</p>
-    <div class="view-controls">
-      <div class="seg-toggle" id="div-view-toggle">
-        <button class="seg active" data-view="delta">Deltas</button>
-        <button class="seg" data-view="current_snapshot">Current snapshot (incl. new)</button>
-      </div>
-      <label class="cluster-filter">Cluster:
-        <select id="div-cluster-filter"><option value="">All clusters (fleet)</option></select>
-      </label>
-    </div>
-    <div id="divergence-controls">
-      <label>Min |z-score|: <input type="number" id="z-min" value="2.0" step="0.5" min="0"></label>
-      <span class="info-icon" data-doc-key="z_score_full">ⓘ</span>
-    </div>
-    <div id="z-strip-plot"></div>
-    <table id="divergence-table">
-      <thead>
-      <tr>
-        <th class="sortable" data-sort-key="cluster"><span class="th-label">Cluster</span><span class="sort-indicator" aria-hidden="true">↕</span></th>
-        <th class="sortable" data-sort-key="recipe"><span class="th-label">Recipe</span><span class="sort-indicator" aria-hidden="true">↕</span></th>
-        <th class="sortable" data-sort-key="metric"><span class="th-label">Metric</span><span class="sort-indicator" aria-hidden="true">↕</span></th>
-        <th class="sortable" data-sort-key="reference"><span class="th-label">Reference</span><span class="sort-indicator" aria-hidden="true">↕</span></th>
-        <th class="sortable" data-sort-key="current"><span class="th-label">Current</span><span class="sort-indicator" aria-hidden="true">↕</span></th>
-        <th class="sortable" data-sort-key="z_score"><span class="th-label">Z-Score</span><span class="sort-indicator" aria-hidden="true">↓</span></th>
-      </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </section>
-</main>
-
-<div id="tooltip" class="tooltip"></div>
-
-<!-- Modal for recipe spark conf -->
-<div id="modal-overlay" class="modal-overlay" style="display:none;">
-  <div id="modal" class="modal">
-    <div class="modal-header">
-      <h3 id="modal-title"></h3>
-      <button id="modal-close" class="modal-close">&times;</button>
-    </div>
-    <div id="modal-body" class="modal-body"></div>
-  </div>
-</div>
-
-<!-- Doc popover -->
-<div id="doc-popover" class="doc-popover" style="display:none;"></div>
-
-<script src="app.js"></script>
-<script src="tuner-api.js"></script>
-<script src="wizard.js"></script>
+  <header class="landing-header">
+    <span class="landing-title">Spark Cluster Job Tuner</span>
+    <a class="skip-to-dashboard" href="dashboard.html">Already know this? Skip to dashboard →</a>
+  </header>
+  <main>
+    <article id="readme" class="rendered-md">Loading…</article>
+  </main>
+  <footer class="landing-footer">
+    <a href="https://github.com/albertols/spark-cluster-job-tuner">GitHub</a> ·
+    <a href="dashboard.html">Open dashboard</a> ·
+    <a href="ROADMAP.md">Roadmap</a>
+  </footer>
+  <script>
+    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default' });
+    fetch('README.md')
+      .then(r => r.ok ? r.text() : Promise.reject(`HTTP ${r.status}`))
+      .then(md => {
+        // marked.js v13 does NOT sanitize HTML by default; README is repo-controlled
+        // content so this is acceptable for v1. SP-3 follow-up: add DOMPurify if
+        // README ever ingests untrusted input.
+        document.getElementById('readme').innerHTML = marked.parse(md);
+        // Re-class <pre> wrappers around fenced ```mermaid blocks so mermaid.run()
+        // replaces the whole <pre> with SVG (otherwise SVG ends up nested inside
+        // the <pre>, inheriting code-block padding/border).
+        document.querySelectorAll('#readme pre:has(code.language-mermaid)').forEach(pre => {
+          pre.classList.add('mermaid');
+          // Lift the diagram source out of the <code> so mermaid sees the textContent
+          // it expects directly on the <pre>.
+          pre.textContent = pre.querySelector('code').textContent;
+        });
+        return mermaid.run({ querySelector: '#readme pre.mermaid' });
+      })
+      .catch(e => {
+        document.getElementById('readme').innerHTML =
+          `<p style="color:#c00">Failed to load README.md (${e}). Try restarting <code>./serve.sh</code>.</p>`;
+      });
+  </script>
 </body>
 </html>
