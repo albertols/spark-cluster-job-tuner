@@ -111,8 +111,8 @@ See `_LOG_ANALYTICS.md` for the JSON-vs-STRUCT BigQuery quirks (e.g. "Grouping b
 The dashboard is a static-file frontend at `src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/`. Existing tabs: Fleet Overview, Correlations, Divergences.
 
 1. Add a `<button class="tab" data-tab="my-tab">My Tab</button>` to the nav block in `dashboard.html`.
-2. Add a `<section id="tab-my-tab" class="tab-pane">…</section>` for the tab's content.
-3. Add the rendering logic in `app.js` — search for an existing `data-tab="overview"` handler for the pattern.
+2. Add a `<section id="my-tab" class="tab-content">…</section>` for the tab's content (the `id` matches the `data-tab` value verbatim — that's what `switchTabRaw` resolves via `document.getElementById(tabName)`).
+3. Add the rendering logic in `app.js` — see `switchTabRaw` (around line 689) for the generic show/hide pattern, and the per-tab data-loaders nearby for examples (`renderOverview`, `renderCorrelations`, etc.).
 4. Style additions in `style.css`.
 5. If your tab adds an interactive element via the wizard, see `wizard.js` for the form/step pattern.
 6. Manual test: `./serve.sh`, navigate the dashboard with sample data (`2099_01_01` / `2099_01_02`).
