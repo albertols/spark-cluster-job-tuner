@@ -1938,7 +1938,7 @@ ${moveStanza}
   }
 
   function buildMvnCommand(isAuto, mainClass, programArgs) {
-    return `# (Phase 2 placeholder — requires scala-maven-plugin + exec-maven-plugin in pom.xml)
+    return `
 mvn -q exec:java \\
   -Dexec.mainClass=${mainClass} \\
   -Dexec.args="${programArgs}"
