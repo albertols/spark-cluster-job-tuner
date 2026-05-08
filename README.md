@@ -20,7 +20,7 @@ Export 5 BigQuery Log Analytics queries to CSV, drop them in `inputs/<date>/`, r
 ./mvnw -Pserve package
 
 # 2. Run the auto-tuner on two snapshots
-./mvnw -Pserve exec:java -Dexec.args="-cli auto -reference-date=2099_01_01 -current-date=2099_01_02"
+./mvnw -Pserve exec:java -Dexec.args="-cli auto --reference-date=2099_01_01 --current-date=2099_01_02"
 
 # 3. Open the dashboard
 ./src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/serve.sh
@@ -65,7 +65,7 @@ This tool optimises **Dataproc Autoscaler** clusters (managed GCE workers, persi
 
 > **Why you can't just "let it scale"** — Dataproc Autoscaler is bounded by your GCP project's real constraints. A `/24` subnet caps you at ~250 IPs across all running clusters. An `N2-32` vCPU quota of 100 caps your max executor count regardless of YARN demand. This tool surfaces both: see the dashboard's per-cluster IP-budget hint and the per-region machine quota panel.
 
-References: [Dataproc Autoscaling docs](https://docs.cloud.google.com/dataproc/docs/concepts/configuring-clusters/autoscaling) · [Dataproc Serverless comparison](https://docs.cloud.google.com/dataproc-serverless/docs/concepts/dataproc-compare).
+References: [Dataproc Autoscaling docs](https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/autoscaling) · [Dataproc Serverless comparison](https://cloud.google.com/dataproc-serverless/docs/concepts/dataproc-compare).
 
 ## The marquee features
 
@@ -114,7 +114,7 @@ See `StatisticalAnalysis` in [`_AUTO_TUNING.md`](src/main/scala/com/db/serna/orc
 ### Static-CSV mode (simplest)
 
 1. Drop your BigQuery exports as CSV files in `src/main/resources/composer/dwh/config/cluster_tuning/inputs/<YYYY_MM_DD>/`.
-2. Run the tuner: `./mvnw -Pserve exec:java -Dexec.args="<YYYY_MM_DD>"` (single tuner) or `... -cli auto -reference-date=<YYYY_MM_DD> -current-date=<YYYY_MM_DD>` (auto-tuner).
+2. Run the tuner: `./mvnw -Pserve exec:java -Dexec.args="<YYYY_MM_DD>"` (single tuner) or `... -cli auto --reference-date=<YYYY_MM_DD> --current-date=<YYYY_MM_DD>` (auto-tuner).
 3. Open the dashboard: `./src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/serve.sh`.
 
 ### Dashboard-API mode (interactive)
@@ -135,15 +135,16 @@ Two extension points worth knowing:
 
 ### `TuningStrategy` — pick or write your own
 
-Strategies are concrete classes implementing `TuningStrategy`. Three ship today (`DefaultTuningStrategy`, `ConservativeTuningStrategy`, `AggressiveTuningStrategy` — see `single/TuningStrategies.scala`). To add your own, implement the interface:
+Strategies are concrete classes implementing `TuningStrategy`. Three ship today (`DefaultTuningStrategy`, `CostBiasedStrategy`, `PerformanceBiasedStrategy` — see `single/TuningStrategies.scala`). To add your own, implement the interface:
 
 ```scala
 object MyStrategy extends TuningStrategy {
   override def name: String = "my-strategy"
-  override def topology: ExecutorTopologyPreset = ExecutorTopologyPreset(cores = 16, memoryPerCoreGb = 2)
-  override def biasMode: BiasMode = BiasMode.Balanced
-  override def quotas: Quotas = Quotas(maxClustersPerProject = 50)
-  // …additional knobs in TuningStrategies.scala…
+  override def executorTopology: ExecutorTopologyPreset =
+    ExecutorTopologyPreset(cores = 16, memoryPerCoreGb = 2)
+  override def biasMode: BiasMode = BiasMode.CostPerformanceBalance
+  override def quotas: Quotas = Quotas(n2 = 256, n2d = 128)
+  // …additional knobs (machineSelectionPreference, etc.) in TuningStrategies.scala…
 }
 ```
 
@@ -153,7 +154,7 @@ See [`_DESIGN.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/sing
 
 ### `RefinementVitamin` — composable boost behaviour
 
-The boost lifecycle (§5 #1) is composed of independently-applied "vitamins" defined in `RefinementVitamins.scala`. Each vitamin reads a signal (b14 driver eviction, b16 OOM, z-score scale-up, …) and emits a per-recipe boost annotation. Add a new vitamin = add a new lifecycle code (`b14`, `b16`, `executor_scale`, plus your own) + a CSS chip colour in `frontend/style.css`.
+The boost lifecycle (described above under "Boost lifecycle — the Vitamins in action") is composed of independently-applied "vitamins" defined in `RefinementVitamins.scala`. Each vitamin reads a signal (b14 driver eviction, b16 OOM, z-score scale-up, …) and emits a per-recipe boost annotation. Add a new vitamin = add a new lifecycle code (`b14`, `b16`, `executor_scale`, plus your own) + a CSS chip colour in `frontend/style.css`.
 
 See [`_REFINEMENT.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/_REFINEMENT.md).
 
