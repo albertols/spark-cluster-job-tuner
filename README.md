@@ -65,7 +65,7 @@ flowchart LR
   logs[fa:fa-cloud GCP Log Analytics]:::cloud
   csv[fa:fa-file-csv inputs/&lt;date&gt;/*.csv<br/>b13 b14 b16 b20 b21]:::document
   tuner[fa:fa-cog SingleTuner / AutoTuner]:::process
-  dashboard[fa:fa-desktop Dashboard<br/><i>./serve.sh</i>]:::frontend:::outputBoundary
+  dashboard[fa:fa-desktop Dashboard<br/><i>./serve.sh</i>]:::frontend
 
   app -->|"executor lifecycle JSON logs"| logs
   cluster -->|"native log stream"| logs
@@ -73,6 +73,8 @@ flowchart LR
   logs -->|"BigQuery exports"| csv
   csv -->|"mvn"| tuner
   tuner -->|"_*.json + _*.csv"| dashboard
+
+  class dashboard outputBoundary
 ```
 
 The tuner's job is then to pack executor slots inside Dataproc workers — different machine families give you different topology choices for the same per-recipe demand. The pair below shows two ways to hit the same 32-vCPU / 128-GB envelope:

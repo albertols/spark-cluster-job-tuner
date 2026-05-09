@@ -38,11 +38,13 @@ flowchart LR
   classDef cloud    fill:#4ea1ff,stroke:#1a4f8a,color:#fff
   classDef inputBoundary stroke-width:3px,stroke-dasharray:5 3
 
-  csv[fa:fa-file-csv inputs/b13.csv]:::document:::inputBoundary
+  csv[fa:fa-file-csv inputs/b13.csv]:::document
   tuner[fa:fa-cog SingleTuner]:::process
   bq[fa:fa-cloud BigQuery]:::cloud
 
   bq --> csv --> tuner
+
+  class csv inputBoundary
 ```
 
 ---
@@ -77,7 +79,15 @@ Outcome modifiers OVERRIDE the base fill — apply them when the SEMANTIC of the
 | `inputBoundary` | thicker stroke (3px) + dashed (`5 3`) — visually says "data enters here" |
 | `outputBoundary` | thicker stroke (3px) — solid; visually says "data exits here" |
 
-Compose with any base via Mermaid's multi-class syntax: `node[label]:::process:::outputBoundary`.
+**Apply on top of a base** via a separate `class X modifier` line at the end of the diagram (do NOT use the `:::base:::modifier` inline composition — newer Mermaid accepts it but **GitHub's bundled Mermaid rejects it with a `STYLE_SEPARATOR` parse error**). Pattern:
+
+```
+nodeId[label]:::process
+
+class nodeId outputBoundary
+```
+
+For multiple nodes sharing the same modifier, use a comma-separated list: `class nodeA,nodeB outputBoundary`.
 
 ---
 
@@ -127,11 +137,14 @@ The subgraph title carries the 📥 emoji; the inner nodes get the dashed `input
 ### Icon-prefix only (1-2 entry/exit nodes)
 
 ```
-A[📥 Snapshot read]:::process:::inputBoundary
-Z[📤 JSON output]:::document:::outputBoundary
+A[📥 Snapshot read]:::process
+Z[📤 JSON output]:::document
+
+class A inputBoundary
+class Z outputBoundary
 ```
 
-The node label carries the 📥/📤 prefix; the boundary modifier handles the visual stroke.
+The node label carries the 📥/📤 prefix; the boundary modifier (applied via the separate `class` line — see Categories §"Boundary modifiers" for why) handles the visual stroke.
 
 **Decision rule:** count entry/exit nodes. ≥3 → wrapper. ≤2 → icon prefix.
 

@@ -53,13 +53,13 @@ flowchart TD
   classDef inputBoundary  stroke-width:3px,stroke-dasharray:5 3
   classDef outputBoundary stroke-width:3px
 
-  A[fa:fa-file-code Parsed Tuned JSON]:::document:::inputBoundary
+  A[fa:fa-file-code Parsed Tuned JSON]:::document
   R[fa:fa-cog RecipeResolver]:::process
   B[fa:fa-cog Vitamin 1: MemoryHeapBoost]:::process
-  U[fa:fa-file-code _not_boosted_recipes.json]:::document:::outputBoundary
+  U[fa:fa-file-code _not_boosted_recipes.json]:::document
   C[fa:fa-cog Vitamin 2: MemoryOverheadBoost]:::process
   D[fa:fa-cog Vitamin N: future]:::process
-  E[fa:fa-file-code Refined JSON Output]:::document:::outputBoundary
+  E[fa:fa-file-code Refined JSON Output]:::document
 
   A --> R
   R -->|"resolved"| B
@@ -69,6 +69,9 @@ flowchart TD
   D --> E
   B -->|"b16 CSV"| R
   C -->|"b17 CSV"| R
+
+  class A inputBoundary
+  class U,E outputBoundary
 ```
 
 ## Recipe Resolution
