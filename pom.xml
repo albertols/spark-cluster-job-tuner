@@ -16,7 +16,7 @@
         <scala.version.major>2.12</scala.version.major>
         <scala.version.minor>18</scala.version.minor>
         <spark.version>3.5.8</spark.version>
-        <spark.test.version>3.5.3</spark.test.version>
+        <spark.test.version>3.5.6_3.0.1</spark.test.version>
     </properties>
 
     <dependencies>
@@ -59,7 +59,7 @@
         <dependency>
             <groupId>com.holdenkarau</groupId>
             <artifactId>spark-testing-base_${scala.version.major}</artifactId>
-            <version>${spark.test.version}_2.0.1</version>
+            <version>${spark.test.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
