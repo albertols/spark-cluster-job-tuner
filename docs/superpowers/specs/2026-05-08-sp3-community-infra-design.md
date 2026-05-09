@@ -44,7 +44,7 @@ After SP-3 merges, the OSS-readiness epic has only **SP-4 (Medium articles)** re
 | Q3 | Issue templates + Q&A redirect | **3 templates (Bug + Feature + Documentation); Q&A → GitHub Discussions** | Bug and Feature obvious; Documentation earns its slot because the project ships deep `_*.md` docs. Discussions is the modern OSS pattern for Q&A. |
 | Q4 | PR template + CODEOWNERS | **Minimal PR template + no CODEOWNERS** | 4 sections (what + why + tested + linked-issue) capture all reviewers need. Solo-project CODEOWNERS is theatre; branch protection is the real defence (already a SP-3 follow-up). |
 | Q5 | Issue body density | **Big initiatives ~250 words / smaller follow-ups ~80 words** | 250 words signals seriousness without over-prescribing; 80 words is enough for a contributor to claim and start. |
-| Q6 | Code of Conduct | **Contributor Covenant 2.1 verbatim** with `serna.alberto.eng@gmail.com` | De facto OSS standard in 2026; one less decision; recognised by GitHub. |
+| Q6 | Code of Conduct | **Contributor Covenant 2.1 verbatim** with `alberto.lopez@email.com` | De facto OSS standard in 2026; one less decision; recognised by GitHub. |
 
 ## Deliverables
 
@@ -177,7 +177,7 @@ Closes #<issue> *(or "n/a — small/follow-up")*
 
 ## Code of Conduct
 
-Verbatim Contributor Covenant 2.1 fetched from `https://www.contributor-covenant.org/version/2/1/code_of_conduct/code_of_conduct.md`. Substitute `[INSERT CONTACT METHOD]` with `serna.alberto.eng@gmail.com`. ~140 lines.
+Verbatim Contributor Covenant 2.1 fetched from `https://www.contributor-covenant.org/version/2/1/code_of_conduct/code_of_conduct.md`. Substitute `[INSERT CONTACT METHOD]` with `alberto.lopez@email.com`. ~140 lines.
 
 ## Issue body inventory (14 markdown files in `.github/issues/`)
 
@@ -247,7 +247,7 @@ Each file: short Motivation paragraph (where it came from + why it matters) + 1-
 3. `./mvnw -B -Pserve package` produces the slim jar — frontend regression check.
 4. `./serve.sh` boots cleanly and dashboard + landing both render — frontend regression check.
 5. CONTRIBUTING.md renders as Markdown without broken links. All deep-link targets (`_DESIGN.md`, `_AUTO_TUNING.md`, `_REFINEMENT.md`, `_LOG_ANALYTICS.md`, `LICENSE`, `CODE_OF_CONDUCT.md`, README sections) resolve.
-6. CODE_OF_CONDUCT.md has `serna.alberto.eng@gmail.com` substituted (no Contributor Covenant `[INSERT CONTACT METHOD]` placeholder remaining).
+6. CODE_OF_CONDUCT.md has `alberto.lopez@email.com` substituted (no Contributor Covenant `[INSERT CONTACT METHOD]` placeholder remaining).
 7. `.github/ISSUE_TEMPLATE/*.yml` files parse as valid YAML AND validate against GitHub's issue-form schema (basic sanity: `name`, `description`, `body` keys).
 8. `.github/PULL_REQUEST_TEMPLATE.md` renders correctly (visual check on a draft PR).
 9. All 14 markdown stubs in `.github/issues/` are well-formed Markdown with the YAML-comment-block `gh issue create` invocation hint at the top, plus the standard sections (Title, Motivation, Sub-tasks/Acceptance criteria, Effort/Open questions, Links).

@@ -235,7 +235,7 @@ Minimal, GitHub-recognized format:
 ## Reporting a Vulnerability
 
 If you discover a security vulnerability in `spark-cluster-job-tuner`, please
-report it privately by emailing serna.alberto.eng@gmail.com with the subject
+report it privately by emailing alberto.lopez@email.com with the subject
 "[SECURITY] spark-cluster-job-tuner".
 
 Please do **not** open a public GitHub issue for security reports.
