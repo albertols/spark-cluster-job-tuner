@@ -8,18 +8,29 @@ The base tuner generates optimal Spark configurations per cluster. However, some
 
 ```mermaid
 flowchart LR
-    subgraph "Base Tuner"
-        A[BigQuery Log Analytics] --> B[ClusterMachineAndRecipeTuner]
-        B --> C["outputs/<date>/*.json"]
-    end
+  classDef document fill:#9aa2ab,stroke:#3a4046,color:#1d1f23
+  classDef process  fill:#9b59b6,stroke:#5a2d6e,color:#fff
+  classDef cloud    fill:#4ea1ff,stroke:#1a4f8a,color:#fff
+  classDef inputBoundary  stroke-width:3px,stroke-dasharray:5 3
+  classDef outputBoundary stroke-width:3px
 
-    subgraph "Refinement Layer"
-        D["inputs/<date>/b16_oom.csv"] --> E[RefinementPipeline]
-        C --> E
-        E --> C
-    end
+  subgraph BASE ["Base Tuner"]
+    A[fa:fa-cloud BigQuery Log Analytics]:::cloud
+    B[fa:fa-cog ClusterMachineAndRecipeTuner]:::process
+    C[fa:fa-file-code outputs/&lt;date&gt;/*.json]:::document
+  end
 
-    style C fill:#d4edda,stroke:#28a745
+  subgraph REF ["Refinement Layer"]
+    D[fa:fa-file-csv inputs/&lt;date&gt;/b16_oom.csv]:::document
+    E[fa:fa-cog RefinementPipeline]:::process
+  end
+
+  A --> B --> C
+  D --> E
+  C --> E
+  E --> C
+  class D inputBoundary
+  class C outputBoundary
 ```
 
 The refinement app **overwrites the original tuned JSONs in-place** rather than creating a separate output directory. This keeps a single source of truth for downstream consumers.
@@ -37,15 +48,30 @@ Vitamins are chained sequentially — each vitamin's output feeds the next:
 
 ```mermaid
 flowchart TD
-    A[Parsed Tuned JSON] --> R[RecipeResolver]
-    R -- resolved --> B[Vitamin 1: MemoryHeapBoost]
-    R -- unresolved --> U["_not_boosted_recipes.json"]
-    B --> C[Vitamin 2: MemoryOverheadBoost]
-    C --> D[Vitamin N: future]
-    D --> E[Refined JSON Output]
+  classDef document fill:#9aa2ab,stroke:#3a4046,color:#1d1f23
+  classDef process  fill:#9b59b6,stroke:#5a2d6e,color:#fff
+  classDef inputBoundary  stroke-width:3px,stroke-dasharray:5 3
+  classDef outputBoundary stroke-width:3px
 
-    B -- "b16 CSV" --> R
-    C -- "b17 CSV" --> R
+  A[fa:fa-file-code Parsed Tuned JSON]:::document
+  R[fa:fa-cog RecipeResolver]:::process
+  B[fa:fa-cog Vitamin 1: MemoryHeapBoost]:::process
+  U[fa:fa-file-code _not_boosted_recipes.json]:::document
+  C[fa:fa-cog Vitamin 2: MemoryOverheadBoost]:::process
+  D[fa:fa-cog Vitamin N: future]:::process
+  E[fa:fa-file-code Refined JSON Output]:::document
+
+  A --> R
+  R -->|"resolved"| B
+  R -->|"unresolved"| U
+  B --> C
+  C --> D
+  D --> E
+  B -->|"b16 CSV"| R
+  C -->|"b17 CSV"| R
+
+  class A inputBoundary
+  class U,E outputBoundary
 ```
 
 ## Recipe Resolution
@@ -186,71 +212,77 @@ Run from IntelliJ: set main class to `com.db.serna.orchestration.cluster_tuning.
 
 ```mermaid
 classDiagram
-    class RefinementVitamin {
-        <<trait>>
-        +name: String
-        +csvFileName: String
-        +counterKey: String
-        +listKey: String
-        +boostFieldKey: String
-        +loadSignals(inputDir, clusterName): Seq~VitaminSignal~
-        +computeBoosts(signals, recipes): Seq~VitaminBoost~
-        +computeBoosts(signals, recipes, currentSignals): Seq~VitaminBoost~  «date-aware 3-arg overload»
-        +applyBoosts(boosts, recipes): Map
-    }
+  classDef process        fill:#9b59b6,stroke:#5a2d6e,color:#fff
+  classDef outcomeNeutral fill:#2a2a3a,stroke:#7f8c8d,color:#d5d8dc
 
-    class MemoryHeapBoostVitamin {
-        +boostFactor: Double
-        +name = "b16_memory_heap_boost"
-        +csvFileName = "b16_oom_job_driver_exceptions.csv"
-        +boostFieldKey = "appliedMemoryHeapBoostFactor"
-    }
+  class RefinementVitamin {
+      <<trait>>
+      +name: String
+      +csvFileName: String
+      +counterKey: String
+      +listKey: String
+      +boostFieldKey: String
+      +loadSignals(inputDir, clusterName): Seq~VitaminSignal~
+      +computeBoosts(signals, recipes): Seq~VitaminBoost~
+      +computeBoosts(signals, recipes, currentSignals): Seq~VitaminBoost~  «date-aware 3-arg overload»
+      +applyBoosts(boosts, recipes): Map
+  }
 
-    class ExecutorScaleVitamin {
-        +boostFactor: Double
-        +signalsForCluster: String =~ Seq~ExecutorScaleSignal~
-        +name = "executor_scale_up"
-        +csvFileName = "(divergence-driven, no CSV)"
-        +boostFieldKey = "appliedExecutorScaleFactor"
-    }
+  class MemoryHeapBoostVitamin {
+      +boostFactor: Double
+      +name = "b16_memory_heap_boost"
+      +csvFileName = "b16_oom_job_driver_exceptions.csv"
+      +boostFieldKey = "appliedMemoryHeapBoostFactor"
+  }
 
-    class MemoryOverheadBoostVitamin {
-        +boostFactor: Double
-        +counterKey = "boostedMemoryOverheadJobCount"
-    }
+  class ExecutorScaleVitamin {
+      +boostFactor: Double
+      +signalsForCluster: String =~ Seq~ExecutorScaleSignal~
+      +name = "executor_scale_up"
+      +csvFileName = "(divergence-driven, no CSV)"
+      +boostFieldKey = "appliedExecutorScaleFactor"
+  }
 
-    RefinementVitamin <|-- MemoryHeapBoostVitamin
-    RefinementVitamin <|-- ExecutorScaleVitamin
-    RefinementVitamin <|-- MemoryOverheadBoostVitamin
+  class MemoryOverheadBoostVitamin {
+      +boostFactor: Double
+      +counterKey = "boostedMemoryOverheadJobCount"
+  }
 
-    class VitaminSignal {
-        <<sealed trait>>
-        +clusterName: String
-        +recipeFilename: String
-    }
+  RefinementVitamin <|-- MemoryHeapBoostVitamin
+  RefinementVitamin <|-- ExecutorScaleVitamin
+  RefinementVitamin <|-- MemoryOverheadBoostVitamin
 
-    class VitaminBoost {
-        <<sealed trait>>
-        +recipeFilename: String
-    }
+  class VitaminSignal {
+      <<sealed trait>>
+      +clusterName: String
+      +recipeFilename: String
+  }
 
-    class BoostState {
-        <<sealed trait>>
-        New
-        ReBoost
-        Holding
-    }
+  class VitaminBoost {
+      <<sealed trait>>
+      +recipeFilename: String
+  }
 
-    MemoryHeapBoostVitamin ..> MemoryHeapOomSignal
-    MemoryHeapBoostVitamin ..> MemoryHeapBoost
-    ExecutorScaleVitamin ..> ExecutorScaleSignal
-    ExecutorScaleVitamin ..> ExecutorScaleBoost
-    VitaminSignal <|-- MemoryHeapOomSignal
-    VitaminSignal <|-- ExecutorScaleSignal
-    VitaminBoost <|-- MemoryHeapBoost
-    VitaminBoost <|-- ExecutorScaleBoost
-    MemoryHeapBoost --> BoostState
-    ExecutorScaleBoost --> BoostState
+  class BoostState {
+      <<sealed trait>>
+      New
+      ReBoost
+      Holding
+  }
+
+  MemoryHeapBoostVitamin ..> MemoryHeapOomSignal
+  MemoryHeapBoostVitamin ..> MemoryHeapBoost
+  ExecutorScaleVitamin ..> ExecutorScaleSignal
+  ExecutorScaleVitamin ..> ExecutorScaleBoost
+  VitaminSignal <|-- MemoryHeapOomSignal
+  VitaminSignal <|-- ExecutorScaleSignal
+  VitaminBoost <|-- MemoryHeapBoost
+  VitaminBoost <|-- ExecutorScaleBoost
+  MemoryHeapBoost --> BoostState
+  ExecutorScaleBoost --> BoostState
+
+  cssClass "RefinementVitamin,MemoryHeapBoostVitamin,ExecutorScaleVitamin,MemoryOverheadBoostVitamin" process
+  cssClass "VitaminSignal,VitaminBoost,BoostState,MemoryHeapOomSignal,ExecutorScaleSignal,MemoryHeapBoost,ExecutorScaleBoost" outcomeNeutral
 ```
 
 ## File Layout

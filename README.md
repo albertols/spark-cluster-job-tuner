@@ -46,34 +46,59 @@ Together they feed five CSV exports (`b13`, `b14`, `b16`, `b20`, `b21`) — the 
 
 ```mermaid
 flowchart LR
-  app["Your Spark App<br/><i>+ ExecutorTrackingListener</i>"] -->|"executor lifecycle JSON logs"| logs["GCP Log Analytics"]
-  cluster["Dataproc cluster events<br/><i>resource.type=cloud_dataproc_cluster</i>"] -->|"native log stream"| logs
-  autoscaler["Dataproc autoscaler events<br/><i>dataproc.googleapis.com/autoscaler</i>"] -->|"native log stream"| logs
-  logs -->|"BigQuery exports<br/>b13 b14 b16 b20 b21"| csv["inputs/&lt;date&gt;/*.csv"]
-  csv -->|"mvn"| tuner["SingleTuner / AutoTuner"]
-  tuner -->|"_*.json + _*.csv"| dashboard["Dashboard<br/><i>./serve.sh</i>"]
+  classDef document  fill:#9aa2ab,stroke:#3a4046,color:#1d1f23
+  classDef process   fill:#9b59b6,stroke:#5a2d6e,color:#fff
+  classDef spark     fill:#ff7a18,stroke:#8a3a00,color:#fff
+  classDef cloud     fill:#4ea1ff,stroke:#1a4f8a,color:#fff
+  classDef frontend  fill:#10b981,stroke:#054b34,color:#fff
+  classDef inputBoundary  stroke-width:3px,stroke-dasharray:5 3
+  classDef outputBoundary stroke-width:3px
+
+  subgraph INPUTS ["📥 Telemetry sources"]
+    direction TB
+    app[fa:fa-bolt Your Spark App<br/><i>+ ExecutorTrackingListener</i>]:::spark
+    cluster[fa:fa-cloud Dataproc cluster events<br/><i>resource.type=cloud_dataproc_cluster</i>]:::cloud
+    autoscaler[fa:fa-cloud Dataproc autoscaler<br/><i>dataproc.googleapis.com/autoscaler</i>]:::cloud
+  end
+  class app,cluster,autoscaler inputBoundary
+
+  logs[fa:fa-cloud GCP Log Analytics]:::cloud
+  csv[fa:fa-file-csv inputs/&lt;date&gt;/*.csv<br/>b13 b14 b16 b20 b21]:::document
+  tuner[fa:fa-cog SingleTuner / AutoTuner]:::process
+  dashboard[fa:fa-desktop Dashboard<br/><i>./serve.sh</i>]:::frontend
+
+  app -->|"executor lifecycle JSON logs"| logs
+  cluster -->|"native log stream"| logs
+  autoscaler -->|"native log stream"| logs
+  logs -->|"BigQuery exports"| csv
+  csv -->|"mvn"| tuner
+  tuner -->|"_*.json + _*.csv"| dashboard
+
+  class dashboard outputBoundary
 ```
 
 The tuner's job is then to pack executor slots inside Dataproc workers — different machine families give you different topology choices for the same per-recipe demand. The pair below shows two ways to hit the same 32-vCPU / 128-GB envelope:
 
 ```mermaid
-flowchart TB
-  subgraph N2-32 ["N2-32 worker — 32 vCPU, 128 GB"]
-    direction TB
-    n1["Executor 1<br/>8 cores · 32 GB"]
-    n2["Executor 2<br/>8 cores · 32 GB"]
-    n3["Executor 3<br/>8 cores · 32 GB"]
-    n4["Executor 4<br/>8 cores · 32 GB"]
-  end
-```
+flowchart LR
+  classDef container fill:#fef08a,stroke:#7a5e00,color:#1d1f23
+  classDef process   fill:#9b59b6,stroke:#5a2d6e,color:#fff
 
-```mermaid
-flowchart TB
-  subgraph E2-32 ["E2-32 worker — 32 vCPU, 128 GB"]
+  subgraph N2 ["fa:fa-server N2-32 worker (32 vCPU, 128 GB)"]
     direction TB
-    e1["Executor 1<br/>16 cores · 64 GB"]
-    e2["Executor 2<br/>16 cores · 64 GB"]
+    n1[fa:fa-cog Executor 1<br/>8 cores · 32 GB]:::process
+    n2[fa:fa-cog Executor 2<br/>8 cores · 32 GB]:::process
+    n3[fa:fa-cog Executor 3<br/>8 cores · 32 GB]:::process
+    n4[fa:fa-cog Executor 4<br/>8 cores · 32 GB]:::process
   end
+
+  subgraph E2 ["fa:fa-server E2-32 worker (32 vCPU, 128 GB)"]
+    direction TB
+    e1[fa:fa-cog Executor 1<br/>16 cores · 64 GB]:::process
+    e2[fa:fa-cog Executor 2<br/>16 cores · 64 GB]:::process
+  end
+
+  class N2,E2 container
 ```
 
 See [`_LOG_ANALYTICS.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/log_analytics/_LOG_ANALYTICS.md) for the full SQL schema and [`_PARALLELISM.md`](src/main/scala/com/db/serna/utils/spark/parallelism/_PARALLELISM.md) for the listener.
@@ -112,6 +137,11 @@ stateDiagram-v2
     Boost factor preserved across replans
     via BoostMetadataCarrier.
   end note
+
+  classDef stateActive  fill:#9b59b6,stroke:#5a2d6e,color:#fff
+  classDef stateIdle    fill:#9aa2ab,stroke:#3a4046,color:#1d1f23
+  class New,ReBoost stateActive
+  class Holding stateIdle
 ```
 
 See [`_REFINEMENT.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/_REFINEMENT.md) and [`_AUTO_TUNING.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/_AUTO_TUNING.md) for the lifecycle FSM and `BoostMetadataCarrier` mechanics.
@@ -207,7 +237,11 @@ See [`ROADMAP.md`](ROADMAP.md) for the active sub-projects (OSS readiness phases
 
 ## Contributing
 
-PRs welcome — see [`ROADMAP.md`](ROADMAP.md) for active work and good-first-issue candidates. Full contribution guide lands in a follow-up sub-project (SP-3).
+PRs welcome. Start with the [Quickstart](CONTRIBUTING.md#quickstart--your-first-pr-in-5-minutes) in `CONTRIBUTING.md` if you want to be in code within 5 minutes, or skip to the [Architecture orientation](CONTRIBUTING.md#architecture-orientation) for the deeper dive. The four "How to add a..." playbooks (TuningStrategy, RefinementVitamin, `bNN` query, dashboard tab) cover the most common contributions.
+
+Looking for a place to start? The [Roadmap](ROADMAP.md) has Issues labelled `good first issue` — small, well-scoped, and contributor-friendly.
+
+For questions and ideas, use [GitHub Discussions](https://github.com/albertols/spark-cluster-job-tuner/discussions). For security vulnerabilities, see [`SECURITY.md`](SECURITY.md). All participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md) (Contributor Covenant 2.1).
 
 ## Acknowledgements
 

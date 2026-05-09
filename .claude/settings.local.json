@@ -76,7 +76,15 @@
       "Bash(PORT=8765 /Users/serna/IdeaProjects/spark-cluster-job-tuner/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/serve.sh)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8765/)",
       "Bash(curl -sI http://localhost:8765/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/)",
-      "Bash(kill 17668)"
+      "Bash(kill 17668)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(./serve.sh)",
+      "Bash(echo \"PID=$!\")",
+      "Bash(curl -sI http://localhost:8080/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/)",
+      "Bash(curl -s http://localhost:8080/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/index.html)",
+      "Bash(pkill -f \"python3 -m http.server\")",
+      "Bash(curl -sI http://localhost:8080/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/dashboard.html)",
+      "Bash(curl -s http://localhost:8080/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/)"
     ]
   },
   "enabledPlugins": {
