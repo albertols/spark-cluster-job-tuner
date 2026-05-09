@@ -34,15 +34,31 @@ CI runs four checks (`lint`, `test`, `coverage`, `Analyze (Java/Scala)`). All fo
 
 This is a navigational layer — read these in this order to build a mental model fast. Each `_*.md` is the source of truth for its area; this doc points you at them.
 
+> 📐 **Mermaid style:** all diagrams in this repo follow [`docs/MERMAID_STYLE.md`](docs/MERMAID_STYLE.md). When adding a new diagram, copy the canonical `classDef` block from there and pick categories + icons from the vocabulary table. Don't invent new colours or icon styles ad hoc.
+
 ```mermaid
 flowchart LR
-  log["log_analytics/<br/>BigQuery SQL (b13/b14/b16/b20/b21)"] --> single["single/<br/>SingleTuner + diagnostics"]
-  log --> auto["auto/<br/>AutoTuner + trends"]
-  single --> refinement["single/refinement/<br/>RefinementVitamins<br/>(boost lifecycle)"]
+  classDef document fill:#9aa2ab,stroke:#3a4046,color:#1d1f23
+  classDef process  fill:#9b59b6,stroke:#5a2d6e,color:#fff
+  classDef spark    fill:#ff7a18,stroke:#8a3a00,color:#fff
+  classDef cloud    fill:#4ea1ff,stroke:#1a4f8a,color:#fff
+  classDef frontend fill:#10b981,stroke:#054b34,color:#fff
+
+  log[fa:fa-folder log_analytics/<br/>BigQuery SQL b13/b14/b16/b20/b21]:::cloud
+  single[fa:fa-cog single/<br/>SingleTuner + diagnostics]:::process
+  auto[fa:fa-cog auto/<br/>AutoTuner + trends]:::process
+  refinement[fa:fa-cog single/refinement/<br/>RefinementVitamins<br/>boost lifecycle]:::process
+  frontend[fa:fa-desktop auto/frontend/<br/>Dashboard + landing]:::frontend
+  cache[fa:fa-cog utils/spark/cache/<br/>memory sizing]:::spark
+  parallelism[fa:fa-bolt utils/spark/parallelism/<br/>ExecutorTrackingListener]:::spark
+
+  log --> single
+  log --> auto
+  single --> refinement
   refinement --> auto
-  auto --> frontend["auto/frontend/<br/>Dashboard + landing"]
-  cache["utils/spark/cache/<br/>memory sizing"] -. supporting .-> single
-  parallelism["utils/spark/parallelism/<br/>ExecutorTrackingListener"] -. emits b13/b16 telemetry .-> log
+  auto --> frontend
+  cache -. supporting .-> single
+  parallelism -. emits b13/b16 telemetry .-> log
 ```
 
 Read order:
