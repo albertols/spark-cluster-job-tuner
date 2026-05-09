@@ -29,18 +29,15 @@ The **Auto-Tuner** (`ClusterMachineAndRecipeAutoTuner`) extends the one-off tune
 
 ```mermaid
 flowchart TD
-    %% ── Styles ────────────────────────────────────────────────────────────────
-    classDef csvFile    fill:#1e3a5f,stroke:#4a90d9,color:#cce5ff,rx:4
-    classDef scalaObj   fill:#2d1b4e,stroke:#9b59b6,color:#e8d5ff,rx:6
-    classDef snapshot   fill:#1a3a2a,stroke:#27ae60,color:#c8f0d8,rx:6
-    classDef decision   fill:#4a2800,stroke:#e67e22,color:#ffe5b4,rx:6
-    classDef actionGood fill:#1a3a1a,stroke:#2ecc71,color:#c8f0c8,rx:4
-    classDef actionBad  fill:#3a1a1a,stroke:#e74c3c,color:#ffc8c8,rx:4
-    classDef actionNeutral fill:#2a2a3a,stroke:#7f8c8d,color:#d5d8dc,rx:4
-    classDef outJson    fill:#1a2a3a,stroke:#3498db,color:#aed6f1,rx:4
-    classDef outCsv     fill:#1a2a2a,stroke:#1abc9c,color:#a2d9ce,rx:4
-    classDef outTxt     fill:#2a2a1a,stroke:#f39c12,color:#fdebd0,rx:4
-    classDef dirBox     fill:#111,stroke:#444,color:#aaa
+    %% ── Styles (canonical palette per docs/MERMAID_STYLE.md) ─────────────────
+    classDef document   fill:#9aa2ab,stroke:#3a4046,color:#1d1f23
+    classDef process    fill:#9b59b6,stroke:#5a2d6e,color:#fff
+    classDef cloud      fill:#4ea1ff,stroke:#1a4f8a,color:#fff
+    classDef container  fill:#fef08a,stroke:#7a5e00,color:#1d1f23
+    classDef outcomeGood    fill:#1a3a1a,stroke:#2ecc71,color:#c8f0c8
+    classDef outcomeBad     fill:#3a1a1a,stroke:#e74c3c,color:#ffc8c8
+    classDef outcomeNeutral fill:#2a2a3a,stroke:#7f8c8d,color:#d5d8dc
+    classDef outputBoundary stroke-width:3px
 
     %% ── INPUT LAYER ──────────────────────────────────────────────────────────
     subgraph INPUTS ["📁  inputs/YYYY_MM_DD/"]
@@ -49,14 +46,14 @@ flowchart TD
         B14["📄 b14_clusters_with\n_nonzero_exit_codes.csv\n──────────────────────\ndriver exit code 247\n(YARN eviction)"]
         B16["📄 b16_oom_job\n_driver_exceptions.csv\n──────────────────────\nJava heap OOM\nper recipe / cluster"]
     end
-    class B13,B14,B16 csvFile
+    class B13,B14,B16 document
 
     %% ── SNAPSHOT LOADING ─────────────────────────────────────────────────────
     subgraph SNAPSHOTS ["⚙️  ClusterMachineAndRecipeAutoTuner.scala · loadSnapshot()"]
         REF["🗓️  Reference DateSnapshot\ndate · metrics · b14Signals\ndriverOverrides"]
         CUR["🗓️  Current DateSnapshot\ndate · metrics · b14Signals\ndriverOverrides"]
     end
-    class REF,CUR snapshot
+    class REF,CUR process
 
     B13 -->|"metrics"| REF
     B13 -->|"metrics"| CUR
@@ -69,7 +66,7 @@ flowchart TD
         TREND["📊 TrendDetector\n─────────────────\nImproved / Degraded\nStable / New / Dropped\n+ confidence score"]
         STATS["📐 StatisticalAnalysis\n─────────────────\nPearson correlations\nz-score divergences"]
     end
-    class PAIR,TREND,STATS scalaObj
+    class PAIR,TREND,STATS process
 
     REF -->|"ref metrics"| PAIR
     CUR -->|"cur metrics"| PAIR
@@ -80,7 +77,7 @@ flowchart TD
     subgraph EVOLUTION ["⚙️  PerformanceEvolver.scala"]
         EVOLVER["🧠 PerformanceEvolver\ndecideEvolutions()\n─────────────────\ntrend → action"]
     end
-    class EVOLVER scalaObj
+    class EVOLVER process
 
     TREND -->|"TrendAssessment[]"| EVOLVER
 
@@ -90,9 +87,9 @@ flowchart TD
         KEEP["✅ Keep As-Is\nre-emit reference JSON verbatim\n─────────────\nKeepAsIs\n(Improved · Stable)"]
         HIST["📦 Preserve Historical\nre-emit reference JSON verbatim\n─────────────\nPreserveHistorical\n(DroppedEntry)"]
     end
-    class PLAN actionBad
-    class KEEP actionGood
-    class HIST actionNeutral
+    class PLAN outcomeBad
+    class KEEP outcomeGood
+    class HIST outcomeNeutral
 
     EVOLVER -->|"BoostResources\nGenerateFresh"| PLAN
     EVOLVER -->|"KeepAsIs"| KEEP
@@ -121,8 +118,8 @@ flowchart TD
             SCSV["📄 _clusters-summary*.csv\n(7 sorted views)"]
         end
     end
-    class JMAN,JDA outJson
-    class AJSON,ACSV,GSUM,GTXT,SCSV outCsv
+    class JMAN,JDA document
+    class AJSON,ACSV,GSUM,GTXT,SCSV document
 
     PLAN  --> JMAN & JDA
     KEEP  --> JMAN & JDA
@@ -132,6 +129,7 @@ flowchart TD
     STATS --> ACSV
     TREND --> ACSV
     PLAN  --> GSUM & GTXT & SCSV
+    class JMAN,JDA,AJSON,ACSV,GSUM,GTXT,SCSV outputBoundary
 ```
 
 ---
