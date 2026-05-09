@@ -207,7 +207,11 @@ See [`ROADMAP.md`](ROADMAP.md) for the active sub-projects (OSS readiness phases
 
 ## Contributing
 
-PRs welcome — see [`ROADMAP.md`](ROADMAP.md) for active work and good-first-issue candidates. Full contribution guide lands in a follow-up sub-project (SP-3).
+PRs welcome. Start with the [Quickstart](CONTRIBUTING.md#quickstart--your-first-pr-in-5-minutes) in `CONTRIBUTING.md` if you want to be in code within 5 minutes, or skip to the [Architecture orientation](CONTRIBUTING.md#architecture-orientation) for the deeper dive. The four "How to add a..." playbooks (TuningStrategy, RefinementVitamin, `bNN` query, dashboard tab) cover the most common contributions.
+
+Looking for a place to start? The [Roadmap](ROADMAP.md) has Issues labelled `good first issue` — small, well-scoped, and contributor-friendly.
+
+For questions and ideas, use [GitHub Discussions](https://github.com/albertols/spark-cluster-job-tuner/discussions). For security vulnerabilities, see [`SECURITY.md`](SECURITY.md). All participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md) (Contributor Covenant 2.1).
 
 ## Acknowledgements
 
