@@ -10,7 +10,7 @@ tuning**.
 
 The dashboard runs in one of two modes:
 
-### Static (Phase 1) — `./serve.sh`
+### Static (Phase 1) — [`serve.sh`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/serve.sh)
 
 Backed by `python3 -m http.server`. The wizard validates CSVs in the browser
 and produces:
@@ -21,7 +21,7 @@ and produces:
 
 You then run the tuner from IntelliJ and click **Refresh dashboard**.
 
-### API (Phase 2) — `./serve.sh --api`
+### API (Phase 2) — [`serve.sh --api`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/serve.sh)
 
 Backed by `TunerService` (a JDK `com.sun.net.httpserver` HTTP server in
 [`server/TunerService.scala`](server/TunerService.scala)). The wizard's Step 4
@@ -61,7 +61,7 @@ java -jar target/spark-cluster-job-tuner-server.jar --cli auto \
   --strategy=cost_biased --b16-rebooting-factor=1.5
 ```
 
-`./serve.sh --api` automatically prefers the jar over `mvn exec:java` if
+`./src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/serve.sh --api` automatically prefers the jar over `mvn exec:java` if
 present, so a one-time `mvn -Pserve package` saves the Maven boot cost on
 every subsequent dashboard launch.
 

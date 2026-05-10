@@ -78,7 +78,7 @@ Discovery (`discoverAnalyses` + `parseDirListing`) scrapes the HTML directory li
 ## Verification checklist (run before declaring done)
 - [ ] `index.html` parses; no missing tags introduced.
 - [ ] `app.js` has no syntax errors (`node -c app.js` if Node is handy, otherwise open the page).
-- [ ] `./serve.sh` starts and the landing page lists analyses.
+- [ ] `./src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/serve.sh` starts and the landing page lists analyses.
 - [ ] Click into an analysis → Fleet Overview, Correlations, Divergences, and a Cluster Detail all render.
 - [ ] Browser console shows no new errors or warnings caused by the change.
 - [ ] Refresh on a deep-linked URL (e.g. `?data=…&tab=correlations&cluster=…`) restores the same view.

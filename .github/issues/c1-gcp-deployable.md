@@ -9,7 +9,7 @@
 
 ## Motivation
 
-The tool is local-only today: the user manually exports CSVs from BigQuery, runs `./mvnw`, and opens `./serve.sh`. To grow beyond a single-laptop tool, it needs to land on GCP — fetch BigQuery exports automatically, host the dashboard somewhere addressable, and persist outputs across sessions.
+The tool is local-only today: the user manually exports CSVs from BigQuery, runs `./mvnw`, and opens `./src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/serve.sh`. To grow beyond a single-laptop tool, it needs to land on GCP — fetch BigQuery exports automatically, host the dashboard somewhere addressable, and persist outputs across sessions.
 
 This unlocks scheduled / on-demand tuning runs without anyone in the loop, and makes the dashboard shareable with a team without zip-and-email.
 

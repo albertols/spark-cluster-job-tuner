@@ -86,4 +86,4 @@ Before claiming a generator change is done:
 - [ ] `MockGenSpec`, `ScenarioSpec`, `OssMockMainSpec` all green.
 - [ ] `OssMockMain --date=2099_01_01 --scenario=baseline --full` runs without errors and produces all 7 `_clusters-*.csv` + per-cluster JSONs + `_generation_summary.{json,csv}`.
 - [ ] For multi-date: `--reference-date=2099_01_01 --current-date=2099_01_02 --scenario=multiDateBaseline --full` produces `_auto_tuner_analysis.json` and `_analyses_index.json`.
-- [ ] `cd …/auto/frontend && ./serve.sh` — landing page lists the mocked analyses; clicking through Fleet Overview / Correlations / Divergences renders without console errors.
+- [ ] `./src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/serve.sh` — landing page lists the mocked analyses; clicking through Fleet Overview / Correlations / Divergences renders without console errors.

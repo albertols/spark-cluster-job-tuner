@@ -67,7 +67,7 @@ flowchart LR
   logs[fa:fa-cloud GCP Log Analytics]:::cloud
   csv[fa:fa-file-csv inputs/&lt;date&gt;/*.csv<br/>b13 b14 b16 b20 b21]:::document
   tuner[fa:fa-cog SingleTuner / AutoTuner]:::process
-  dashboard[fa:fa-desktop Dashboard<br/><i>./serve.sh</i>]:::frontend
+  dashboard[fa:fa-desktop Dashboard<br/><i>auto/frontend/serve.sh</i>]:::frontend
 
   app -->|"executor lifecycle JSON logs"| logs
   cluster -->|"native log stream"| logs

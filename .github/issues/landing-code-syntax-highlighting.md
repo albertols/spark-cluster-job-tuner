@@ -20,7 +20,7 @@ The new landing page (`auto/frontend/index.html`) renders the README via marked.
 
 ## Acceptance
 
-`./serve.sh`, open the landing — Scala code in §7 ("Extending it") shows keyword/identifier colouring; bash blocks too.
+`./src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/serve.sh`, open the landing — Scala code in §7 ("Extending it") shows keyword/identifier colouring; bash blocks too.
 
 ## Effort
 
