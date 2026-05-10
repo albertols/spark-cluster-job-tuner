@@ -23,7 +23,7 @@ Move the tool from local-only to a GCP-hosted deployment.
 Three agent personas, eventually composed via an A2A (Agent-to-Agent) protocol:
 
 - **Agent 1 — Tuner Proposal**: pure metrics + groomed trends (covariances, correlations, z-score) at recipe + cluster level. Emits structured tuning-recommendation reports.
-- **Agent 2 — L3 Spark Job Optimiser**: deep job-level optimisation (shuffle, caching, parallelism) using `ExecutorTrackingListener` evolution and Spark internal APIs. Inspired by Databricks Optimiser-style tooling.
+- **Agent 2 — L3 Spark Job Optimiser**: deep job-level optimisation (shuffle, caching, parallelism) using [`ExecutorTrackingListener`](/src/main/scala/com/db/serna/utils/spark/parallelism/ExecutorTrackingListener.scala) evolution and Spark internal APIs. Inspired by Databricks Optimiser-style tooling.
 - **Agent 3 — L2 PRD Failure Analyst**: analyses failed PRD jobs (`BQ.EXECUTION_TABLES` → logs → actions). Talks to Agents 1 + 2 (e.g., performance degradation → OOM crash chain).
 
 Plus: ADK on GCP, security guardrails (least-privilege Service Accounts), wrappers for BigQuery / GCS access.
@@ -42,6 +42,6 @@ State-transition prediction of future cluster/job state from current + historica
 - Coverage no-regression gate on PRs (currently report-only) [#TBD]
 - Branch protection rules for `main` (currently relies on review discipline) [#TBD]
 - Logo / brand identity [#TBD]
-- Drop the orphaned `arr(...)` expression on `GenerationSummary.scala:146` [#TBD]
+- Drop the orphaned `arr(...)` expression on [`GenerationSummary.scala:146`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/GenerationSummary.scala#L146) [#TBD]
 - `serve.sh` Windows portability (cp + bash dependencies) [#TBD]
 - `index.html` landing: code-block syntax highlighting (highlight.js or prism.js) [#TBD]

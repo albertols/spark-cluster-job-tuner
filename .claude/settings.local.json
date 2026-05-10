@@ -85,6 +85,17 @@
       "Bash(pkill -f \"python3 -m http.server\")",
       "Bash(curl -sI http://localhost:8080/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/dashboard.html)",
       "Bash(curl -s http://localhost:8080/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/)"
+      "Bash(curl -s http://localhost:8080/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP=%{http_code}\\\\n\" http://localhost:8080/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/)",
+      "Bash(curl -s -o /dev/null -w \"HTTP_root=%{http_code}\\\\n\" http://localhost:8080/)",
+      "Bash(curl -s \"http://localhost:8080/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/\")",
+      "Bash(kill 18192)",
+      "Bash(curl -s -o /dev/null -w \"landing=%{http_code}\\\\n\" http://localhost:8080/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/)",
+      "Bash(curl -s -o /dev/null -w \"dashboard=%{http_code}\\\\n\" http://localhost:8080/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/dashboard.html)",
+      "Bash(curl -s -o /dev/null -w \"config=%{http_code}\\\\n\" http://localhost:8080/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/config.json)",
+      "Bash(kill 27888)",
+      "Bash(gh pr *)"
     ]
   },
   "enabledPlugins": {

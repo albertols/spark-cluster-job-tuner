@@ -2,7 +2,7 @@
 
 ## Overview
 
-The **Auto-Tuner** (`ClusterMachineAndRecipeAutoTuner`) extends the one-off tuner with **temporal awareness**. Instead of producing configurations from a single date's metrics, it compares metrics across at least two dates (**reference** and **current**) to:
+The **Auto-Tuner** ([`ClusterMachineAndRecipeAutoTuner`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/ClusterMachineAndRecipeAutoTuner.scala)) extends the one-off tuner with **temporal awareness**. Instead of producing configurations from a single date's metrics, it compares metrics across at least two dates (**reference** and **current**) to:
 
 1. Detect whether performance has **improved**, **degraded**, or remained **stable**
 2. **Evolve** cluster and recipe configurations based on detected trends
@@ -18,9 +18,9 @@ The **Auto-Tuner** (`ClusterMachineAndRecipeAutoTuner`) extends the one-off tune
 | Decision basis | Absolute metric values | Metric deltas across dates |
 | Config evolution | Fresh plan every run | Keep/boost/preserve based on trend |
 | b14 handling | Single-date eviction detection | Persistent eviction detection (both dates) |
-| b16 handling | Separate refinement step (via `ClusterMachineAndRecipeTunerRefinement`) | Integrated reboosting for ALL evolution paths, with `New / ReBoost / Holding` lifecycle that compounds across runs |
-| b16 boost across re-plans | n/a | `BoostMetadataCarrier` carries prior factor + boosted memory into freshly-replanned configs so the boost survives `BoostResources`/`GenerateFresh` |
-| Z-score executor scale-up | n/a | `ExecutorScaleVitamin` raises `spark.dynamicAllocation.maxExecutors` for paired duration outliers that are cap-touching |
+| b16 handling | Separate refinement step (via [`ClusterMachineAndRecipeTunerRefinement`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/ClusterMachineAndRecipeTunerRefinement.scala)) | Integrated reboosting for ALL evolution paths, with `New / ReBoost / Holding` lifecycle that compounds across runs |
+| b16 boost across re-plans | n/a | [`BoostMetadataCarrier`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/BoostMetadataCarrier.scala) carries prior factor + boosted memory into freshly-replanned configs so the boost survives `BoostResources`/`GenerateFresh` |
+| Z-score executor scale-up | n/a | [`ExecutorScaleVitamin`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/RefinementVitamins.scala) raises `spark.dynamicAllocation.maxExecutors` for paired duration outliers that are cap-touching |
 | Output | Per-cluster JSONs + summaries | Same + `_auto_tuner_analysis.json`, `_correlations.csv`, `_divergences.csv`, `_trend_summary.csv`, structured `boost_groups` in `_generation_summary_auto_tuner.json` |
 
 ---
@@ -138,7 +138,7 @@ flowchart TD
 
 ### Classification Logic
 
-For each paired (cluster, recipe), the `TrendDetector` computes deltas across all metrics and classifies the trend:
+For each paired (cluster, recipe), the [`TrendDetector`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/TrendDetector.scala) computes deltas across all metrics and classifies the trend:
 
 | Condition | Classification |
 |---|---|
@@ -193,7 +193,7 @@ confidence = min(1.0, min(ref.runs, cur.runs) / 10.0)
 
 b16 reboosting is applied to **all evolution paths** (KeepAsIs, BoostResources, GenerateFresh, PreserveHistorical), not just degraded recipes. The auto-tuner searches for b16 CSVs in both `current_date` and `reference_date` input directories. If OOM signals existed in reference_date but the b16 CSV is absent in current_date, the boost still persists — removing it would risk regression into OOM failures.
 
-`MemoryHeapBoostVitamin` uses the date-aware 3-arg `computeBoosts` overload that produces one of three states per recipe:
+[`MemoryHeapBoostVitamin`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/RefinementVitamins.scala) uses the date-aware 3-arg `computeBoosts` overload that produces one of three states per recipe:
 
 | State | Trigger | What happens |
 |---|---|---|
@@ -201,7 +201,7 @@ b16 reboosting is applied to **all evolution paths** (KeepAsIs, BoostResources, 
 | `ReBoost` | recipe already tagged AND a fresh signal in current_date | boost stacks on top of the already-boosted memory; cumulative factor = `prior × factor` (e.g. 1.5 → 2.25 → 3.375) |
 | `Holding` | recipe already tagged AND no fresh signal in current_date | memory and totals preserved; factor preserved; the boost is succeeding so don't roll it back |
 
-The cumulative factor lives in `extraFields["appliedMemoryHeapBoostFactor"]` on the recipe and round-trips through `SimpleJsonParser`.
+The cumulative factor lives in `extraFields["appliedMemoryHeapBoostFactor"]` on the recipe and round-trips through [`SimpleJsonParser`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/SimpleJsonParser.scala).
 
 ### B16 boost compounding across re-plans (`BoostMetadataCarrier`)
 
@@ -216,7 +216,7 @@ When the cluster's primary action is `BoostResources` or `GenerateFresh`, the Au
 - `spark.executor.memory` (the boosted GB string, e.g. `"12g"`)
 - `total_executor_minimum_allocated_memory_gb` and `total_executor_maximum_allocated_memory_gb` re-derived from the CUR recipe's `min/maxExecutors × boostedMemGb`
 
-The carrier is pure raw-JSON surgery (companion to `KeptRecipeCarrier`), so fields the lightweight `SimpleJsonParser` doesn't understand (e.g. nested `cost_timeline` arrays) are left untouched. **Anchored on the recipe key**, not block contents — two sibling baseline-planned recipes can have byte-identical inner blocks, so a naïve `indexOf` would patch the wrong one.
+The carrier is pure raw-JSON surgery (companion to [`KeptRecipeCarrier`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/KeptRecipeCarrier.scala)), so fields the lightweight `SimpleJsonParser` doesn't understand (e.g. nested `cost_timeline` arrays) are left untouched. **Anchored on the recipe key**, not block contents — two sibling baseline-planned recipes can have byte-identical inner blocks, so a naïve `indexOf` would patch the wrong one.
 
 After the carry, `applyB16Reboosting` sees `priorFactor=Some(1.5)` and routes the recipe into `ReBoost` (fresh signal in cur b16) or `Holding` (no fresh signal) — the boost compounds OR holds, but never silently regresses.
 
