@@ -84,6 +84,7 @@
       "Bash(curl -s http://localhost:8080/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/index.html)",
       "Bash(pkill -f \"python3 -m http.server\")",
       "Bash(curl -sI http://localhost:8080/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/dashboard.html)",
+      "Bash(curl -s http://localhost:8080/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/)"
       "Bash(curl -s http://localhost:8080/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/)",
       "Bash(echo \"exit=$?\")",
       "Bash(curl -s -o /dev/null -w \"HTTP=%{http_code}\\\\n\" http://localhost:8080/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/)",
