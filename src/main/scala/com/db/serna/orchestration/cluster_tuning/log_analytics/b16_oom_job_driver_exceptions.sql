@@ -60,10 +60,10 @@ WITH driver_logs AS (
       JSON_EXTRACT_SCALAR(json_payload, "$.message"),
       r'java\.lang\.OutOfMemoryError: Java heap space'
     ) AS is_java_heap
-  FROM `db-prd-rn63-pwcclake-es.global._Default._Default`
+  FROM `your-project.global._Default._Default`
   WHERE
     resource.type = "cloud_dataproc_job"
-    AND log_name = "projects/db-prd-rn63-pwcclake-es/logs/dataproc.job.driver"
+    AND log_name = "projects/your-project/logs/dataproc.job.driver"
     AND JSON_EXTRACT_SCALAR(resource.labels, "$.job_id") IS NOT NULL
     AND (
       severity IN ("WARNING", "ERROR", "CRITICAL", "ALERT", "EMERGENCY")
@@ -115,7 +115,7 @@ app_base AS (
     JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(json_payload, "$.message"), "$.event_type") AS event_type,
     JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(json_payload, "$.message"), "$.recipeFilename") AS recipe_filename,
     JSON_EXTRACT_SCALAR(resource.labels, "$.job_id") AS job_id
-  FROM `db-prd-rn63-pwcclake-es.global._Default._Default`
+  FROM `your-project.global._Default._Default`
   WHERE resource.type = "cloud_dataproc_job"
 ),
 latest_recipe_per_job AS (

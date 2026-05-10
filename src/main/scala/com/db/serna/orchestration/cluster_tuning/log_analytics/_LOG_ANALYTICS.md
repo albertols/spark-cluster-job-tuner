@@ -7,10 +7,10 @@ Reference for writing or modifying any `bNN_*.sql` query in this directory. Read
 All queries target the same Log Analytics view:
 
 ```
-`db-prd-rn63-pwcclake-es.global._Default._Default`
+`your-project.global._Default._Default`
 ```
 
-(Exception: `b14_clusters_with_nonzero_exit_codes.sql` was originally written against `db-dev-apyd-pwcclake-es`. New queries should use the prd project to stay consistent with b1–b13/b15/b16/b20/b21 unless there's a specific reason otherwise.)
+(Exception: [`b14_clusters_with_nonzero_exit_codes.sql`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/log_analytics/b14_clusters_with_nonzero_exit_codes.sql) was originally written against `db-dev-apyd-pwcclake-es`. New queries should use the prd project to stay consistent with b1–b13/b15/b16/b20/b21 unless there's a specific reason otherwise.)
 
 ## Column types — JSON vs STRUCT vs STRING
 
@@ -53,7 +53,7 @@ Log Analytics retention here is approximately **24 hours**. A cluster that lived
 
 For long-running operations (CreateCluster, DeleteCluster, UpdateCluster), GCP audit logs emit **at least two records** per operation: a "request received" entry and a "completion" entry, often 2–3 minutes apart. Both have the same `proto_payload.audit_log.method_name`. Treating each entry as a separate operation produces phantom incarnations.
 
-The pairing pattern used in `b20_cluster_span_time.sql`:
+The pairing pattern used in [`b20_cluster_span_time.sql`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/log_analytics/b20_cluster_span_time.sql):
 
 1. Compute `prev_delete_ts` for each Create — the most recent Delete on the same cluster strictly before this Create.
 2. `GROUP BY (cluster_name, prev_delete_ts)` — every Create within the same "run between Deletes" collapses; take `MIN(create_ts)` as canonical (when the API call was made = when billing started).
@@ -91,7 +91,7 @@ SELECT
   log_name,
   COUNT(*) AS n,
   ANY_VALUE(SUBSTR(CAST(COALESCE(text_payload, TO_JSON_STRING(json_payload), '') AS STRING), 1, 240)) AS sample_msg
-FROM `db-prd-rn63-pwcclake-es.global._Default._Default`
+FROM `your-project.global._Default._Default`
 WHERE resource.type = 'cloud_dataproc_cluster'
   AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 6 HOUR)
 GROUP BY log_name
@@ -106,7 +106,7 @@ For payload schema, dump 3 representative rows raw:
 ```sql
 SELECT timestamp, JSON_VALUE(resource.labels.cluster_name) AS cluster_name,
        TO_JSON_STRING(json_payload) AS payload
-FROM `db-prd-rn63-pwcclake-es.global._Default._Default`
+FROM `your-project.global._Default._Default`
 WHERE log_name LIKE '%dataproc.googleapis.com%2Fautoscaler'
   AND timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 MINUTE)
 ORDER BY timestamp DESC
@@ -119,7 +119,7 @@ Then read the JSON paths from the actual payload — never guess from naming con
 
 Queries land on disk via "Save query results → CSV" in the BigQuery console. Two consequences:
 
-- **Timestamps**: BigQuery exports as `YYYY-MM-DD HH:MM:SS.SSSSSS UTC` (always UTC, microsecond precision). Loaders must accept this in addition to ISO-8601 — see `ClusterMachineAndRecipeTuner.parseInstant`.
+- **Timestamps**: BigQuery exports as `YYYY-MM-DD HH:MM:SS.SSSSSS UTC` (always UTC, microsecond precision). Loaders must accept this in addition to ISO-8601 — see [`ClusterMachineAndRecipeTuner.parseInstant`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/ClusterMachineAndRecipeTuner.scala).
 - **Cluster name in `b14`**: BigQuery JSON-embeds the value, producing `"""cluster-name"""` (triple-quoted). The b14 loader strips all `"` chars after parsing. Don't try to "fix" this in the SQL — it's a property of how the export wraps JSON-derived strings.
 - **Free-text fields with commas**: `Csv.parse` in this project splits on bare commas without honoring CSV-quoting. Avoid free-text columns with commas in new queries, or expect the loader to ignore those columns.
 

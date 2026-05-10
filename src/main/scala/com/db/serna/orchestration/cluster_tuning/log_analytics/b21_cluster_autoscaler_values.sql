@@ -54,7 +54,7 @@ WITH autoscaler AS (
     timestamp,
     JSON_VALUE(resource.labels.cluster_name) AS cluster_name,
     json_payload                              AS payload
-  FROM `db-prd-rn63-pwcclake-es.global._Default._Default`
+  FROM `your-project.global._Default._Default`
   WHERE log_name LIKE '%dataproc.googleapis.com%2Fautoscaler'
     AND JSON_VALUE(resource.labels.cluster_name) IS NOT NULL
 )

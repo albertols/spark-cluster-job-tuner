@@ -1,5 +1,5 @@
 {
-  "gcpProjectId": "db-prd-rn63-pwcclake-es",
+  "gcpProjectId": "your-project",
   "inputsPath":  "../../../../../../../../resources/composer/dwh/config/cluster_tuning/inputs",
   "outputsPath": "../../../../../../../../resources/composer/dwh/config/cluster_tuning/outputs",
   "ipQuota": {

@@ -11,9 +11,9 @@ Names are deliberately fake (`mock-cluster-001`, `mock-recipe-foo.json`) so synt
 | File | Role |
 |---|---|
 | `MockScenario.scala`  | Pure data types: `MockCluster`, `MockRecipe`, `MockIncarnation`, `MockAutoscalerProfile`, `MockExitCode`, `MockOomEvent`, `MockScenario`, `MultiDateScenario`. No I/O. |
-| `MockGen.scala`       | One CSV writer per output file (`b13Csv`, `b1Csv` … `b12Csv`, `b14Csv`, `b16Csv`, `b20Csv`, `b21Csv`). Each is a pure `MockScenario => String`. `writeAll(scenario, dir)` writes all files at once. |
-| `MockScenarios.scala` | Prebuilt fixtures: `minimal`, `baseline`, `oomHeavy`, `autoscaling`, `multiDateBaseline(refDate, curDate)`. |
-| `OssMockMain.scala`   | CLI entry. Single-date or multi-date generation; optional `--full` chains the tuner + AutoTuner. |
+| [`MockGen.scala`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/oss_mock/MockGen.scala)       | One CSV writer per output file (`b13Csv`, `b1Csv` … `b12Csv`, `b14Csv`, `b16Csv`, `b20Csv`, `b21Csv`). Each is a pure `MockScenario => String`. `writeAll(scenario, dir)` writes all files at once. |
+| [`MockScenarios.scala`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/oss_mock/MockScenarios.scala) | Prebuilt fixtures: `minimal`, `baseline`, `oomHeavy`, `autoscaling`, `multiDateBaseline(refDate, curDate)`. |
+| [`OssMockMain.scala`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/oss_mock/OssMockMain.scala)   | CLI entry. Single-date or multi-date generation; optional `--full` chains the tuner + AutoTuner. |
 
 ## Quickstart
 
@@ -55,15 +55,15 @@ OssMockMain
 For **single-date** scenarios:
 
 1. Write all CSVs under `inputs/<date>/`
-2. `ClusterMachineAndRecipeTuner.main(<date>)` → baseline per-cluster JSONs in `outputs/<date>/`
-3. `ClusterMachineAndRecipeTunerRefinement.main(--reference-tuning-date <date>)` → applies b16 boosts in-place (this is what stamps `appliedMemoryHeapBoostFactor` so subsequent AutoTuner runs have something to carry)
+2. [`ClusterMachineAndRecipeTuner.main(<date>)`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/ClusterMachineAndRecipeTuner.scala) → baseline per-cluster JSONs in `outputs/<date>/`
+3. [`ClusterMachineAndRecipeTunerRefinement.main(--reference-tuning-date <date>)`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/ClusterMachineAndRecipeTunerRefinement.scala) → applies b16 boosts in-place (this is what stamps `appliedMemoryHeapBoostFactor` so subsequent AutoTuner runs have something to carry)
 
 For **multi-date** scenarios:
 
 1. Write CSVs for both `<refDate>/` and `<curDate>/`
 2. `SingleTuner` → `Refinement` for `<refDate>` (so the reference output JSONs already carry b16 boosts)
 3. `SingleTuner` → `Refinement` for `<curDate>`
-4. `ClusterMachineAndRecipeAutoTuner.main(--reference-date=<refDate> --current-date=<curDate>)` → `BoostMetadataCarrier` carry, b16 reboost lifecycle, z-score executor scale-up
+4. [`ClusterMachineAndRecipeAutoTuner.main(--reference-date=<refDate> --current-date=<curDate>)`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/ClusterMachineAndRecipeAutoTuner.scala) → [`BoostMetadataCarrier`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/BoostMetadataCarrier.scala) carry, b16 reboost lifecycle, z-score executor scale-up
 
 Without the Refinement step in (3), the reference JSONs would have no `appliedMemoryHeapBoostFactor` tag and the AutoTuner's carry/Holding/ReBoost path would never visibly fire.
 
