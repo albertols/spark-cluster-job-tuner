@@ -35,14 +35,16 @@ Sizing GCP Dataproc clusters is guesswork. You either over-provision to be safe 
 
 This tool reads YOUR job history — straight from GCP Log Analytics + a tiny Spark listener you wire into your apps — and recommends concrete `clusterConf` + `recipeSparkConf` blocks per recipe. No agents, no vendors, no SaaS. Just data → math → JSON config you can paste back.
 
+![0_original_hla.png](docs/images/0_original_hla.png)
+
 ## How it works
 
 The pipeline has three stages: **telemetry → analysis → recommendation**. The telemetry comes from two complementary sources, both surfaced as BigQuery Log Analytics queries:
 
 1. **GCP-native logs** (`resource.type='cloud_dataproc_cluster'` + `dataproc.googleapis.com/autoscaler`) — automatic, free, capture cluster lifecycle and autoscaler events.
-2. **`ExecutorTrackingListener`** — a small Spark `SparkListener` you add to your application (one line in `--conf spark.extraListeners=...`). Acts like F1-style telemetry, emitting executor lifecycle + stage-progress JSON logs that GCP Log Analytics indexes for free.
+2. **[`ExecutorTrackingListener`](/src/main/scala/com/db/serna/utils/spark/parallelism/ExecutorTrackingListener.scala)** — a small Spark `SparkListener` you add to your application (one line in `--conf spark.extraListeners=...`). Acts like F1-style telemetry, emitting executor lifecycle + stage-progress JSON logs that GCP Log Analytics indexes for free.
 
-Together they feed five CSV exports (`b13`, `b14`, `b16`, `b20`, `b21`) — the "Boosted Vitamins" the recipes take to get fit. (Yes, that's why `RefinementVitamins.scala` exists.)
+Together they feed five CSV exports ([`b13`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/log_analytics/b13_recommendations_inputs_per_recipe_per_cluster.sql), [`b14`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/log_analytics/b14_clusters_with_nonzero_exit_codes.sql), [`b16`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/log_analytics/b16_oom_job_driver_exceptions.sql), [`b20`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/log_analytics/b20_cluster_span_time.sql), [`b21`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/log_analytics/b21_cluster_autoscaler_values.sql)) — the "Boosted Vitamins" the recipes take to get fit. (Yes, that's why [`RefinementVitamins.scala`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/RefinementVitamins.scala) exists.)
 
 ```mermaid
 flowchart LR
@@ -144,7 +146,7 @@ stateDiagram-v2
   class Holding stateIdle
 ```
 
-See [`_REFINEMENT.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/_REFINEMENT.md) and [`_AUTO_TUNING.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/_AUTO_TUNING.md) for the lifecycle FSM and `BoostMetadataCarrier` mechanics.
+See [`_REFINEMENT.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/_REFINEMENT.md) and [`_AUTO_TUNING.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/_AUTO_TUNING.md) for the lifecycle FSM and [`BoostMetadataCarrier`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/BoostMetadataCarrier.scala) mechanics.
 
 ### 2. Z-score executor SCALE-UP — statistical detection of cap touch
 
@@ -152,7 +154,7 @@ When a recipe is a duration outlier on the current snapshot (z ≥ 3.0 default) 
 
 ![Z-score scale-up](docs/images/2_z-score-cap-touch.png)
 
-See `ExecutorScaleVitamin` in [`_REFINEMENT.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/_REFINEMENT.md).
+See [`ExecutorScaleVitamin`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/RefinementVitamins.scala) in [`_REFINEMENT.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/_REFINEMENT.md).
 
 ### 3. Trends — Degraded / Improved / Stable / New / Dropped
 
@@ -160,7 +162,7 @@ The auto-tuner pairs reference and current snapshots, classifying each recipe's 
 
 ![Trends](docs/images/3_trends.png)
 
-See `TrendDetector` and `StatisticalAnalysis` in [`_AUTO_TUNING.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/_AUTO_TUNING.md).
+See [`TrendDetector`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/TrendDetector.scala) and [`StatisticalAnalysis`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/StatisticalAnalysis.scala) in [`_AUTO_TUNING.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/_AUTO_TUNING.md).
 
 ### 4. Cost & Autoscaling Lens
 
@@ -168,7 +170,7 @@ See `TrendDetector` and `StatisticalAnalysis` in [`_AUTO_TUNING.md`](src/main/sc
 
 ![Cost & Autoscaling Lens](docs/images/5_autoscaling.png)
 
-See `PerformanceEvolver` in [`_AUTO_TUNING.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/_AUTO_TUNING.md).
+See [`PerformanceEvolver`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/PerformanceEvolver.scala) in [`_AUTO_TUNING.md`](src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/_AUTO_TUNING.md).
 
 ### 5. Statistical Lens — Pearson on normalised covariances
 
@@ -192,7 +194,7 @@ See `StatisticalAnalysis` in [`_AUTO_TUNING.md`](src/main/scala/com/db/serna/orc
 ./src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/serve.sh --api
 ```
 
-This boots the Scala `TunerService` backend, opens the dashboard, and unlocks the **wizard** flow: pick dates, choose strategies, run the tuner, see results — all from the browser.
+This boots the Scala [`TunerService`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/server/TunerService.scala) backend, opens the dashboard, and unlocks the **wizard** flow: pick dates, choose strategies, run the tuner, see results — all from the browser.
 
 ### Dashboard tour
 
@@ -204,7 +206,7 @@ Two extension points worth knowing:
 
 ### `TuningStrategy` — pick or write your own
 
-Strategies are concrete classes implementing `TuningStrategy`. Three ship today (`DefaultTuningStrategy`, `CostBiasedStrategy`, `PerformanceBiasedStrategy` — see `single/TuningStrategies.scala`). To add your own, implement the interface:
+Strategies are concrete classes implementing `TuningStrategy`. Three ship today (`DefaultTuningStrategy`, `CostBiasedStrategy`, `PerformanceBiasedStrategy` — see [`single/TuningStrategies.scala`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/TuningStrategies.scala)). To add your own, implement the interface:
 
 ```scala
 object MyStrategy extends TuningStrategy {

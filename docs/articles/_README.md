@@ -2,7 +2,7 @@
 
 Long-form drafts targeted at Medium publication, version-controlled in this repo before publishing. Each article is `YYYY-MM-DD-part-N-<slug>.md`.
 
-The articles are part of the OSS-readiness series and complement the technical docs in this repo (README, `_DESIGN.md`, `_AUTO_TUNING.md`, etc.) by giving the project a narrative arc — what it is, why it exists, where it's going.
+The articles are part of the OSS-readiness series and complement the technical docs in this repo ([README](/README.md), [`_DESIGN.md`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/_DESIGN.md), [`_AUTO_TUNING.md`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/_AUTO_TUNING.md), etc.) by giving the project a narrative arc — what it is, why it exists, where it's going.
 
 ## The series
 

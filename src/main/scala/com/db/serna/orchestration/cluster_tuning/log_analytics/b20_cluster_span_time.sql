@@ -50,7 +50,7 @@ WITH base AS (
     JSON_VALUE(resource.labels.cluster_name) AS cluster_name,
     log_name,
     proto_payload
-  FROM `db-prd-rn63-pwcclake-es.global._Default._Default`
+  FROM `your-project.global._Default._Default`
   WHERE resource.type = 'cloud_dataproc_cluster'
     AND JSON_VALUE(resource.labels.cluster_name) IS NOT NULL
 ),

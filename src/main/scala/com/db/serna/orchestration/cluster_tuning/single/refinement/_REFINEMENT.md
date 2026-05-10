@@ -1,6 +1,6 @@
 # Cluster Tuning Refinement
 
-Post-tuning refinement layer that reads the JSON configs produced by `ClusterMachineAndRecipeTuner` and applies targeted "vitamin" boosts based on diagnostic SQL outputs (CSVs).
+Post-tuning refinement layer that reads the JSON configs produced by [`ClusterMachineAndRecipeTuner`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/ClusterMachineAndRecipeTuner.scala) and applies targeted "vitamin" boosts based on diagnostic SQL outputs (CSVs).
 
 ## Overview
 
@@ -124,8 +124,8 @@ This file is grouped by vitamin name, with the full CSV source path and all unma
 
 | Vitamin | Source | Spark Property | Trigger | Status |
 |---------|--------|---------------|---------|--------|
-| `MemoryHeapBoostVitamin` | `b16_oom_job_driver_exceptions.csv` | `spark.executor.memory` | `java.lang.OutOfMemoryError: Java heap space` | Active |
-| `ExecutorScaleVitamin` | **Derived** — `divergences_current_snapshot` from the AutoTuner (NOT a CSV) | `spark.dynamicAllocation.maxExecutors` | High positive z-score on `avg/p95_job_duration_ms` for a paired (non-new) recipe whose `p95_run_max_executors` is cap-touching | Active (AutoTuner only) |
+| [`MemoryHeapBoostVitamin`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/RefinementVitamins.scala) | `b16_oom_job_driver_exceptions.csv` | `spark.executor.memory` | `java.lang.OutOfMemoryError: Java heap space` | Active |
+| [`ExecutorScaleVitamin`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/RefinementVitamins.scala) | **Derived** — `divergences_current_snapshot` from the AutoTuner (NOT a CSV) | `spark.dynamicAllocation.maxExecutors` | High positive z-score on `avg/p95_job_duration_ms` for a paired (non-new) recipe whose `p95_run_max_executors` is cap-touching | Active (AutoTuner only) |
 | `MemoryOverheadBoostVitamin` | `b17` (future) | `spark.executor.memoryOverhead` | Container killed (off-heap) | Planned |
 | `GCPressureBoostVitamin` | `b19` (future) | `spark.executor.memory` + GC opts | GC time > 10% of task time | Planned |
 | `ShuffleSpillBoostVitamin` | `b18` (future) | `spark.sql.shuffle.partitions` | Excessive shuffle spill to disk | Planned |
@@ -143,7 +143,7 @@ When the pipeline is fed multiple input directories (the AutoTuner's `[curDate, 
 | `ReBoost` | recipe has a prior factor AND a fresh signal in current_date | factor stacks (`prior × factor`); spark setting × factor on top of the already-boosted value; totals re-derived; stamped cumulative factor |
 | `Holding` | recipe has a prior factor AND no fresh signal in current_date | spark setting and totals untouched; cumulative factor preserved (the boost is succeeding) |
 
-Single-tuner / single-inputDir runs only ever emit `New` (the legacy 2-arg `computeBoosts` does not have date awareness). The AutoTuner's `applyB16Reboosting` and `applyExecutorScaling` always pass two input dirs to force the date-aware path — see `_AUTO_TUNING.md` for the full flow including the `BoostMetadataCarrier` step that makes `Holding` / `ReBoost` work even when the cluster is re-planned from scratch.
+Single-tuner / single-inputDir runs only ever emit `New` (the legacy 2-arg `computeBoosts` does not have date awareness). The AutoTuner's `applyB16Reboosting` and `applyExecutorScaling` always pass two input dirs to force the date-aware path — see [`_AUTO_TUNING.md`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/_AUTO_TUNING.md) for the full flow including the [`BoostMetadataCarrier`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/BoostMetadataCarrier.scala) step that makes `Holding` / `ReBoost` work even when the cluster is re-planned from scratch.
 
 ## Output Changes
 
@@ -167,7 +167,7 @@ Added to `clusterConf` — one counter per vitamin type:
 
 ### Recipe-level: boost factor
 
-Added per affected recipe alongside `parallelizationFactor`. Each vitamin owns its own field so multiple boosts can coexist on the same recipe (and round-trip through `SimpleJsonParser.extractRecipes` into `RecipeConfig.extraFields`):
+Added per affected recipe alongside `parallelizationFactor`. Each vitamin owns its own field so multiple boosts can coexist on the same recipe (and round-trip through [`SimpleJsonParser.extractRecipes`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/SimpleJsonParser.scala) into `RecipeConfig.extraFields`):
 
 ```json
 "_ETL_m_DQ3_ODS_F_PM_PROPUESTAS.json": {
@@ -200,7 +200,7 @@ Added per affected recipe alongside `parallelizationFactor`. Each vitamin owns i
 --referenceTuningDate=2025_12_20 --memoryHeapBoostFactor=1.5 --memoryOverheadBoostFactor=1.5
 ```
 
-Run from IntelliJ: set main class to `com.db.serna.orchestration.cluster_tuning.refinement.ClusterMachineAndRecipeTunerRefinement` with program arguments.
+Run from IntelliJ: set main class to [`com.db.serna.orchestration.cluster_tuning.refinement.ClusterMachineAndRecipeTunerRefinement`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/ClusterMachineAndRecipeTunerRefinement.scala) with program arguments.
 
 ## Adding a New Vitamin
 
@@ -306,4 +306,4 @@ refinement/
 
 ### Where `ExecutorScaleVitamin` is wired
 
-It is **not** part of `ClusterMachineAndRecipeTunerRefinement`'s default `buildVitaminPipeline()` — running the standalone refinement app is still b16-only. The AutoTuner instantiates it directly inside `applyExecutorScaling` (closure over the per-cluster signal map), runs `RefinementPipeline.refine` with two input dirs (forces date-aware path), and writes the refined JSON back. See `_AUTO_TUNING.md` § "Z-score-driven executor scale-up".
+It is **not** part of `ClusterMachineAndRecipeTunerRefinement`'s default `buildVitaminPipeline()` — running the standalone refinement app is still b16-only. The AutoTuner instantiates it directly inside `applyExecutorScaling` (closure over the per-cluster signal map), runs `RefinementPipeline.refine` with two input dirs (forces date-aware path), and writes the refined JSON back. See [`_AUTO_TUNING.md`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/_AUTO_TUNING.md) § "Z-score-driven executor scale-up".

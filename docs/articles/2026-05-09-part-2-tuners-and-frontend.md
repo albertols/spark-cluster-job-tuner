@@ -21,7 +21,7 @@
 
 [Part 1](2026-05-09-part-1-telemetry.md) ended with five CSVs sitting in `inputs/<date>/`. This article picks up there: how the tuner turns those signals into a concrete `clusterConf` + `recipeSparkConf` JSON pair you can paste straight into your Dataproc setup.
 
-The pipeline has two entry points. The Single Tuner takes ONE date's metrics and produces a recommendation per recipe. The Auto-Tuner takes TWO dates (a "reference" baseline and the "current" snapshot you want to evaluate), pairs them, and emits delta-aware recommendations. Both share the same machine-selection + topology-planning core; the Auto-Tuner adds trend classification and the boost lifecycle on top.
+The pipeline has two entry points. The [Single Tuner](https://github.com/albertols/spark-cluster-job-tuner/blob/main/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/ClusterMachineAndRecipeTuner.scala) takes ONE date's metrics and produces a recommendation per recipe. The [Auto-Tuner](https://github.com/albertols/spark-cluster-job-tuner/blob/main/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/ClusterMachineAndRecipeAutoTuner.scala) takes TWO dates (a "reference" baseline and the "current" snapshot you want to evaluate), pairs them, and emits delta-aware recommendations. Both share the same machine-selection + topology-planning core; the Auto-Tuner adds trend classification and the boost lifecycle on top.
 
 ## Single Tuner: machine + topology per recipe
 
@@ -29,7 +29,7 @@ The Single Tuner's job per recipe: pick a Dataproc machine family, pick an execu
 
 **Machine selection** uses a priority + score system. The priority order favours `N2-32` first, then `N2D-32`, then `E2-32` — based on `europe-west3` pricing and steady-state cost-per-vCPU calculations. 32-core machines also get a `-0.10` score bonus because larger workers reduce per-cluster overhead. `C3-32` and `C4-32` are capped at 1 cluster each (limited quota in most projects). `N4` and `N4D` are excluded by default — they're newer and per-region availability varies.
 
-**Executor topology** is preset-driven via `ExecutorTopologyPreset(cores, memoryPerCoreGb)`. The default is `8c × 1GBpc` — 8 cores per executor, 1 GB per core, totalling 8 GB executor memory. So an `N2-32` worker (32 vCPU, 128 GB) packs 4 executors of 8 cores / 32 GB; an `E2-32` packs 2 executors of 16 cores / 64 GB at the `16c × 4GBpc` preset. The choice of preset is per recipe — different workloads benefit from different shapes.
+**Executor topology** is preset-driven via [`ExecutorTopologyPreset(cores, memoryPerCoreGb)`](https://github.com/albertols/spark-cluster-job-tuner/blob/main/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/TuningStrategies.scala). The default is `8c × 1GBpc` — 8 cores per executor, 1 GB per core, totalling 8 GB executor memory. So an `N2-32` worker (32 vCPU, 128 GB) packs 4 executors of 8 cores / 32 GB; an `E2-32` packs 2 executors of 16 cores / 64 GB at the `16c × 4GBpc` preset. The choice of preset is per recipe — different workloads benefit from different shapes.
 
 ```mermaid
 flowchart LR
@@ -59,7 +59,7 @@ The output is one of two modes per recipe: **manual** (`spark.executor.instances
 
 The Auto-Tuner pairs two snapshots — a reference (older) and current (newer) — and asks: per recipe, what changed?
 
-`TrendDetector` classifies each pair into one of five buckets: **Degraded** (current is meaningfully worse than reference on `p95_run_duration_ms`), **Improved** (better), **Stable** (within tolerance), **New** (no reference data — recipe didn't exist before), or **Dropped** (no current data — recipe disappeared). New + Dropped are surfaced separately so you don't false-alarm on additions.
+[`TrendDetector`](https://github.com/albertols/spark-cluster-job-tuner/blob/main/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/TrendDetector.scala) classifies each pair into one of five buckets: **Degraded** (current is meaningfully worse than reference on `p95_run_duration_ms`), **Improved** (better), **Stable** (within tolerance), **New** (no reference data — recipe didn't exist before), or **Dropped** (no current data — recipe disappeared). New + Dropped are surfaced separately so you don't false-alarm on additions.
 
 When a recipe shows pain — say, b14 reports the driver was YARN-evicted, or b16 reports a heap OOM — the tuner stamps a **boost** annotation. A boost is a multiplicative factor applied to the affected Spark setting (driver memory, executor memory, etc.) on the next replan. The boost lifecycle is what makes this stateful across snapshots:
 
@@ -81,7 +81,7 @@ stateDiagram-v2
   class Holding stateIdle
 ```
 
-A recipe with a fresh OOM signal goes `New` → boost applied. Next snapshot, no OOM signal → `Holding` (boost preserved, not re-multiplied). Snapshot after that, OOM returns → `ReBoost` (factor compounded). The `BoostMetadataCarrier` mechanism injects this state from the prior date's output JSON into the current replan, so a recipe boosted last week still has its boost when re-planned today, even if the b16 CSV no longer reports the OOM.
+A recipe with a fresh OOM signal goes `New` → boost applied. Next snapshot, no OOM signal → `Holding` (boost preserved, not re-multiplied). Snapshot after that, OOM returns → `ReBoost` (factor compounded). The [`BoostMetadataCarrier`](https://github.com/albertols/spark-cluster-job-tuner/blob/main/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/BoostMetadataCarrier.scala) mechanism injects this state from the prior date's output JSON into the current replan, so a recipe boosted last week still has its boost when re-planned today, even if the b16 CSV no longer reports the OOM.
 
 ## Z-score scale-up + the Statistical Lens
 
@@ -114,4 +114,4 @@ PART_4 looks forward: where the tool goes from here. Local-only today, scheduled
 
 [Read PART_4 →](2026-05-09-part-4-future-direction.md)
 
-If this was useful: clone [the repo](https://github.com/albertols/spark-cluster-job-tuner), run `./mvnw -Pserve package && ./src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/serve.sh` against the bundled `2099_01_01` / `2099_01_02` sample data, and click around. Then point it at your own job history.
+If this was useful: clone [the repo](https://github.com/albertols/spark-cluster-job-tuner), run `./mvnw -Pserve package && ./src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/`[`serve.sh`](https://github.com/albertols/spark-cluster-job-tuner/blob/main/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/serve.sh) against the bundled `2099_01_01` / `2099_01_02` sample data, and click around. Then point it at your own job history.

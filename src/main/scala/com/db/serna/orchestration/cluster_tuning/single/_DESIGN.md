@@ -102,7 +102,7 @@ Four Scala source files, each with a single responsibility:
 
 ## 3. Strategy Pattern
 
-`run()` receives a `TuningStrategy` and derives a `TuningPolicy` from it. Every downstream
+`run()` receives a [`TuningStrategy`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/TuningStrategies.scala) and derives a `TuningPolicy` from it. Every downstream
 method takes `policy: TuningPolicy` explicitly — no global state.
 
 ```

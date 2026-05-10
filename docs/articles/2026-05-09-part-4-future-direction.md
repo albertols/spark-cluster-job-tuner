@@ -36,7 +36,7 @@ flowchart LR
 
 - Local-only today; **C1** moves the tuner to a scheduled-on-GCP deployment (Cloud Run + Terraform IaC + GCS-backed cache).
 - **C2** wraps the tuner in three specialised agent personas (Tuner Proposal, L3 Spark Optimiser, L2 PRD Failure Analyst) with A2A-style communication.
-- **C3** turns the deterministic AutoTuner's reactive trend analysis into Markov-chain forecasting + scenario simulation, without an opaque ML model.
+- **C3** turns the deterministic [AutoTuner](https://github.com/albertols/spark-cluster-job-tuner/blob/main/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/ClusterMachineAndRecipeAutoTuner.scala)'s reactive trend analysis into Markov-chain forecasting + scenario simulation, without an opaque ML model.
 
 ## Where the tool is today, and where it's headed
 
@@ -51,7 +51,7 @@ Today: local laptop, manual CSV export, zip-and-email the dashboard if you want 
 Sketch:
 
 - **Scheduled BigQuery exports.** Cloud Scheduler triggers a Cloud Run job that runs the 5 Log Analytics queries and writes CSVs to a date-partitioned GCS bucket (`gs://bucket/inputs/<YYYY_MM_DD>/`).
-- **Frontend hosting.** The static dashboard + the small Java `TunerService` backend deploy to Cloud Run (or App Engine — sub-decision). Reads inputs and writes outputs from the same GCS bucket.
+- **Frontend hosting.** The static dashboard + the small Java [`TunerService`](https://github.com/albertols/spark-cluster-job-tuner/blob/main/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/server/TunerService.scala) backend deploy to Cloud Run (or App Engine — sub-decision). Reads inputs and writes outputs from the same GCS bucket.
 - **Cache layer.** GCS bucket for tuner JSON / CSV outputs so the dashboard doesn't re-run the tuner on every page load.
 - **Terraform IaC.** An `infra/` module covering the bucket, Cloud Run services, IAM bindings (least-privilege Service Accounts), the scheduler job, and the necessary BigQuery roles. `terraform apply` from a clean GCP project bootstraps the whole thing in <10 minutes.
 
@@ -62,7 +62,7 @@ Open questions: Cloud Run vs App Engine? Per-date GCS layout vs flat with metada
 Today: the tuner emits structured JSON + CSV outputs and a dashboard, expecting a human to interpret. C2 wraps three agent personas around that output, surfacing actionable insights without anyone staring at the dashboard.
 
 - **Agent 1 — Tuner Proposal.** Reads existing `_*.json` outputs + `bNN.csv` inputs at recipe + cluster level, applies the trend logic (covariances, z-scores, Pearson) already in the codebase, and emits structured tuning-recommendation reports — Markdown or Slack-formatted. Closes the loop "tuner ran → here's what I'd merge."
-- **Agent 2 — L3 Spark Job Optimiser.** Deep job-level optimisation — shuffle, caching, parallelism, broadcast hints — using `ExecutorTrackingListener` evolution + Spark internal APIs. Inspired by Databricks Optimiser-style tooling but as OSS.
+- **Agent 2 — L3 Spark Job Optimiser.** Deep job-level optimisation — shuffle, caching, parallelism, broadcast hints — using [`ExecutorTrackingListener`](https://github.com/albertols/spark-cluster-job-tuner/blob/main/src/main/scala/com/db/serna/utils/spark/parallelism/ExecutorTrackingListener.scala) evolution + Spark internal APIs. Inspired by Databricks Optimiser-style tooling but as OSS.
 - **Agent 3 — L2 PRD Failure Analyst.** Analyses failed PRD jobs (`BQ.EXECUTION_TABLES` → logs → root cause → action). Talks to Agents 1 + 2 for context — e.g., "performance degradation upstream → OOM crash chain."
 
 The agents communicate via an A2A (Agent-to-Agent) protocol — proprietary JSON, MCP, ACP, the standard A2A — to be settled by Agent 3's design. Security is non-negotiable: least-privilege Service Accounts, scoped BigQuery + GCS read access, no exfiltration paths beyond the configured output channel.
@@ -71,7 +71,7 @@ This is the most speculative of the three initiatives. The C2 Issue is honest ab
 
 ## C3 — Markov-chain prediction
 
-Today: the AutoTuner is **reactive**. It pairs reference and current snapshots, classifies trends, recommends. It doesn't predict — "given the last N days, where is this cluster headed?" or "what happens if I switch to `PerformanceBiasedStrategy` for this recipe?"
+Today: the AutoTuner is **reactive**. It pairs reference and current snapshots, classifies trends, recommends. It doesn't predict — "given the last N days, where is this cluster headed?" or "what happens if I switch to [`PerformanceBiasedStrategy`](https://github.com/albertols/spark-cluster-job-tuner/blob/main/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/TuningStrategies.scala) for this recipe?"
 
 Markov chains over the observed log-analytics signals give us both — point predictions and scenario simulation — without an opaque ML model. The math is transparent and inspectable.
 

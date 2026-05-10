@@ -18,7 +18,7 @@ It covers: source project, JSON-vs-STRUCT-vs-STRING column types, `log_name` fil
 - **`resource.labels.*` is JSON-typed** in this view → use `JSON_VALUE(resource.labels.<key>)`. `CAST(... AS STRING)` does NOT convert it for `GROUP BY`.
 - **`proto_payload` is STRUCT** → direct field access (`proto_payload.audit_log.method_name`). `JSON_VALUE` on it errors.
 - **`json_payload` is JSON** → `JSON_VALUE(json_payload, '$.path.to.field')`.
-- **Source project**: `db-prd-rn63-pwcclake-es.global._Default._Default` (b1–b13/b15/b16/b20/b21 use this; only b14 is on the dev project for legacy reasons).
+- **Source project**: `your-project.global._Default._Default` (b1–b13/b15/b16/b20/b21 use this; only b14 is on the dev project for legacy reasons).
 - **Audit logs duplicate** every long-running operation (request + completion entries 2–3 min apart). Collapse by run-anchor (`GROUP BY (cluster_name, prev_opposite_event_ts)` + `MIN(ts)`), not by time-window heuristics.
 - **`cluster_name` is not unique** — the same name recreated multiple times in the lookback window must produce multiple rows (carry an `incarnation_idx`).
 - **24h lookback** means long-lived clusters won't have explicit Create/Delete events in the window. Expose `has_explicit_create` / `has_explicit_delete` flags so consumers know.

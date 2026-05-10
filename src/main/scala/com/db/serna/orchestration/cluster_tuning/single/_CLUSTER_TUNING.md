@@ -43,7 +43,7 @@ per-cluster JSON configs for manually tuned and auto-scale tuned Spark.
    ```
 - Using Log Analytics (BigQuery SQL), we derive per-cluster and per-recipe metrics.
 - We export these queries to CSV.
-- The `ClusterMachineAndRecipeTuner.scala` ingests the CSVs and outputs:
+- The [`ClusterMachineAndRecipeTuner.scala`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/ClusterMachineAndRecipeTuner.scala) ingests the CSVs and outputs:
     - `<cluster>-manually-tuned.json`
     - `<cluster>-auto-scale-tuned.json`
     - `_clusters-summary.csv` (sorted by workers desc, then jobs desc)
