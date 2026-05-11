@@ -134,7 +134,10 @@
       "Bash(curl -s -o /dev/null -w \"first: %{http_code} %{size_download}b\\\\n\" \"http://127.0.0.1:8090/wizard.js?v=1\")",
       "Bash(curl -s -o /dev/null -w \"secnd: %{http_code} %{size_download}b\\\\n\" \"http://127.0.0.1:8090/wizard.js?v=1\")",
       "Bash(curl -s \"http://127.0.0.1:8090/wizard.js\")",
-      "Bash(curl -s \"http://127.0.0.1:8090/dashboard.html\")"
+      "Bash(curl -s \"http://127.0.0.1:8090/dashboard.html\")",
+      "Bash(curl -s http://127.0.0.1:8090/app.js)",
+      "Bash(curl -s http://127.0.0.1:8090/style.css)",
+      "Bash(curl -s \"http://127.0.0.1:8090/app.js\")"
     ]
   },
   "enabledPlugins": {

@@ -627,6 +627,8 @@ function wireGlobalHandlers() {
   });
   const divFilter = document.getElementById('div-cluster-filter');
   if (divFilter) divFilter.addEventListener('change', () => renderDivergenceTable());
+  const divMetricFilter = document.getElementById('div-metric-filter');
+  if (divMetricFilter) divMetricFilter.addEventListener('change', () => renderDivergenceTable());
 
   // Click-to-sort headers on the divergence table.
   wireDivergenceSortHeaders();
@@ -883,6 +885,32 @@ function populateCorrelationFilters() {
     sel.innerHTML = '<option value="">All clusters (fleet)</option>' +
       clusters.map(c => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join('');
   });
+  populateDivMetricFilter();
+}
+
+// Populate the per-metric filter for the divergences table. The user picks a
+// single metric to switch the table into "comparable-values" mode where the
+// Reference / Current / Z-Score columns all sort by the same physical unit,
+// so click-to-sort by Reference or Current orders by the actual inner value
+// (e.g. "p95 job duration, descending") instead of mixing units across rows.
+function populateDivMetricFilter() {
+  const sel = document.getElementById('div-metric-filter');
+  if (!sel) return;
+  // Union of every metric seen across delta and current-snapshot views, so the
+  // dropdown stays stable when the user flips between view toggles.
+  const set = new Set();
+  (data.divergences || []).forEach(d => set.add(d.metric));
+  (data.divergences_current_snapshot || []).forEach(d => set.add(d.metric));
+  const metrics = Array.from(set).sort((a, b) => labelMetric(a).localeCompare(labelMetric(b)));
+  const prev = getDivMetric();
+  sel.innerHTML = '<option value="">All metrics</option>' +
+    metrics.map(m => `<option value="${escapeAttr(m)}">${escapeHtml(labelMetric(m))}</option>`).join('');
+  if (prev && metrics.includes(prev)) sel.value = prev;
+}
+
+function getDivMetric() {
+  const sel = document.getElementById('div-metric-filter');
+  return sel ? sel.value : '';
 }
 
 function renderProjectChip() {
@@ -1016,6 +1044,20 @@ function boostGroupBadgeText(code) {
   return code;
 }
 
+// Render the boost-state chip used in cluster cards, cluster-detail boost
+// entries, and the boost-overview list. The state 'new' is shown as 'new-entry'
+// (with a distinct color in CSS) to disambiguate from the gold "NEW" pill on
+// divergence rows, which means "first-time-seen recipe" — a different thing.
+const _BOOST_STATE_DISPLAY = {
+  'new': { label: 'new-entry', cls: 'chip-new-entry' },
+  're-boost': { label: 're-boost', cls: 'chip-re-boost' },
+  'holding': { label: 'holding', cls: 'chip-holding' },
+};
+function boostStateChipHtml(state) {
+  const d = _BOOST_STATE_DISPLAY[state] || { label: state, cls: 'chip-' + state };
+  return `<span class="boost-state-chip ${escapeAttr(d.cls)}">${escapeHtml(d.label)}</span>`;
+}
+
 /**
  * Build the per-cluster boost-chip row shown at the top of each cluster card.
  * Walks `generationSummary.boost_groups` and surfaces every group (b14, b16, future
@@ -1057,7 +1099,7 @@ function renderClusterBoostChips(clusterName) {
       chips.push(
         `<span class="cluster-boost-chip ${escapeAttr(code)}" title="${escapeAttr(tip)}">` +
           `<span class="bxx-badge">${escapeHtml(boostGroupBadgeText(code))}</span>` +
-          `<span class="boost-state-chip chip-${escapeAttr(st)}">${escapeHtml(st)}</span>` +
+          boostStateChipHtml(st) +
           (countSuffix ? `<span class="cluster-boost-count">${escapeHtml(countSuffix)}</span>` : '') +
         `</span>`
       );
@@ -1155,7 +1197,7 @@ function renderClusterDetailBoosts(clusterName) {
         : `data-action="cluster-conf" data-cluster="${escapeAttr(r.cluster)}"`;
       return `
         <button type="button" class="detail-boost-entry state-${escapeAttr(r.st)}" ${dataAttrs} title="${escapeAttr(r.tip)}">
-          <span class="boost-state-chip chip-${escapeAttr(r.st)}">${escapeHtml(r.st)}</span>
+          ${boostStateChipHtml(r.st)}
           <span class="entry-primary">${escapeHtml(r.primary)}</span>
           ${r.secondary ? `<span class="entry-secondary">${escapeHtml(r.secondary)}</span>` : ''}
         </button>
@@ -3499,14 +3541,16 @@ function _updateDivSortIndicators(sort) {
 function renderDivergenceTable(view, clusterFilter) {
   view = view || getDivView();
   clusterFilter = clusterFilter == null ? getDivCluster() : clusterFilter;
+  const metricFilter = getDivMetric();
   const zMin = parseFloat(document.getElementById('z-min').value) || 0;
   const sort = getDivSort();
   const { results, fallback } = pickDivergenceSet(view, clusterFilter);
   const divs = results
     .filter(d => Math.abs(d.z_score) >= zMin)
+    .filter(d => !metricFilter || d.metric === metricFilter)
     .sort((a, b) => compareDivergences(a, b, sort.key, sort.dir));
   const high = divs.filter(d => Math.abs(d.z_score) >= 3).length;
-  console.info(`[Divergences] view=${view}${clusterFilter ? ` cluster=${clusterFilter}` : ''} zMin=${zMin} sort=${sort.key}/${sort.dir}: ${divs.length} rows, ${high} high-z (|z|>=3)${fallback ? ` fallback=${fallback}` : ''}`);
+  console.info(`[Divergences] view=${view}${clusterFilter ? ` cluster=${clusterFilter}` : ''}${metricFilter ? ` metric=${metricFilter}` : ''} zMin=${zMin} sort=${sort.key}/${sort.dir}: ${divs.length} rows, ${high} high-z (|z|>=3)${fallback ? ` fallback=${fallback}` : ''}`);
 
   const tbody = document.querySelector('#divergence-table tbody');
   if (fallback === 'cluster_too_small') {
@@ -3594,6 +3638,31 @@ let _stripBaseAbsMax = null;
 let _stripPanOffset = 0;   // shift the visible centre (in z-score units)
 let _stripAbortCtrl = null; // AbortController for document-level drag listeners
 
+// Choose a tick step so we get roughly 6–10 visible ticks across [xMin, xMax].
+function _stripTickStep(range) {
+  if (range <= 4) return 0.5;
+  if (range <= 8) return 1;
+  if (range <= 16) return 2;
+  if (range <= 40) return 5;
+  return 10;
+}
+function _stripTicks(xMin, xMax) {
+  const step = _stripTickStep(xMax - xMin);
+  const start = Math.ceil(xMin / step) * step;
+  const out = [];
+  for (let t = start; t <= xMax + 1e-9; t += step) {
+    // Round to one decimal — `step` is half-integer at worst.
+    out.push(Math.round(t * 10) / 10);
+  }
+  return out;
+}
+function _stripTickLabel(t) {
+  // Drop trailing ".0" for integers; prefix non-negative with a thin "+" for symmetry.
+  const s = (t % 1 === 0) ? String(Math.round(t)) : t.toFixed(1);
+  if (t > 0) return '+' + s;
+  return s; // negatives keep their '-', zero stays "0"
+}
+
 /** Build the SVG rows HTML for the strip plot (no side-effects). */
 function _buildStripSVGs(results, zMin) {
   const byMetric = {};
@@ -3609,14 +3678,24 @@ function _buildStripSVGs(results, zMin) {
   const visAbsMax = _stripBaseAbsMax * zoomFactor;
   const xMin = -visAbsMax + _stripPanOffset, xMax = visAbsMax + _stripPanOffset;
 
-  const W = 1100, H = 34, PAD = 210;
+  // Wider canvas so more rows are legible at once without immediately needing
+  // to zoom in. PAD reserves left space for the metric label.
+  const W = 1500, H = 34, PAD = 240;
   const innerW = W - PAD - 20;
   const project = (z) => PAD + ((z - xMin) / (xMax - xMin)) * innerW;
 
-  return Object.entries(byMetric).sort((a, b) => a[0].localeCompare(b[0])).map(([metric, ds]) => {
+  const ticks = _stripTicks(xMin, xMax);
+
+  const metricRows = Object.entries(byMetric).sort((a, b) => a[0].localeCompare(b[0])).map(([metric, ds]) => {
     const yMid = H / 2;
     const bandLeft = project(-zMin);
     const bandRight = project(zMin);
+    // Faint vertical hash marks at each tick so dot positions are easier to
+    // read off against the axis ticks below.
+    const tickHashes = ticks.map(t => {
+      const x = project(t).toFixed(1);
+      return `<line x1="${x}" y1="${yMid - 4}" x2="${x}" y2="${yMid + 4}" class="zs-tick"/>`;
+    }).join('');
     const dots = ds.map(d => {
       const cx = project(d.z_score);
       const cls = d.is_new_entry ? 'zs-new' : (Math.abs(d.z_score) >= 3 ? 'zs-high' : 'zs-med');
@@ -3632,11 +3711,30 @@ function _buildStripSVGs(results, zMin) {
         <line x1="${PAD}" y1="${yMid}" x2="${W - 20}" y2="${yMid}" class="zs-axis"/>
         <rect x="${PAD}" y="${yMid - 8}" width="${Math.max(0, bandLeft - PAD)}" height="16" class="zs-band-outlier"/>
         <rect x="${bandRight}" y="${yMid - 8}" width="${Math.max(0, (W - 20) - bandRight)}" height="16" class="zs-band-outlier"/>
+        ${tickHashes}
         <line x1="${project(0)}" y1="${yMid - 8}" x2="${project(0)}" y2="${yMid + 8}" class="zs-zero"/>
         ${dots}
       </svg>
     </div>`;
   }).join('');
+
+  // Shared axis row at the bottom of the strip plot. Renders tick marks plus
+  // numeric labels so users can read off magnitudes without hovering each dot.
+  const axisH = 22;
+  const tickHtml = ticks.map(t => {
+    const x = project(t).toFixed(1);
+    const isZero = Math.abs(t) < 1e-9;
+    return `<line x1="${x}" y1="0" x2="${x}" y2="5" class="zs-tick${isZero ? ' zs-tick-zero' : ''}"/>` +
+           `<text x="${x}" y="${axisH - 4}" text-anchor="middle" class="zs-tick-label${isZero ? ' zs-tick-label-zero' : ''}">${escapeHtml(_stripTickLabel(t))}</text>`;
+  }).join('');
+  const axisRow = `<div class="z-strip-row z-strip-axis-row">
+    <svg width="${W}" height="${axisH}" viewBox="0 0 ${W} ${axisH}" role="img" aria-label="z-score axis ticks">
+      <line x1="${PAD}" y1="0" x2="${W - 20}" y2="0" class="zs-axis"/>
+      ${tickHtml}
+    </svg>
+  </div>`;
+
+  return metricRows + axisRow;
 }
 
 function renderZScoreStripPlot(view, clusterFilter) {
@@ -3646,7 +3744,9 @@ function renderZScoreStripPlot(view, clusterFilter) {
   const _signal = _stripAbortCtrl.signal;
   const host = document.getElementById('z-strip-plot');
   if (!host) return;
-  const { results } = pickDivergenceSet(view, clusterFilter);
+  const metricFilter = getDivMetric();
+  let { results } = pickDivergenceSet(view, clusterFilter);
+  if (metricFilter) results = results.filter(d => d.metric === metricFilter);
   const zMin = parseFloat(document.getElementById('z-min').value) || 0;
   if (!results || results.length === 0) { host.innerHTML = ''; return; }
 
@@ -4036,20 +4136,70 @@ function renderBoostOverview() {
     return 'new';
   }
   function chipFor(state) {
-    const label = state === 're-boost' ? 're-boost' : state === 'holding' ? 'holding' : 'new';
-    return `<span class="boost-state-chip chip-${escapeAttr(label)}">${escapeHtml(label)}</span>`;
+    return boostStateChipHtml(state);
+  }
+
+  // Build a fast lookup of max |z| per (cluster, recipe) from the current-snapshot
+  // divergences. The executor_scale boost group is derived from those z-scores,
+  // so sorting its entries by |z| descending puts the strongest signal first.
+  // Cheap to compute even for hundreds of recipes (single linear pass).
+  const _zByClusterRecipe = (() => {
+    const m = new Map();
+    const arr = (data && data.divergences_current_snapshot) || [];
+    arr.forEach(d => {
+      const key = (d.cluster || '') + ' ' + (d.recipe || '');
+      const v = Math.abs(d.z_score || 0);
+      const prev = m.get(key) || 0;
+      if (v > prev) m.set(key, v);
+    });
+    return m;
+  })();
+  function _maxZForEntry(cluster, recipeName) {
+    return _zByClusterRecipe.get(cluster + ' ' + recipeName) || 0;
+  }
+  function _entrySortKey(code, e) {
+    if (code === 'executor_scale' && Array.isArray(e.recipes)) {
+      return e.recipes.reduce((acc, r) => Math.max(acc, _maxZForEntry(e.cluster, r.recipe)), 0);
+    }
+    // Recipe-kind b14/b16: rank by max cumulative_factor so the biggest
+    // re-boosts cluster at the top. Cluster-kind: keep source order.
+    if (Array.isArray(e.recipes)) {
+      return e.recipes.reduce((acc, r) => {
+        const m = r.spark_executor_memory || r.spark_dynamic_allocation_max_executors || {};
+        const f = (typeof m.cumulative_factor === 'number') ? m.cumulative_factor
+                : (typeof m.factor === 'number') ? m.factor : 0;
+        return Math.max(acc, f);
+      }, 0);
+    }
+    return 0;
+  }
+  function _recipeSortKey(code, cluster, r) {
+    if (code === 'executor_scale') return _maxZForEntry(cluster, r.recipe);
+    const m = r.spark_executor_memory || r.spark_dynamic_allocation_max_executors || {};
+    return (typeof m.cumulative_factor === 'number') ? m.cumulative_factor
+         : (typeof m.factor === 'number') ? m.factor : 0;
   }
 
   const html = generationSummary.boost_groups.map(g => {
     const code = (g.code || '').toLowerCase();
-    const entries = g.entries || [];
+    // Clone + sort entries so we don't mutate the underlying JSON. Stable on ties.
+    const entries = (g.entries || []).slice().sort((a, b) => {
+      const dk = _entrySortKey(code, b) - _entrySortKey(code, a);
+      if (dk !== 0) return dk;
+      return String(a.cluster || '').localeCompare(String(b.cluster || ''));
+    });
 
     // Partition entries (recipe-kind groups) and clusters (cluster-kind groups) by state.
     // Recipe-kind: split each cluster's recipes into [new/re-boost] and [holding] buckets;
     // emit at most two cluster <li>s per cluster (one per non-empty bucket).
     function renderRecipeBucket(label, predicate) {
       const items = entries.flatMap(e => {
-        const recipes = (e.recipes || []).filter(r => predicate(recipeState(r)));
+        const recipes = (e.recipes || [])
+          .filter(r => predicate(recipeState(r)))
+          // Strongest signal first within each cluster — z-score for
+          // executor_scale, cumulative_factor for b14/b16.
+          .slice()
+          .sort((a, b) => _recipeSortKey(code, e.cluster, b) - _recipeSortKey(code, e.cluster, a));
         if (recipes.length === 0) return [];
         const clusterBtn = `<button class="boost-cluster-link" data-cluster="${escapeAttr(e.cluster)}">${escapeHtml(e.cluster)}</button>`;
         const rows = recipes.map(r => {
