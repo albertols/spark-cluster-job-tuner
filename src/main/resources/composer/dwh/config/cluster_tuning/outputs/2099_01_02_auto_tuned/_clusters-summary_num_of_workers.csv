@@ -1,2 +1,0 @@
-cluster_name,dag_id,no_of_jobs,num_of_workers,worker_machine_type,master_machine_type,real_used_avg_num_of_workers,real_used_min_workers,real_used_max_workers,total_active_minutes,estimated_cost_eur,TIMER_NAME,TIMER_TIME
-cluster-wf-anonimiza-636bf97f-main,wf_Anonimizacion_Daily_LOAD,6,2,e2-highcpu-32,e2-highcpu-32,2.66,2,3,10.65,0.8724,ZERO_TIMER,00:00

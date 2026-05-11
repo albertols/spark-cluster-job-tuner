@@ -265,4 +265,25 @@ object TuningStrategy {
   }
 
   val all: List[TuningStrategy] = List(DefaultTuningStrategy, CostBiasedStrategy, PerformanceBiasedStrategy)
+
+  // Wrap a base strategy to override only `executorTopology`. Used by both the
+  // single tuner's `--topology=` arg and the auto-tuner's `--topology` option so
+  // per-date sub-runs honor the topology the user picked in the wizard.
+  def withTopology(base: TuningStrategy, topo: ExecutorTopologyPreset): TuningStrategy = new TuningStrategy {
+    val name = s"${base.name}+${topo.label}"
+    val biasMode = base.biasMode
+    val executorTopology = topo
+    val machinePreference = base.machinePreference
+    val quotas = base.quotas
+    val capHitBoostPct = base.capHitBoostPct
+    val capHitThreshold = base.capHitThreshold
+    val preferMaxWorkers = base.preferMaxWorkers
+    val perWorkerPenaltyPct = base.perWorkerPenaltyPct
+    val memoryOverheadRatio = base.memoryOverheadRatio
+    val osAndDaemonsReserveGb = base.osAndDaemonsReserveGb
+    val manualInstancesFrom = base.manualInstancesFrom
+    val minExecutorInstances = base.minExecutorInstances
+    val daMinFrom = base.daMinFrom
+    val daInitialEqualsMin = base.daInitialEqualsMin
+  }
 }

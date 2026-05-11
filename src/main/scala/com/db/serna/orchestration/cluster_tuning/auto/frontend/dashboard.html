@@ -3,6 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Always re-fetch the HTML so a serve.sh restart or new commit surfaces
+       without cmd+shift+R. Local JS is also cache-busted at the bottom of body. -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Spark Cluster Auto-Tuner Dashboard</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
@@ -184,8 +189,20 @@
 <!-- Doc popover -->
 <div id="doc-popover" class="doc-popover" style="display:none;"></div>
 
-<script src="app.js"></script>
-<script src="tuner-api.js"></script>
-<script src="wizard.js"></script>
+<script>
+  // Cache-bust local scripts so a serve.sh restart / new commit picks up
+  // fresh app.js / wizard.js without cmd+shift+R. Static-mode (python's
+  // http.server) sets only Last-Modified, which the browser happily caches.
+  // CDN scripts above stay pinned — they're already version-locked in the URL.
+  (function () {
+    var v = '?v=' + Date.now();
+    ['app.js', 'tuner-api.js', 'wizard.js'].forEach(function (src) {
+      var s = document.createElement('script');
+      s.async = false; // preserve execution order
+      s.src = src + v;
+      document.body.appendChild(s);
+    });
+  })();
+</script>
 </body>
 </html>

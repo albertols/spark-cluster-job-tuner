@@ -8,6 +8,7 @@ import com.db.serna.orchestration.cluster_tuning.single.{
   CostBiasedStrategy,
   DefaultTuningStrategy,
   DriverResourceOverride,
+  ExecutorTopologyPreset,
   GenerationSummary,
   GenerationSummaryEntry,
   GenerationSummaryWriter,
@@ -90,6 +91,13 @@ class AutoTunerConf(arguments: Seq[String]) extends ScallopConf(arguments) {
   val strategy: ScallopOption[String] = opt[String](
     default = Some("default"),
     descr = "Tuning strategy: default, cost_biased, performance_biased"
+  )
+
+  val topology: ScallopOption[String] = opt[String](
+    default = None,
+    descr = "Executor topology preset override (e.g. 8cx1GBpc, 8cx2GBpc, 4cx2GBpc). " +
+      "When set, overrides the topology baked into the chosen strategy.",
+    validate = label => ExecutorTopologyPreset.fromLabel(label).isDefined
   )
 
   val divergenceZThreshold: ScallopOption[Double] = opt[Double](
@@ -275,8 +283,12 @@ object ClusterMachineAndRecipeAutoTuner {
       keepHistorical
     )
 
-    // 7. Resolve strategy
-    val tuningStrategy = resolveStrategy(strategyName)
+    // 7. Resolve strategy (with optional topology override)
+    val baseStrategy = resolveStrategy(strategyName)
+    val tuningStrategy: TuningStrategy = conf.topology.toOption
+      .flatMap(ExecutorTopologyPreset.fromLabel)
+      .map(topo => TuningStrategy.withTopology(baseStrategy, topo))
+      .getOrElse(baseStrategy)
     val defaultMachine = MachineCatalog.byName("e2-standard-8").get
     val policy = tuningStrategy.toTuningPolicy(defaultMachine)
     val quotaTracker = new QuotaTracker(tuningStrategy.quotas)

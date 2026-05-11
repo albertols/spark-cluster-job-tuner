@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-05-04T19:04:03.839964Z",
+  "generated_at": "2026-05-11T13:25:54.358142Z",
   "date": "2099_01_01",
-  "strategy": "default",
+  "strategy": "default+8cx1GBpc",
   "bias_mode": "cost_performance_balance",
   "topology_preset": "8cx1GBpc",
   "total_clusters": 6,
@@ -54,7 +54,7 @@
       "max_workers_from_policy": 10,
       "total_cores": 480,
       "max_total_cores": 480,
-      "strategy": "default",
+      "strategy": "default+8cx1GBpc",
       "bias_mode": "cost_performance_balance",
       "topology_preset": "8cx1GBpc",
       "diagnostic_signals": [
@@ -69,7 +69,7 @@
       "max_workers_from_policy": 10,
       "total_cores": 480,
       "max_total_cores": 480,
-      "strategy": "default",
+      "strategy": "default+8cx1GBpc",
       "bias_mode": "cost_performance_balance",
       "topology_preset": "8cx1GBpc",
       "diagnostic_signals": [
@@ -84,7 +84,7 @@
       "max_workers_from_policy": 10,
       "total_cores": 480,
       "max_total_cores": 480,
-      "strategy": "default",
+      "strategy": "default+8cx1GBpc",
       "bias_mode": "cost_performance_balance",
       "topology_preset": "8cx1GBpc",
       "diagnostic_signals": [
@@ -99,7 +99,7 @@
       "max_workers_from_policy": 4,
       "total_cores": 88,
       "max_total_cores": 176,
-      "strategy": "default",
+      "strategy": "default+8cx1GBpc",
       "bias_mode": "cost_performance_balance",
       "topology_preset": "8cx1GBpc",
       "diagnostic_signals": [
@@ -114,7 +114,7 @@
       "max_workers_from_policy": 4,
       "total_cores": 96,
       "max_total_cores": 192,
-      "strategy": "default",
+      "strategy": "default+8cx1GBpc",
       "bias_mode": "cost_performance_balance",
       "topology_preset": "8cx1GBpc",
       "diagnostic_signals": [
@@ -129,7 +129,7 @@
       "max_workers_from_policy": 4,
       "total_cores": 96,
       "max_total_cores": 192,
-      "strategy": "default",
+      "strategy": "default+8cx1GBpc",
       "bias_mode": "cost_performance_balance",
       "topology_preset": "8cx1GBpc",
       "diagnostic_signals": [

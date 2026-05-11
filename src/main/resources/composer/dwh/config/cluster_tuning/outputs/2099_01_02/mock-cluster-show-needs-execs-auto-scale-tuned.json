@@ -1,14 +1,14 @@
 {
   "clusterConf": {
     "mock-cluster-show-needs-execs": {
-      "num_workers": 12,
-      "master_machine_type": "n2-highcpu-48",
-      "worker_machine_type": "n2-highcpu-48",
+      "num_workers": 9,
+      "master_machine_type": "e2-standard-32",
+      "worker_machine_type": "e2-standard-32",
       "autoscaling_policy": "extra-large-workload-autoscaling",
       "tuner_version": "2099_02_01",
       "total_no_of_jobs": 1,
       "cluster_max_total_memory_gb": 1152,
-      "cluster_max_total_cores": 576,
+      "cluster_max_total_cores": 288,
       "accumulated_max_total_memory_per_jobs_gb": 112,
       "scaledMaxExecutorsJobCount": 1,
       "scaledMaxExecutorsJobList": [
@@ -27,7 +27,7 @@
         "spark.dynamicAllocation.minExecutors": "12",
         "spark.dynamicAllocation.maxExecutors": "21",
         "spark.dynamicAllocation.initialExecutors": "12",
-        "spark.executor.cores": "8",
+        "spark.executor.cores": "4",
         "spark.executor.memory": "8g"
       },
       "total_executor_minimum_allocated_memory_gb": 96,

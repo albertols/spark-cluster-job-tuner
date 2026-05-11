@@ -58,7 +58,7 @@ java -jar target/spark-cluster-job-tuner-server.jar
 # One-shot CLI — useful for cron / CI / scripted runs
 java -jar target/spark-cluster-job-tuner-server.jar --cli auto \
   --reference-date=2026_04_30 --current-date=2026_05_29 \
-  --strategy=cost_biased --b16-rebooting-factor=1.5
+  --strategy=cost_biased --b16-reboosting-factor=1.5
 ```
 
 `./src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/frontend/serve.sh --api` automatically prefers the jar over `mvn exec:java` if
@@ -111,7 +111,7 @@ Single tuner exposes `--strategy`, `--topology`, and the positional
 Auto tuner exposes the full
 [`AutoTunerConf`](../ClusterMachineAndRecipeAutoTuner.scala) Scallop surface:
 `--strategy`, `--topology`, `--keep-historical-tuning`,
-`--b16-rebooting-factor`, `--b17-rebooting-factor`,
+`--b16-reboosting-factor`, `--b17-reboosting-factor`,
 `--divergence-z-threshold`, `--executor-scale-factor`, `--scale-z-threshold`,
 `--scale-cap-touch-ratio`. Defaults and ranges mirror the Scala source. Range
 errors block the **Next** button.

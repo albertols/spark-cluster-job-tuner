@@ -1,2 +1,0 @@
-cluster_name,worker_machine_type,worker_family,num_workers,max_workers_from_policy,total_cores,max_total_cores,strategy,bias_mode,topology_preset,diagnostic_signals
-cluster-wf-anonimiza-636bf97f-main,e2-highcpu-32,e2,2,4,64,128,default,cost_performance_balance,8cx1GBpc,""

@@ -112,8 +112,23 @@ object RunRegistry {
   def active: Option[Run] = activeRef.get()
   def get(runId: String): Option[Run] = Option(runs.get(runId))
 
-  /** Reserve the gate. Returns Right(run) if free, Left(currentActive) if busy. */
+  /**
+   * Reserve the gate. Returns Right(run) if free, Left(currentActive) if busy.
+   *
+   * If the currently-held run is already in a terminal state (Done/Failed/Cancelled),
+   * we silently release the gate first — that defends against any leak path that
+   * sets a terminal status without calling [[release]] (e.g. an appender-teardown
+   * hang in the run executor).
+   */
   def tryClaim(mode: String, params: collection.Map[String, Any]): Either[Run, Run] = {
+    // Reuse the exact `Some` instance held in `activeRef` for the CAS. Building
+    // a fresh `Some(stale)` would fail the CAS, since `AtomicReference.compareAndSet`
+    // uses Java identity, not Scala `equals`.
+    val maybeStale = activeRef.get()
+    maybeStale match {
+      case Some(stale) if isTerminal(stale.status) => activeRef.compareAndSet(maybeStale, None)
+      case _ => ()
+    }
     val candidate = new Run(
       runId = newRunId(mode),
       mode = mode,
@@ -128,9 +143,20 @@ object RunRegistry {
     }
   }
 
-  /** Release the gate. Idempotent. */
+  private def isTerminal(s: Status): Boolean = s match {
+    case Done | Failed | Cancelled => true
+    case _ => false
+  }
+
+  /**
+   * Release the gate. Idempotent.
+   *
+   * Same identity caveat as [[tryClaim]]: CAS against the exact `Some`
+   * reference currently in `activeRef`, not a freshly-built `Some(run)`.
+   */
   def release(run: Run): Unit = {
-    activeRef.compareAndSet(Some(run), None)
+    val current = activeRef.get()
+    if (current.exists(_ eq run)) activeRef.compareAndSet(current, None)
   }
 
   private def newRunId(mode: String): String = {

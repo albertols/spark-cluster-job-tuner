@@ -2,13 +2,13 @@
   "clusterConf": {
     "mock-cluster-show-ctrl-3": {
       "num_workers": 2,
-      "master_machine_type": "n2d-highcpu-48",
-      "worker_machine_type": "n2d-highcpu-48",
+      "master_machine_type": "e2-highcpu-32",
+      "worker_machine_type": "e2-highcpu-32",
       "autoscaling_policy": "small-workload-autoscaling",
       "tuner_version": "2099_02_01",
       "total_no_of_jobs": 5,
-      "cluster_max_total_memory_gb": 192,
-      "cluster_max_total_cores": 96,
+      "cluster_max_total_memory_gb": 128,
+      "cluster_max_total_cores": 64,
       "accumulated_max_total_memory_per_jobs_gb": 160
     }
   },
@@ -19,7 +19,7 @@
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
         "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
         "spark.executor.instances": "4",
-        "spark.executor.cores": "8",
+        "spark.executor.cores": "4",
         "spark.executor.memory": "8g"
       },
       "total_executor_minimum_allocated_memory_gb": 32,
@@ -31,7 +31,7 @@
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
         "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
         "spark.executor.instances": "4",
-        "spark.executor.cores": "8",
+        "spark.executor.cores": "4",
         "spark.executor.memory": "8g"
       },
       "total_executor_minimum_allocated_memory_gb": 32,
@@ -43,7 +43,7 @@
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
         "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
         "spark.executor.instances": "4",
-        "spark.executor.cores": "8",
+        "spark.executor.cores": "4",
         "spark.executor.memory": "8g"
       },
       "total_executor_minimum_allocated_memory_gb": 32,
@@ -55,7 +55,7 @@
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
         "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
         "spark.executor.instances": "4",
-        "spark.executor.cores": "8",
+        "spark.executor.cores": "4",
         "spark.executor.memory": "8g"
       },
       "total_executor_minimum_allocated_memory_gb": 32,
@@ -67,7 +67,7 @@
         "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
         "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
         "spark.executor.instances": "4",
-        "spark.executor.cores": "8",
+        "spark.executor.cores": "4",
         "spark.executor.memory": "8g"
       },
       "total_executor_minimum_allocated_memory_gb": 32,
@@ -75,14 +75,14 @@
     }
   },
   "cost_timeline": {
-    "worker_machine_type": "n2d-highcpu-48",
-    "master_machine_type": "n2d-highcpu-48",
-    "worker_hourly_eur": 2.6400,
-    "master_hourly_eur": 2.6400,
+    "worker_machine_type": "e2-highcpu-32",
+    "master_machine_type": "e2-highcpu-32",
+    "worker_hourly_eur": 1.3440,
+    "master_hourly_eur": 1.3440,
     "real_used_avg_num_of_workers": 2.00,
     "real_used_min_workers": 2,
     "real_used_max_workers": 2,
-    "total_cost_eur": 39.6000,
+    "total_cost_eur": 20.1600,
     "has_synthetic_span": false,
     "incarnations": [
       {
@@ -93,9 +93,9 @@
         "avg_workers": 2.00,
         "min_workers": 2,
         "max_workers": 2,
-        "worker_cost_eur": 26.4000,
-        "master_cost_eur": 13.2000,
-        "total_cost_eur": 39.6000,
+        "worker_cost_eur": 13.4400,
+        "master_cost_eur": 6.7200,
+        "total_cost_eur": 20.1600,
         "synthetic_span": false,
         "events_count": 0,
         "intervals": [
@@ -104,7 +104,7 @@
             "to_ts": "2099-01-02T08:00:00Z",
             "workers": 2.0,
             "seg_seconds": 18000,
-            "seg_cost_eur": 39.6000
+            "seg_cost_eur": 20.1600
           }
         ]
       }

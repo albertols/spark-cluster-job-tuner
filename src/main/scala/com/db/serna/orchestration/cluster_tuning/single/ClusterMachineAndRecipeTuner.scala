@@ -1835,25 +1835,7 @@ object ClusterMachineAndRecipeTuner {
     // Optionally override executor topology via --topology=<label>
     val topoLabel = args.collectFirst { case a if a.startsWith("--topology=") => a.stripPrefix("--topology=") }
     val strategy: TuningStrategy = topoLabel.flatMap(ExecutorTopologyPreset.fromLabel) match {
-      case Some(topo) =>
-        // Wrap the base strategy to override the topology only
-        new TuningStrategy {
-          val name = s"${baseStrategy.name}+${topo.label}"
-          val biasMode = baseStrategy.biasMode
-          val executorTopology = topo
-          val machinePreference = baseStrategy.machinePreference
-          val quotas = baseStrategy.quotas
-          val capHitBoostPct = baseStrategy.capHitBoostPct
-          val capHitThreshold = baseStrategy.capHitThreshold
-          val preferMaxWorkers = baseStrategy.preferMaxWorkers
-          val perWorkerPenaltyPct = baseStrategy.perWorkerPenaltyPct
-          val memoryOverheadRatio = baseStrategy.memoryOverheadRatio
-          val osAndDaemonsReserveGb = baseStrategy.osAndDaemonsReserveGb
-          val manualInstancesFrom = baseStrategy.manualInstancesFrom
-          val minExecutorInstances = baseStrategy.minExecutorInstances
-          val daMinFrom = baseStrategy.daMinFrom
-          val daInitialEqualsMin = baseStrategy.daInitialEqualsMin
-        }
+      case Some(topo) => TuningStrategy.withTopology(baseStrategy, topo)
       case None => baseStrategy
     }
 

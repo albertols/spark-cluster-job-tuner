@@ -9,11 +9,7 @@
       "total_no_of_jobs": 4,
       "cluster_max_total_memory_gb": 176,
       "cluster_max_total_cores": 88,
-      "accumulated_max_total_memory_per_jobs_gb": 128,
-      "boostedMemoryHeapJobCount": 0,
-      "boostedMemoryHeapJobList": [
-        
-      ]
+      "accumulated_max_total_memory_per_jobs_gb": 128
     }
   },
   "recipeSparkConf": {
@@ -65,5 +61,41 @@
       "total_executor_minimum_allocated_memory_gb": 32,
       "total_executor_maximum_allocated_memory_gb": 32
     }
+  },
+  "cost_timeline": {
+    "worker_machine_type": "c3-highcpu-44",
+    "master_machine_type": "c3-highcpu-44",
+    "worker_hourly_eur": 3.0800,
+    "master_hourly_eur": 3.0800,
+    "real_used_avg_num_of_workers": 2.00,
+    "real_used_min_workers": 2,
+    "real_used_max_workers": 2,
+    "total_cost_eur": 46.2000,
+    "has_synthetic_span": false,
+    "incarnations": [
+      {
+        "idx": 1,
+        "span_start_ts": "2099-01-01T03:00:00Z",
+        "span_end_ts": "2099-01-01T08:00:00Z",
+        "span_minutes": 300.00,
+        "avg_workers": 2.00,
+        "min_workers": 2,
+        "max_workers": 2,
+        "worker_cost_eur": 30.8000,
+        "master_cost_eur": 15.4000,
+        "total_cost_eur": 46.2000,
+        "synthetic_span": false,
+        "events_count": 0,
+        "intervals": [
+          {
+            "from_ts": "2099-01-01T03:00:00Z",
+            "to_ts": "2099-01-01T08:00:00Z",
+            "workers": 2.0,
+            "seg_seconds": 18000,
+            "seg_cost_eur": 46.2000
+          }
+        ]
+      }
+    ]
   }
 }

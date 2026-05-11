@@ -5,7 +5,7 @@
   Reference date:  2099_01_01
   Current date:    2099_01_02
   Strategy:        default
-  Generated at:    2026-05-04T19:04:05.451684Z
+  Generated at:    2026-05-11T13:32:40.537170Z
 
 ------------------------------------------------------------------------
   TREND SUMMARY
@@ -36,9 +36,9 @@
   b16 OOM REBOOSTING  (2 recipe(s) across 2 cluster(s))
 ------------------------------------------------------------------------
   mock-cluster-show-holding  (1 recipe(s))
-    RDM_BOOST_HOLDING                                             spark.executor.memory: 12g -> 12g  (x1.5)  [holding]
+    RDM_BOOST_HOLDING                                             spark.executor.memory: 8g -> 12g  (x1.5)
   mock-cluster-show-oom  (1 recipe(s))
-    DQ3_OOM_RECURRING                                             spark.executor.memory: 12g -> 18g  (x1.5)  [re-boost · cumulative x2.25]
+    DQ3_OOM_RECURRING                                             spark.executor.memory: 8g -> 12g  (x1.5)
 
 ------------------------------------------------------------------------
   Z-SCORE EXECUTOR SCALE-UP  (1 recipe(s) across 1 cluster(s))

@@ -261,8 +261,12 @@ object TunerService {
         if (ctxPath != "/" && rawPath.startsWith(ctxPath)) rawPath.substring(ctxPath.length)
         else rawPath
       val rel = afterCtx.stripPrefix("/")
+      // Empty `rel` ⇒ request hit the mount root (e.g. /resources/.../inputs/).
+      // Resolve to the root dir itself; the directory-handling branch below
+      // serves index.html when present or falls through to a listing — that's
+      // what the wizard's `populateRefDates()` scrapes.
       val file =
-        if (rel.isEmpty) new File(rootCanon, "index.html")
+        if (rel.isEmpty) rootCanon
         else new File(rootCanon, URLDecoder.decode(rel, StandardCharsets.UTF_8.name()))
       val canon = file.getCanonicalFile
       // Prevent path traversal.
@@ -590,25 +594,40 @@ object TunerService {
     // ── Run executor ────────────────────────────────────────────────────────
 
     private def executeRun(run: RunRegistry.Run, mode: String, params: collection.Map[String, Any]): Unit = {
+      // Transition status INSIDE the log-capture block. If appender teardown in
+      // RunLogAppender.withRunCapture's `finally` ever blocks (e.g. a log4j2
+      // reconfiguration lock), the run would still be marked Done/Failed and the
+      // outer `finally` below would release the single-run gate — so the wizard
+      // can start a new run instead of being pinned by 409.
       try {
         RunLogAppender.withRunCapture(run.log) {
           run.log.append(s"[run ${run.runId}] mode=$mode params=${JsonIO.stringify(params)}")
-          mode match {
-            case "single" => runSingle(run, params)
-            case "auto" => runAuto(run, params)
-            case other => throw new IllegalArgumentException(s"Unknown mode: $other")
+          try {
+            mode match {
+              case "single" => runSingle(run, params)
+              case "auto" => runAuto(run, params)
+              case other => throw new IllegalArgumentException(s"Unknown mode: $other")
+            }
+            run.markDone()
+          } catch {
+            case _: InterruptedException =>
+              run.log.append(s"[run ${run.runId}] interrupted")
+              run.markCancelled()
+            case NonFatal(e) =>
+              run.log.append(s"[run ${run.runId}] FAILED: ${e.toString}")
+              val sw = new java.io.StringWriter; e.printStackTrace(new java.io.PrintWriter(sw))
+              sw.toString.linesIterator.take(20).foreach(l => run.log.append("  " + l))
+              run.markFailed(e.toString)
           }
         }
-        run.markDone()
       } catch {
-        case _: InterruptedException =>
-          run.log.append(s"[run ${run.runId}] interrupted")
-          run.markCancelled()
         case NonFatal(e) =>
-          run.log.append(s"[run ${run.runId}] FAILED: ${e.toString}")
-          val sw = new java.io.StringWriter; e.printStackTrace(new java.io.PrintWriter(sw))
-          sw.toString.linesIterator.take(20).foreach(l => run.log.append("  " + l))
-          run.markFailed(e.toString)
+          // Defence in depth: if the capture wrapper itself blew up, still record
+          // a terminal status so the wizard's poll sees something other than
+          // `running`.
+          if (run.status == RunRegistry.Running || run.status == RunRegistry.Pending) {
+            run.markFailed(s"log-capture failure: ${e.toString}")
+          }
       } finally {
         RunRegistry.release(run)
       }
@@ -618,8 +637,10 @@ object TunerService {
       val date = JsonIO.str(params, "date")
       val flat = JsonIO.boolOpt(params, "flattened").getOrElse(true)
       val strategy = JsonIO.strOpt(params, "strategy").flatMap(TuningStrategy.fromName).getOrElse(DefaultTuningStrategy)
-      val topo = JsonIO.strOpt(params, "topology").flatMap(ExecutorTopologyPreset.fromLabel)
-      val effective = wrapTopology(strategy, topo)
+      val effective = JsonIO.strOpt(params, "topology")
+        .flatMap(ExecutorTopologyPreset.fromLabel)
+        .map(topo => TuningStrategy.withTopology(strategy, topo))
+        .getOrElse(strategy)
 
       // Use applyAt so we feed the resolved inputs/outputs roots from config.
       val cfgObj = ClusterMachineAndRecipeTuner.Config.applyAt(
@@ -640,8 +661,8 @@ object TunerService {
       args += s"--reference-date=${JsonIO.str(params, "referenceDate")}"
       args += s"--current-date=${JsonIO.str(params, "currentDate")}"
       JsonIO.strOpt(params, "strategy").foreach(s => args += s"--strategy=$s")
-      JsonIO.numOpt(params, "b16ReboostingFactor").foreach(d => args += s"--b16-rebooting-factor=$d")
-      JsonIO.numOpt(params, "b17ReboostingFactor").foreach(d => args += s"--b17-rebooting-factor=$d")
+      JsonIO.numOpt(params, "b16ReboostingFactor").foreach(d => args += s"--b16-reboosting-factor=$d")
+      JsonIO.numOpt(params, "b17ReboostingFactor").foreach(d => args += s"--b17-reboosting-factor=$d")
       JsonIO.numOpt(params, "divergenceZThreshold").foreach(d => args += s"--divergence-z-threshold=$d")
       JsonIO.numOpt(params, "executorScaleFactor").foreach(d => args += s"--executor-scale-factor=$d")
       JsonIO.numOpt(params, "scaleZThreshold").foreach(d => args += s"--scale-z-threshold=$d")
@@ -649,43 +670,13 @@ object TunerService {
       JsonIO.boolOpt(params, "keepHistoricalTuning").foreach { b =>
         if (b) args += "--keep-historical-tuning"
       }
-      // Topology override is not in AutoTunerConf — surface via system property?
-      // The auto tuner's strategy resolution uses TuningStrategy.fromName only;
-      // topology is derived from the strategy. We surface a notice so users
-      // know topology overrides aren't honoured by AutoTuner today (Phase 1+2 only
-      // supports it on the single tuner).
-      JsonIO.strOpt(params, "topology").foreach { t =>
-        run.log
-          .append(s"[run] note: --topology=$t is not propagated through AutoTunerConf; the strategy's preset is used.")
-      }
+      JsonIO.strOpt(params, "topology").foreach(t => args += s"--topology=$t")
 
       run.log.append(s"[run] args: ${args.mkString(" ")}")
       val conf = new AutoTunerConf(args.toArray[String])
       ClusterMachineAndRecipeAutoTuner.run(conf)
     }
 
-    private def wrapTopology(base: TuningStrategy, topoOpt: Option[ExecutorTopologyPreset]): TuningStrategy =
-      topoOpt match {
-        case None => base
-        case Some(topo) =>
-          new TuningStrategy {
-            val name = s"${base.name}+${topo.label}"
-            val biasMode = base.biasMode
-            val executorTopology = topo
-            val machinePreference = base.machinePreference
-            val quotas = base.quotas
-            val capHitBoostPct = base.capHitBoostPct
-            val capHitThreshold = base.capHitThreshold
-            val preferMaxWorkers = base.preferMaxWorkers
-            val perWorkerPenaltyPct = base.perWorkerPenaltyPct
-            val memoryOverheadRatio = base.memoryOverheadRatio
-            val osAndDaemonsReserveGb = base.osAndDaemonsReserveGb
-            val manualInstancesFrom = base.manualInstancesFrom
-            val minExecutorInstances = base.minExecutorInstances
-            val daMinFrom = base.daMinFrom
-            val daInitialEqualsMin = base.daInitialEqualsMin
-          }
-      }
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────

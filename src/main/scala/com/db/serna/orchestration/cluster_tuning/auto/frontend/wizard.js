@@ -81,7 +81,7 @@ const Wizard = (() => {
       ],
       descr:
         "Jobs whose driver ended with java.lang.OutOfMemoryError. Auto-tuner reads is_java_heap=TRUE " +
-        "rows to apply the b16 memory boost (multiplies spark.executor.memory by --b16-rebooting-factor). " +
+        "rows to apply the b16 memory boost (multiplies spark.executor.memory by --b16-reboosting-factor). " +
         "Optional — if missing, OOM boosts are not applied.",
     },
     {
@@ -113,10 +113,10 @@ const Wizard = (() => {
       descr: "Executor topology preset (cores × memory-per-core)" },
     { name: "keepHistoricalTuning", flag: "--keep-historical-tuning", kind: "bool", default: true,
       descr: "Preserve configs for clusters/recipes absent from current_date metrics (default: true)" },
-    { name: "b16ReboostingFactor", flag: "--b16-rebooting-factor", kind: "number", default: 1.5,
+    { name: "b16ReboostingFactor", flag: "--b16-reboosting-factor", kind: "number", default: 1.5,
       min: 1.0, max: 5.0, step: 0.1,
       descr: "Boost factor for spark.executor.memory on b16 OOM signals (default: 1.5, range [1.0, 5.0])" },
-    { name: "b17ReboostingFactor", flag: "--b17-rebooting-factor", kind: "number", default: 1.0,
+    { name: "b17ReboostingFactor", flag: "--b17-reboosting-factor", kind: "number", default: 1.0,
       min: 1.0, max: 5.0, step: 0.1,
       descr: "Boost factor for spark.executor.memoryOverhead on b17 signals (future, default: 1.0, range [1.0, 5.0])" },
     { name: "divergenceZThreshold", flag: "--divergence-z-threshold", kind: "number", default: 2.0,
@@ -1442,7 +1442,10 @@ const Wizard = (() => {
       `<p class="help">All set. The wizard probes for the TunerService API; if it's up you can launch the run with one click. ` +
       `If not, the IntelliJ + bash artifacts below let you run locally.</p>` +
       `<div id="wiz-api-panel-host"></div>` +
-      dl + land + runner + after;
+      // Hidden by renderApiPanel when the API is reachable — the API launch
+      // panel above is sufficient on its own and the IntelliJ/Maven panels
+      // below are pure noise in that mode.
+      `<div id="wiz-intellij-panels">` + dl + land + runner + after + `</div>`;
 
     wireRunStep(root, date, isAuto);
     // Probe the API and render the launch panel asynchronously.
@@ -1461,6 +1464,7 @@ const Wizard = (() => {
       `</div>`;
 
     const ok = (typeof TunerApi !== "undefined") ? await TunerApi.health() : false;
+    const intellijPanels = root.querySelector("#wiz-intellij-panels");
     if (!ok) {
       host.innerHTML =
         `<div class="wiz-run-panel" style="border-left-color:#8b949e;">` +
@@ -1468,9 +1472,11 @@ const Wizard = (() => {
           `<div class="panel-help">Boot the dashboard with <code>./serve.sh --api</code> to enable a real <strong>Start Tuning</strong> button here. ` +
           `For now, follow the IntelliJ instructions in panel 3 below.</div>` +
         `</div>`;
+      if (intellijPanels) intellijPanels.style.display = "";
       return;
     }
 
+    if (intellijPanels) intellijPanels.style.display = "none";
     host.innerHTML = renderApiLaunchPanel(date, isAuto);
     wireApiLaunchPanel(host, date, isAuto);
   }
@@ -1495,9 +1501,10 @@ const Wizard = (() => {
       `</ol>` +
       `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">` +
         `<button class="wiz-btn primary" id="wiz-start" ${validRequired < totalRequired ? "disabled" : ""}>► Start Tuning</button>` +
-        `<button class="wiz-btn" id="wiz-cancel-run" style="display:none;">Cancel run</button>` +
+        `<button class="wiz-btn danger" id="wiz-cancel-run" style="display:none;">■ Stop run</button>` +
         `<span class="wiz-mut" id="wiz-run-status"></span>` +
       `</div>` +
+      `<div id="wiz-409-recovery" style="display:none;margin-top:8px;"></div>` +
       `<div class="wiz-codeblock" id="wiz-log-box" style="display:none;margin-top:10px;">` +
         `<button class="copy">Copy</button>` +
         `<pre style="max-height:340px;overflow:auto;" id="wiz-log-pre"></pre>` +
@@ -1517,6 +1524,7 @@ const Wizard = (() => {
     const logBox    = host.querySelector("#wiz-log-box");
     const logPre    = host.querySelector("#wiz-log-pre");
     const copyBtn   = host.querySelector("#wiz-log-box .copy");
+    const recovery  = host.querySelector("#wiz-409-recovery");
 
     if (copyBtn) copyBtn.onclick = () => {
       copyText(logPre.textContent, copyBtn);
@@ -1524,9 +1532,91 @@ const Wizard = (() => {
 
     if (!startBtn) return;
     let stopStream = null;
+    let stopWatchdog = null;
     let inFlightRunId = null;
+    let terminated = false;
 
-    startBtn.onclick = async () => {
+    // Watchdog: an independent GET /api/runs/<id> poll every 4 s. If the long-poll
+    // log stream stalls (e.g. status flips after the server's last log batch and
+    // our log poll is parked between iterations), this still surfaces the
+    // terminal state to the UI.
+    function startWatchdog(runId, onTerminal) {
+      let cancelled = false;
+      const tick = async () => {
+        if (cancelled) return;
+        try {
+          const s = await TunerApi.getRunStatus(runId);
+          if (s && s.status && s.status !== "running" && s.status !== "pending") {
+            cancelled = true;
+            onTerminal(s);
+            return;
+          }
+        } catch (_) { /* ignore network blips */ }
+        if (!cancelled) setTimeout(tick, 4000);
+      };
+      setTimeout(tick, 4000);
+      return () => { cancelled = true; };
+    }
+
+    function finish(resp) {
+      if (terminated) return;
+      terminated = true;
+      if (stopStream) stopStream();
+      if (stopWatchdog) stopWatchdog();
+      cancelBtn.style.display = "none";
+      startBtn.disabled = false;
+      startBtn.textContent = "► Start another";
+      const idChip = inFlightRunId ? ` · runId=${escapeHtml(inFlightRunId)}` : "";
+      const finishedAt = resp && resp.finishedAt ? ` · finished ${escapeHtml(resp.finishedAt)}` : "";
+      if (resp && resp.status === "done") {
+        statusEl.innerHTML = `<span class="wiz-ok">✓ done</span>${idChip}${finishedAt}`;
+        logPre.textContent += `✓ Run ${inFlightRunId} completed.\n`;
+        renderRunComplete(host, date, isAuto);
+      } else if (resp && resp.status === "failed") {
+        statusEl.innerHTML = `<span class="err-chip">✗ failed</span>${idChip}${finishedAt}`;
+        if (resp.error) logPre.textContent += `✗ ${resp.error}\n`;
+      } else if (resp && resp.status === "cancelled") {
+        statusEl.innerHTML = `<span class="wiz-warn">⚠ cancelled</span>${idChip}${finishedAt}`;
+      } else {
+        statusEl.innerHTML = `<span class="wiz-warn">⚠ ${escapeHtml((resp && resp.status) || "unknown")}</span>${idChip}`;
+      }
+      logPre.scrollTop = logPre.scrollHeight;
+    }
+
+    function show409Recovery(currentRunId, retryFn) {
+      if (!recovery) return;
+      recovery.style.display = "";
+      recovery.innerHTML =
+        `<div class="panel-help" style="border-left:3px solid #d29922;padding-left:8px;">` +
+          `The server is still tracking <code>${escapeHtml(currentRunId)}</code>. ` +
+          `Force-kill it and start a new run, or wait for it to finish.` +
+        `</div>` +
+        `<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">` +
+          `<button class="wiz-btn danger" id="wiz-kill-stale">✗ Kill ${escapeHtml(currentRunId)}</button>` +
+        `</div>`;
+      const killBtn = recovery.querySelector("#wiz-kill-stale");
+      if (killBtn) killBtn.onclick = async () => {
+        killBtn.disabled = true;
+        killBtn.textContent = "killing…";
+        try {
+          await TunerApi.cancelRun(currentRunId);
+          recovery.style.display = "none";
+          recovery.innerHTML = "";
+          // Retry the launch.
+          terminated = false;
+          retryFn();
+        } catch (e) {
+          killBtn.disabled = false;
+          killBtn.textContent = `✗ Kill ${currentRunId}`;
+          recovery.querySelector(".panel-help").innerHTML =
+            `Could not kill <code>${escapeHtml(currentRunId)}</code>: ${escapeHtml(e.message || String(e))}`;
+        }
+      };
+    }
+
+    const doLaunch = async () => {
+      terminated = false;
+      if (recovery) { recovery.style.display = "none"; recovery.innerHTML = ""; }
       startBtn.disabled = true;
       statusEl.textContent = "preparing…";
       logBox.style.display = "";
@@ -1572,44 +1662,45 @@ const Wizard = (() => {
           : await TunerApi.startSingle(params);
         inFlightRunId = startResp.runId;
         statusEl.textContent = `running · runId=${inFlightRunId}`;
+        // Visible Stop button the moment the run starts — the user reported the
+        // Start button staying faded after completion with no way to recover.
         cancelBtn.style.display = "";
 
-        // 5) Long-poll the log.
+        // 5a) Long-poll the log. Status changes route through finish() so the
+        //     watchdog and the log stream can race — whichever sees a terminal
+        //     state first wins; `terminated` makes the other a no-op.
         stopStream = TunerApi.streamRun(inFlightRunId, {
           onLine: (l) => append(l),
-          onStatus: (s) => { statusEl.textContent = `${s} · runId=${inFlightRunId}`; },
-          onDone: (resp) => {
-            cancelBtn.style.display = "none";
-            startBtn.disabled = false;
-            startBtn.textContent = "► Start another";
-            if (resp.status === "done") {
-              statusEl.innerHTML = `<span class="wiz-ok">✓ done</span> · runId=${escapeHtml(inFlightRunId)}`;
-              append(`✓ Run ${inFlightRunId} completed.`);
-              renderRunComplete(host, date, isAuto);
-            } else if (resp.status === "failed") {
-              statusEl.innerHTML = `<span class="err-chip">✗ failed</span> · runId=${escapeHtml(inFlightRunId)}`;
-              if (resp.error) append(`✗ ${resp.error}`);
-            } else if (resp.status === "cancelled") {
-              statusEl.innerHTML = `<span class="wiz-warn">⚠ cancelled</span> · runId=${escapeHtml(inFlightRunId)}`;
-            }
-          },
+          onStatus: (s) => { if (!terminated) statusEl.textContent = `${s} · runId=${inFlightRunId}`; },
+          onDone: (resp) => finish(resp),
           onError: (e) => append(`! polling error: ${e.message || e}`),
         });
+        // 5b) Independent status watchdog (every 4 s). Covers the case where
+        //     the log poll stalls but /api/runs/<id> already shows terminal.
+        stopWatchdog = startWatchdog(inFlightRunId, (s) => finish(s));
       } catch (e) {
         startBtn.disabled = false;
         statusEl.innerHTML = `<span class="err-chip">✗ ${escapeHtml(e.message || String(e))}</span>`;
         append(`✗ ${e.message || e}`);
         if (e.body && e.body.error === "run_in_progress") {
           append(`  ↳ existing run in progress: ${e.body.currentRunId}. Wait for it to finish or DELETE it.`);
+          show409Recovery(e.body.currentRunId, doLaunch);
         }
       }
     };
 
+    startBtn.onclick = doLaunch;
+
     if (cancelBtn) cancelBtn.onclick = async () => {
       if (!inFlightRunId) return;
+      cancelBtn.disabled = true;
+      cancelBtn.textContent = "stopping…";
+      statusEl.innerHTML = `<span class="wiz-warn">⚠ stopping…</span>`;
       try { await TunerApi.cancelRun(inFlightRunId); } catch (_) { /* ignore */ }
-      if (stopStream) stopStream();
-      statusEl.innerHTML = `<span class="wiz-warn">⚠ cancelling…</span>`;
+      // Don't tear down stopStream/stopWatchdog here — let finish() do it so
+      // we capture the server's authoritative terminal status (cancelled).
+      cancelBtn.disabled = false;
+      cancelBtn.textContent = "■ Stop run";
     };
   }
 
@@ -1629,9 +1720,11 @@ const Wizard = (() => {
       clearSession();
       cleanup();
       closeModalSilently();
-      // Heuristic: tuner writes outputs to <date>_auto_tuned for auto mode, <date> for single.
-      const targetDir = isAuto ? `${date}_auto_tuned` : date;
-      if (typeof navigate === "function") navigate({ data: targetDir });
+      // Both AutoTuner and the single tuner write to outputs/<date>/.
+      // (The `_auto_tuned` suffix was a legacy probe-fallback in app.js, not
+      // an actual output dir.) For auto mode `date` is the *current* date,
+      // which is where the new analysis lives.
+      if (typeof navigate === "function") navigate({ data: date });
     };
   }
 
@@ -2020,13 +2113,22 @@ mvn -q exec:java \\
 // ── Boot the buttons after DOM is ready ─────────────────────────────────────
 //
 // We don't touch app.js's bootstrap(); we self-attach. The buttons live in the
-// landing-header which is in the DOM at parse time, so DOMContentLoaded is the
-// right moment. If the landing isn't yet visible (deep-link case), the buttons
-// are still wired and will work the moment the user navigates back to landing.
+// landing-header which is in the DOM at parse time. The dashboard's cache-bust
+// loader inserts this script dynamically AFTER DOMContentLoaded has fired, so
+// we can't rely on the event — fall through to a direct call when the
+// document is already past `loading`. (Direct static <script src> inclusions
+// at the end of <body> would also be past `loading`, so this is robust either
+// way.)
 
-document.addEventListener("DOMContentLoaded", () => {
+function wireWizardLauncherButtons() {
   const single = document.getElementById("new-single-tuning");
   const auto   = document.getElementById("new-auto-tuning");
   if (single) single.onclick = () => Wizard.start({ mode: "single" });
   if (auto)   auto.onclick   = () => Wizard.start({ mode: "auto" });
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", wireWizardLauncherButtons);
+} else {
+  wireWizardLauncherButtons();
+}

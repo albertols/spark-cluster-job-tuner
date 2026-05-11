@@ -267,7 +267,10 @@ async function discoverAnalyses() {
 
   // 2) Fallback: parse python http.server's HTML directory listing.
   try {
-    const r = await fetch(`${outputsRoot}/`);
+    // `cache: 'no-store'` so a fresh tuner run surfaces without cmd+shift+R —
+    // python's http.server returns Last-Modified and the browser will otherwise
+    // hand back a stale listing.
+    const r = await fetch(`${outputsRoot}/`, { cache: 'no-store' });
     if (!r.ok) return [];
     const html = await r.text();
     const dirs = parseDirListing(html);
@@ -4152,7 +4155,7 @@ async function discoverClusterSummaries(dirName) {
   const base = `${outputsRoot}/${encodeURIComponent(dirName)}`;
   // Use directory listing if available (python http.server / index.html style).
   try {
-    const r = await fetch(`${base}/`);
+    const r = await fetch(`${base}/`, { cache: 'no-store' });
     if (r.ok) {
       const html = await r.text();
       const re = /<a href="([^"]+)"/gi;
@@ -4910,7 +4913,7 @@ async function renderInputsTree() {
   // Discover date dirs by parsing HTTP listing of inputsRoot/
   let dirs = [];
   try {
-    const r = await fetch(`${inputsRoot}/`);
+    const r = await fetch(`${inputsRoot}/`, { cache: 'no-store' });
     if (r.ok) {
       const html = await r.text();
       const re = /<a href="([^"]+)"/gi;
@@ -4938,7 +4941,7 @@ async function renderInputsTree() {
   // Fetch each dir's file list in parallel.
   const dirContents = await Promise.all(dirs.map(async (d) => {
     try {
-      const r = await fetch(`${inputsRoot}/${encodeURIComponent(d)}/`);
+      const r = await fetch(`${inputsRoot}/${encodeURIComponent(d)}/`, { cache: 'no-store' });
       if (!r.ok) return { d, files: [] };
       const html = await r.text();
       const re = /<a href="([^"]+)"/gi;
