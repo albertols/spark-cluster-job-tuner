@@ -115,10 +115,9 @@ object RunRegistry {
   /**
    * Reserve the gate. Returns Right(run) if free, Left(currentActive) if busy.
    *
-   * If the currently-held run is already in a terminal state (Done/Failed/Cancelled),
-   * we silently release the gate first — that defends against any leak path that
-   * sets a terminal status without calling [[release]] (e.g. an appender-teardown
-   * hang in the run executor).
+   * If the currently-held run is already in a terminal state (Done/Failed/Cancelled), we silently release the gate
+   * first — that defends against any leak path that sets a terminal status without calling [[release]] (e.g. an
+   * appender-teardown hang in the run executor).
    */
   def tryClaim(mode: String, params: collection.Map[String, Any]): Either[Run, Run] = {
     // Reuse the exact `Some` instance held in `activeRef` for the CAS. Building
@@ -151,8 +150,8 @@ object RunRegistry {
   /**
    * Release the gate. Idempotent.
    *
-   * Same identity caveat as [[tryClaim]]: CAS against the exact `Some`
-   * reference currently in `activeRef`, not a freshly-built `Some(run)`.
+   * Same identity caveat as [[tryClaim]]: CAS against the exact `Some` reference currently in `activeRef`, not a
+   * freshly-built `Some(run)`.
    */
   def release(run: Run): Unit = {
     val current = activeRef.get()

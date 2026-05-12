@@ -3,6 +3,7 @@
 > Cost-optimise your GCP Dataproc Spark jobs from real telemetry — no agents, no vendor lock-in, just CSV in / cluster config out.
 
 [![CI](https://github.com/albertols/spark-cluster-job-tuner/actions/workflows/ci.yml/badge.svg)](https://github.com/albertols/spark-cluster-job-tuner/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/albertols/spark-cluster-job-tuner/actions/workflows/codeql.yml/badge.svg)](https://github.com/albertols/spark-cluster-job-tuner/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/albertols/spark-cluster-job-tuner/branch/main/graph/badge.svg)](https://codecov.io/gh/albertols/spark-cluster-job-tuner)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Scala](https://img.shields.io/badge/Scala-2.12.18-red.svg)](#)

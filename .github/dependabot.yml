@@ -13,6 +13,10 @@ updates:
       # See pom.xml comment near the scoverage <plugin> block.
       - dependency-name: "org.scoverage:scoverage-maven-plugin"
         versions: [">= 2.0.1"]
+      # spotless-maven-plugin 3.0.0+ requires Java 17; project is on Java 11.
+      # See pom.xml comment near the spotless <plugin> block.
+      - dependency-name: "com.diffplug.spotless:spotless-maven-plugin"
+        versions: [">= 3.0.0"]
 
   - package-ecosystem: github-actions
     directory: "/"

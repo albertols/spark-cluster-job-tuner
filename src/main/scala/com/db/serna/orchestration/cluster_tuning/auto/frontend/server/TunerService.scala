@@ -637,7 +637,8 @@ object TunerService {
       val date = JsonIO.str(params, "date")
       val flat = JsonIO.boolOpt(params, "flattened").getOrElse(true)
       val strategy = JsonIO.strOpt(params, "strategy").flatMap(TuningStrategy.fromName).getOrElse(DefaultTuningStrategy)
-      val effective = JsonIO.strOpt(params, "topology")
+      val effective = JsonIO
+        .strOpt(params, "topology")
         .flatMap(ExecutorTopologyPreset.fromLabel)
         .map(topo => TuningStrategy.withTopology(strategy, topo))
         .getOrElse(strategy)
