@@ -135,12 +135,14 @@ factory — unit-tested.
   (`-auto-scale-tuned.json` for DA, `-manually-tuned.json` for manual) **as the primary step**.
 - **Compose with the preserved z-score path**: after the trend step, the existing
   `applyExecutorScaling` (z-score outlier) runs as an **additive extra boost** on `max`/instances
-  for genuine peer-outliers. Both contributions compound into a single
-  `appliedExecutorScaleFactor`, then **clamped by `maxStep` and cluster capacity** so the combined
-  move cannot run away.
-- `BoostMetadataCarrier` extends to carry the boosted `min`/`initial` (not just `max`/memory)
-  across re-plans, anchored on the recipe key (existing anchoring rule). DOWN is carried as a
-  reduced cumulative factor.
+  for genuine peer-outliers, on top of the trend baseline. To avoid lifecycle cross-talk the two
+  mechanisms stamp **separate** fields — the trend path stamps a dedicated
+  `appliedTrendScaleFactor`, the z-score path keeps `appliedExecutorScaleFactor`. The combined
+  effect is observable as the product of the two; each path is **clamped by its own `maxStep` and
+  the cluster capacity** so neither — nor their composition — can run away.
+- `BoostMetadataCarrier` extends to carry the boosted `min`/`initial` (not just `max`/memory) plus
+  `appliedTrendScaleFactor` across re-plans, anchored on the recipe key (existing anchoring rule).
+  DOWN is carried as a reduced cumulative factor.
 - Lifecycle reuses `BoostState.{New, ReBoost, Holding}`. UP with a prior tag → `ReBoost`
   (compounded) or `Holding` (no fresh signal). DOWN reduces the cumulative factor.
 
