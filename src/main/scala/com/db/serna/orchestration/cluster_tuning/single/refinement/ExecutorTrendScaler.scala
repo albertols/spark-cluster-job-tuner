@@ -48,12 +48,15 @@ object ScaleGains {
   private val DefaultCapTouchRatio = 0.5
   private val DefaultMinRuns = 5L
 
-  /** Per-bias (gain, minGain, maxStep, deadbandDown, downGain). */
+  /**
+   * Per-bias (gain, minGain, maxStep, deadbandDown, downGain). `BiasMode` is a sealed trait, so this match is
+   * exhaustive over its three cases by construction — no wildcard fallback, so adding a fourth bias becomes a
+   * compile-time warning here rather than silently inheriting the balanced preset.
+   */
   private def biasTuple(bias: BiasMode): (Double, Double, Double, Double, Double) = bias match {
     case CostBiased => (0.35, 0.15, 1.5, 0.05, 0.6)
     case PerformanceBiased => (0.70, 0.40, 2.5, 0.20, 0.25)
     case CostPerformanceBalance => (0.50, 0.25, 2.0, 0.10, 0.4)
-    case _ => (0.50, 0.25, 2.0, 0.10, 0.4)
   }
 
   def fromBias(

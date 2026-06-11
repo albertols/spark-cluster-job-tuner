@@ -23,6 +23,8 @@ class ScaleGainsSpec extends AnyFunSuite with Matchers {
     g.capTouchRatio shouldBe 0.5
     g.minRunsForConfidence shouldBe 5L
     g.minStep should (be > 0.0 and be <= 1.0)
+    g.downSafetyMargin shouldBe 0.15
+    g.downConfidenceFloor shouldBe 0.5
     g.downscaleEnabled shouldBe true
   }
 
@@ -42,5 +44,8 @@ class ScaleGainsSpec extends AnyFunSuite with Matchers {
     g.maxStep shouldBe 3.0
     g.minRunsForConfidence shouldBe 7L
     g.downscaleEnabled shouldBe false
+    // downGain / deadbandDown are deliberately NOT on the override surface — they stay at the bias preset.
+    g.downGain shouldBe 0.4
+    g.deadbandDown shouldBe 0.10
   }
 }
