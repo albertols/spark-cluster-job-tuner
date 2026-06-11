@@ -609,7 +609,7 @@ class ExecutorTrendVitamin(
   def computeBoosts(signals: Seq[VitaminSignal], recipes: Map[String, RecipeConfig]): Seq[VitaminBoost] = {
     val trendSignals = signals.collect { case s: TrendScaleSignal => s }
     trendSignals.flatMap { sig =>
-      recipes.get(sig.recipeFilename).map { rc =>
+      recipes.get(sig.recipeFilename).flatMap { rc =>
         val (isManual, min, initial, max) = extractAllocation(rc)
         val execCores =
           rc.sparkOptsMap.get("spark.executor.cores").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(8)
@@ -629,7 +629,11 @@ class ExecutorTrendVitamin(
             capacity,
             prior
           )
-        TrendScaleBoost(sig.recipeFilename, decision)
+        // Emit only when there is something to record: a real config change, or a carried prior factor we
+        // must keep stamping (Holding). Stable recipes with no prior tag produce nothing — this keeps the
+        // pipeline's per-vitamin counter/list (trendScaledJobCount/List) meaningful rather than listing the
+        // whole fleet.
+        if (decision.changed || prior.isDefined) Some(TrendScaleBoost(sig.recipeFilename, decision)) else None
       }
     }
   }
