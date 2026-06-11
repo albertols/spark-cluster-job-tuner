@@ -125,6 +125,40 @@ class AutoTunerConf(arguments: Seq[String]) extends ScallopConf(arguments) {
     validate = r => r > 0.0 && r <= 1.0
   )
 
+  // ── Trend-driven proportional executor scaling (longitudinal reference→current duration trend) ──
+  // These tune the new ExecutorTrendScaler. Defaults come from the active bias preset (ScaleGains.fromBias);
+  // any flag set here overrides that preset. All are back-compatible (omit them to keep the bias defaults).
+  val trendScaleGain: ScallopOption[Double] = opt[Double](
+    default = None,
+    descr = "Override the up-scale gain on maxExecutors (default: bias preset). Higher = more aggressive scale-up.",
+    validate = g => g >= 0.0 && g <= 2.0
+  )
+  val trendMinGain: ScallopOption[Double] = opt[Double](
+    default = None,
+    descr = "Override the up-scale gain on minExecutors (default: bias preset, normally < trend-scale-gain).",
+    validate = g => g >= 0.0 && g <= 2.0
+  )
+  val trendScaleDeadband: ScallopOption[Double] = opt[Double](
+    default = None,
+    descr = "Fractional duration increase required to trigger trend scale-up (default: 0.10).",
+    validate = d => d >= 0.0 && d < 1.0
+  )
+  val trendScaleMaxStep: ScallopOption[Double] = opt[Double](
+    default = None,
+    descr = "Per-run multiplicative clamp on trend scale-up (default: bias preset).",
+    validate = s => s >= 1.0 && s <= 5.0
+  )
+  val trendScaleMinRuns: ScallopOption[Long] = opt[Long](
+    default = None,
+    descr = "Minimum runs on each side for a usable duration ratio (default: 5).",
+    validate = r => r >= 0L
+  )
+  val trendDownscaleEnabled: ScallopOption[Boolean] = toggle(
+    default = Some(true),
+    descrYes = "Enable conservative trend-driven scale-DOWN when jobs speed up (default: on).",
+    descrNo = "Disable trend-driven scale-down (up-only)."
+  )
+
   verify()
 }
 
