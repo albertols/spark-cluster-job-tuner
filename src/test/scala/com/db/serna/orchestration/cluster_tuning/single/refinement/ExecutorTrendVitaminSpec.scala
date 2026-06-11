@@ -54,4 +54,26 @@ class ExecutorTrendVitaminSpec extends AnyFunSuite with Matchers {
     applied.sparkOptsMap("spark.dynamicAllocation.maxExecutors") shouldBe "6"
     applied.extraFields("appliedTrendScaleFactor") shouldBe "1.5"
   }
+
+  test("manual recipe up-change writes spark.executor.instances and leaves dynamicAllocation keys absent") {
+    val ref = metrics(p95Dur = 100, p95Max = 4, runs = 20)
+    val cur = metrics(p95Dur = 200, p95Max = 4, runs = 20)
+    val signal = TrendScaleSignal("c1", "_r.json", ref, cur, clusterMaxTotalCores = 160)
+    val vitamin = new ExecutorTrendVitamin(ScaleGains.fromBias(CostPerformanceBalance), _ => Seq(signal))
+    val manual = RecipeConfig(
+      parallelizationFactor = 5,
+      sparkOptsMap = Map(
+        "spark.executor.instances" -> "4",
+        "spark.executor.cores" -> "8",
+        "spark.executor.memory" -> "8g"
+      ),
+      totalExecutorMinAllocatedMemoryGb = 32,
+      totalExecutorMaxAllocatedMemoryGb = 32,
+      extraFields = Map.empty
+    )
+    val applied = vitamin.applyBoosts(vitamin.computeBoosts(Seq(signal), Map("_r.json" -> manual)), Map("_r.json" -> manual))("_r.json")
+    applied.sparkOptsMap("spark.executor.instances").toInt should be > 4
+    applied.sparkOptsMap.keys should not contain "spark.dynamicAllocation.maxExecutors"
+    applied.totalExecutorMaxAllocatedMemoryGb shouldBe applied.sparkOptsMap("spark.executor.instances").toInt * 8
+  }
 }
