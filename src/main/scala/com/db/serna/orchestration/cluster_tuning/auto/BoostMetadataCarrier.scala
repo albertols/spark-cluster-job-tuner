@@ -29,6 +29,8 @@ private[auto] object BoostMetadataCarrier {
   private val minExecRe = """"spark\.dynamicAllocation\.minExecutors"\s*:\s*"?(\d+)"?""".r
   private val maxExecRe = """"spark\.dynamicAllocation\.maxExecutors"\s*:\s*"?(\d+)"?""".r
   private val instancesRe = """"spark\.executor\.instances"\s*:\s*"?(\d+)"?""".r
+  private val trendFactorRe = """"appliedTrendScaleFactor"\s*:\s*([\d.]+)""".r
+  private val initialExecRe = """"spark\.dynamicAllocation\.initialExecutors"\s*:\s*"?(\d+)"?""".r
 
   /**
    * Inject prior b16 boost metadata for each recipe in `recipeNames`. Recipes whose reference block has no
@@ -114,6 +116,95 @@ private[auto] object BoostMetadataCarrier {
         """("parallelizationFactor"\s*:\s*\d+)\s*,""",
         factorInsertion
       )
+    }
+    b
+  }
+
+  /**
+   * Inject prior trend-scaling metadata for each recipe in `recipeNames`. Recipes whose reference block has no
+   * `appliedTrendScaleFactor` are skipped, as are recipes missing from the current JSON. Carries the boosted executor
+   * counts (min/initial/max, or instances for manual recipes) and the cumulative factor, then re-derives total executor
+   * memory from the carried counts × the CURRENT block's executor memory (so a concurrent b16 memory boost is
+   * respected). Returns the updated JSON (pretty-printed), equal to the input when nothing was carried.
+   */
+  def injectPriorTrendScaling(curJson: String, refJson: String, recipeNames: Set[String]): String = {
+    if (recipeNames.isEmpty) return curJson
+    var working = curJson
+    var carried = 0
+    recipeNames.foreach { name =>
+      injectOneTrend(working, refJson, name) match {
+        case Some(updated) =>
+          working = updated
+          carried += 1
+        case None =>
+      }
+    }
+    if (carried == 0) curJson else Json.pretty(working)
+  }
+
+  private def injectOneTrend(curJson: String, refJson: String, recipeName: String): Option[String] = {
+    for {
+      refBlock <- KeptRecipeCarrier.extractRecipeBlock(refJson, recipeName)
+      priorFactor <- trendFactorRe.findFirstMatchIn(refBlock).map(_.group(1))
+      curBlock <- KeptRecipeCarrier.extractRecipeBlock(curJson, recipeName)
+    } yield {
+      val (isManual, refMin, refInitial, refMax) = extractFullCounts(refBlock)
+      val curMemGb = memRe.findFirstMatchIn(curBlock).map(m => SimpleJsonParser.parseMemoryGb(m.group(1))).getOrElse(8)
+      val patched = patchTrendBlock(curBlock, isManual, refMin, refInitial, refMax, priorFactor, curMemGb)
+      replaceRecipeBlock(curJson, recipeName, patched)
+    }
+  }
+
+  private def extractFullCounts(block: String): (Boolean, Int, Int, Int) = {
+    if (isDynamicRe.findFirstIn(block).isDefined) {
+      val min = minExecRe.findFirstMatchIn(block).map(_.group(1).toInt).getOrElse(2)
+      val max = maxExecRe.findFirstMatchIn(block).map(_.group(1).toInt).getOrElse(min)
+      val initial = initialExecRe.findFirstMatchIn(block).map(_.group(1).toInt).getOrElse(min)
+      (false, min, initial, max)
+    } else {
+      val inst = instancesRe.findFirstMatchIn(block).map(_.group(1).toInt).getOrElse(2)
+      (true, inst, inst, inst)
+    }
+  }
+
+  private def patchTrendBlock(
+      curBlock: String,
+      isManual: Boolean,
+      refMin: Int,
+      refInitial: Int,
+      refMax: Int,
+      priorFactor: String,
+      curMemGb: Int
+  ): String = {
+    var b = curBlock
+    if (isManual) {
+      b = b.replaceAll(""""spark\.executor\.instances"\s*:\s*"?\d+"?""", s""""spark.executor.instances": "$refMax"""")
+    } else {
+      b = b
+        .replaceAll(
+          """"spark\.dynamicAllocation\.minExecutors"\s*:\s*"?\d+"?""",
+          s""""spark.dynamicAllocation.minExecutors": "$refMin""""
+        )
+        .replaceAll(
+          """"spark\.dynamicAllocation\.maxExecutors"\s*:\s*"?\d+"?""",
+          s""""spark.dynamicAllocation.maxExecutors": "$refMax""""
+        )
+        .replaceAll(
+          """"spark\.dynamicAllocation\.initialExecutors"\s*:\s*"?\d+"?""",
+          s""""spark.dynamicAllocation.initialExecutors": "$refInitial""""
+        )
+    }
+    val minTotal = refMin * curMemGb
+    val maxTotal = refMax * curMemGb
+    b = b
+      .replaceAll("""("total_executor_minimum_allocated_memory_gb"\s*:\s*)\d+""", "$1" + minTotal)
+      .replaceAll("""("total_executor_maximum_allocated_memory_gb"\s*:\s*)\d+""", "$1" + maxTotal)
+
+    if (b.contains("\"appliedTrendScaleFactor\"")) {
+      b = b.replaceAll("""("appliedTrendScaleFactor"\s*:\s*)[\d.]+""", "$1" + priorFactor)
+    } else {
+      val insertion = "$1," + java.util.regex.Matcher.quoteReplacement(s""""appliedTrendScaleFactor": $priorFactor,""")
+      b = b.replaceFirst("""("parallelizationFactor"\s*:\s*\d+)\s*,""", insertion)
     }
     b
   }
