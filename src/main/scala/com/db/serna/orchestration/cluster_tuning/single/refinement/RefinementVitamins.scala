@@ -1,6 +1,7 @@
 package com.db.serna.orchestration.cluster_tuning.single.refinement
 
 import com.db.serna.orchestration.cluster_tuning.single.Csv
+import com.db.serna.orchestration.cluster_tuning.single.RecipeMetrics
 
 import java.io.File
 import scala.collection.mutable
@@ -553,6 +554,138 @@ class ExecutorScaleVitamin(
     } else {
       val instances = opts.get("spark.executor.instances").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(1)
       (instances, instances)
+    }
+  }
+}
+
+// ── Trend-driven executor scaling ────────────────────────────────────────────
+
+/**
+ * Longitudinal signal — built in-memory by the AutoTuner from a paired (reference, current) recipe. Unlike the
+ * z-score [[ExecutorScaleSignal]], this carries both metric snapshots so the pure [[ExecutorTrendScaler]] can compute
+ * the duration trend directly. `clusterMaxTotalCores` lets the vitamin derive an executor capacity per recipe.
+ */
+final case class TrendScaleSignal(
+    clusterName: String,
+    recipeFilename: String,
+    reference: RecipeMetrics,
+    current: RecipeMetrics,
+    clusterMaxTotalCores: Int
+) extends VitaminSignal {
+  val jobId: String = ""
+  val description: String = s"trend signal for $recipeFilename"
+}
+
+/** A trend-driven executor change (up, down, or carried hold). */
+final case class TrendScaleBoost(
+    recipeFilename: String,
+    decision: TrendScaleDecision
+) extends VitaminBoost {
+  val description: String =
+    s"trend ${decision.direction.label} [${decision.state.label}]: ${decision.reason}"
+}
+
+/**
+ * Adapter that runs [[ExecutorTrendScaler]] inside the [[RefinementPipeline]], reusing the JSON read/write/order and
+ * dedupe machinery. Stamps `appliedTrendScaleFactor` — a field distinct from the z-score path's
+ * `appliedExecutorScaleFactor` so the two mechanisms compose without lifecycle cross-talk.
+ *
+ * Capacity is derived per recipe from the signal's `clusterMaxTotalCores` divided by that recipe's
+ * `spark.executor.cores`.
+ */
+class ExecutorTrendVitamin(
+    val gains: ScaleGains,
+    val signalsForCluster: String => Seq[TrendScaleSignal] = _ => Seq.empty
+) extends RefinementVitamin {
+  val name = "executor_trend_scale"
+  val csvFileName = "(trend-driven, no CSV)"
+  val counterKey = "trendScaledJobCount"
+  val listKey = "trendScaledJobList"
+  val boostFieldKey = "appliedTrendScaleFactor"
+
+  def loadSignals(inputDir: File, clusterName: String): Seq[VitaminSignal] =
+    signalsForCluster(clusterName)
+
+  def computeBoosts(signals: Seq[VitaminSignal], recipes: Map[String, RecipeConfig]): Seq[VitaminBoost] = {
+    val trendSignals = signals.collect { case s: TrendScaleSignal => s }
+    trendSignals.flatMap { sig =>
+      recipes.get(sig.recipeFilename).map { rc =>
+        val (isManual, min, initial, max) = extractAllocation(rc)
+        val execCores =
+          rc.sparkOptsMap.get("spark.executor.cores").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(8)
+        val capacity =
+          if (sig.clusterMaxTotalCores > 0 && execCores > 0) Some(sig.clusterMaxTotalCores / execCores) else None
+        val prior = rc.extraFields.get(boostFieldKey).flatMap(s => scala.util.Try(s.toDouble).toOption)
+        val decision =
+          ExecutorTrendScaler.decide(
+            sig.recipeFilename,
+            isManual,
+            min,
+            initial,
+            max,
+            sig.reference,
+            sig.current,
+            gains,
+            capacity,
+            prior
+          )
+        TrendScaleBoost(sig.recipeFilename, decision)
+      }
+    }
+  }
+
+  /** Trend decisions are self-contained (state computed by `decide`), so the date-aware path delegates. */
+  override def computeBoosts(
+      signals: Seq[VitaminSignal],
+      recipes: Map[String, RecipeConfig],
+      currentSignals: Seq[VitaminSignal]
+  ): Seq[VitaminBoost] = computeBoosts(signals, recipes)
+
+  def applyBoosts(boosts: Seq[VitaminBoost], recipes: Map[String, RecipeConfig]): Map[String, RecipeConfig] = {
+    boosts.foldLeft(recipes) {
+      case (cfg, TrendScaleBoost(recipe, d)) =>
+        cfg.get(recipe) match {
+          case Some(rc) =>
+            val updatedExtra = rc.extraFields + (boostFieldKey -> d.cumulativeFactor.toString)
+            if (!d.changed) {
+              cfg.updated(recipe, rc.copy(extraFields = updatedExtra))
+            } else {
+              val memGb = SimpleJsonParser.parseMemoryGb(rc.sparkOptsMap.getOrElse("spark.executor.memory", "8g"))
+              val updatedOpts =
+                if (d.isManual) rc.sparkOptsMap.updated("spark.executor.instances", d.newMax.toString)
+                else
+                  rc.sparkOptsMap
+                    .updated("spark.dynamicAllocation.minExecutors", d.newMin.toString)
+                    .updated("spark.dynamicAllocation.maxExecutors", d.newMax.toString)
+                    .updated("spark.dynamicAllocation.initialExecutors", d.newInitial.toString)
+              cfg.updated(
+                recipe,
+                rc.copy(
+                  sparkOptsMap = updatedOpts,
+                  totalExecutorMinAllocatedMemoryGb = d.newMin * memGb,
+                  totalExecutorMaxAllocatedMemoryGb = d.newMax * memGb,
+                  extraFields = updatedExtra
+                )
+              )
+            }
+          case None => cfg
+        }
+      case (cfg, _) => cfg
+    }
+  }
+
+  private def extractAllocation(rc: RecipeConfig): (Boolean, Int, Int, Int) = {
+    val opts = rc.sparkOptsMap
+    val isDynamic = opts.get("spark.dynamicAllocation.enabled").contains("true")
+    def asInt(k: String, dflt: Int) = opts.get(k).flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(dflt)
+    if (isDynamic) {
+      val min = asInt("spark.dynamicAllocation.minExecutors", 2)
+      val max = asInt("spark.dynamicAllocation.maxExecutors", min)
+      val initial = asInt("spark.dynamicAllocation.initialExecutors", min)
+      (false, min, initial, max)
+    } else {
+      val instances = asInt("spark.executor.instances", 2)
+      (true, instances, instances, instances)
     }
   }
 }
