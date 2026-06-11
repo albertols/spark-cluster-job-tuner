@@ -1116,6 +1116,9 @@ object ClusterMachineAndRecipeAutoTuner {
           val vitamins: Seq[RefinementVitamin] = Seq(new ExecutorTrendVitamin(gains, lookup))
           val result = RefinementPipeline.refine(config, vitamins, Seq(outputDir))
           val decisions = result.appliedBoosts.collect { case b: TrendScaleBoost => b.decision }
+          // Rewrite only when an executor count actually moved. A pure Holding decision leaves the file as-is;
+          // its carried `appliedTrendScaleFactor` is already present (copied reference JSON on the kept path, or
+          // injected by carryPriorTrendMetadata on the re-plan path), so there is nothing to re-stamp.
           if (decisions.exists(_.changed)) {
             ClusterMachineAndRecipeTuner.writeFile(outputDir, fileName, RefinementPipeline.toRefinedJson(result))
           }
