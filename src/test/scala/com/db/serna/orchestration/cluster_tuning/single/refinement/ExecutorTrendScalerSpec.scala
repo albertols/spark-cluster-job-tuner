@@ -80,6 +80,9 @@ class ExecutorTrendScalerSpec extends AnyFunSuite with Matchers {
     d.newMax should be >= 4
     d.newMin should be >= 2
     d.newMin should be <= d.newMax - 1
+    // initialExecutors must remain a valid seed within [min, max].
+    d.newInitial should be >= d.newMin
+    d.newInitial should be <= d.newMax
   }
 
   test("deadband: small duration noise (+/-5%) holds") {
@@ -109,7 +112,20 @@ class ExecutorTrendScalerSpec extends AnyFunSuite with Matchers {
     val cur = m(p95Dur = 500, avgDur = 500, p95Max = 5, runs = 20)
     val d = decide(ref, cur, min = 2, max = 5, capacity = Some(6))
     d.newMax shouldBe 6
-    d.newMin should be <= 5
+    d.newMin should be >= 2
+    d.newMin should be <= d.newMax - 1 // min < max invariant preserved under the clamp
+  }
+
+  test("UP with capacity below current max never shrinks the ceiling") {
+    val ref = m(p95Dur = 100, avgDur = 100, p95Max = 5, runs = 20)
+    val cur = m(p95Dur = 300, avgDur = 300, p95Max = 5, runs = 20)
+    // capacity (4) is tighter than current max (5): an UP signal must hold at 5, not drop to 4.
+    val d = decide(ref, cur, min = 2, max = 5, capacity = Some(4))
+    d.newMax should be >= 5
+  }
+
+  test("blended duration weights sum to 1.0") {
+    (ExecutorTrendScaler.DurationP95Weight + ExecutorTrendScaler.DurationAvgWeight) shouldBe 1.0
   }
 
   test("per-run maxStep clamps a huge spike") {
