@@ -2,6 +2,8 @@ package com.db.serna.orchestration.cluster_tuning.auto
 
 import com.db.serna.orchestration.cluster_tuning.single.ClusterMachineAndRecipeTuner.AutoscalingPolicyConfig
 import com.db.serna.orchestration.cluster_tuning.single.{
+  CapacityGuard,
+  CapacityStatus,
   ClusterDiagnosticsProcessor,
   ClusterMachineAndRecipeTuner,
   ClusterSummary,
@@ -12,6 +14,7 @@ import com.db.serna.orchestration.cluster_tuning.single.{
   GenerationSummary,
   GenerationSummaryEntry,
   GenerationSummaryWriter,
+  GuardResult,
   MachineCatalog,
   PerformanceBiasedStrategy,
   QuotaTracker,
@@ -21,6 +24,9 @@ import com.db.serna.orchestration.cluster_tuning.single.{
 }
 import com.db.serna.orchestration.cluster_tuning.single.refinement.{
   BoostState,
+  CapacityGuardBoost,
+  CapacityGuardSignal,
+  CapacityGuardVitamin,
   ExecutorScaleBoost,
   ExecutorScaleSignal,
   ExecutorScaleVitamin,
@@ -131,6 +137,13 @@ class AutoTunerConf(arguments: Seq[String]) extends ScallopConf(arguments) {
     validate = r => r > 0.0 && r <= 1.0
   )
 
+  val maxClusterUtilRatio: ScallopOption[Double] = opt[Double](
+    default = Some(0.90),
+    descr = "Hard ceiling on a recipe's executors as a fraction of the cluster's per-node-packed scaled-max capacity " +
+      "(cores AND memory). Prevents un-schedulable over-allocation (default: 0.90).",
+    validate = r => r > 0.0 && r <= 1.0
+  )
+
   // ── Trend-driven proportional executor scaling (longitudinal reference→current duration trend) ──
   // These tune the new ExecutorTrendScaler. Defaults come from the active bias preset (ScaleGains.fromBias);
   // any flag set here overrides that preset. All are back-compatible (omit them to keep the bias defaults).
@@ -199,6 +212,7 @@ object ClusterMachineAndRecipeAutoTuner {
     val executorScaleFactor = conf.executorScaleFactor()
     val scaleZThreshold = conf.scaleZThreshold()
     val scaleCapTouchRatio = conf.scaleCapTouchRatio()
+    val maxClusterUtilRatio = conf.maxClusterUtilRatio()
 
     logger.info(
       s"AutoTuner starting: reference=$refDate current=$curDate strategy=$strategyName " +
@@ -486,6 +500,9 @@ object ClusterMachineAndRecipeAutoTuner {
             }
           }
 
+          // Final safety pass: never let a recipe out-request the cluster's schedulable capacity.
+          applyCapacityGuard(clusterName, curOutputDir, maxClusterUtilRatio)
+
         case BoostResources | GenerateFresh =>
           if (primaryAction == GenerateFresh) freshClusters += 1 else boostedClusters += 1
           // Plan fresh using the relevant metrics
@@ -683,6 +700,9 @@ object ClusterMachineAndRecipeAutoTuner {
                 executorScaleBoostedRecipes += ((clusterName, boosts))
               }
             }
+
+            // Final safety pass: never let a recipe out-request the cluster's schedulable capacity.
+            applyCapacityGuard(clusterName, curOutputDir, maxClusterUtilRatio)
 
             // Use the same interval-based wall-clock minutes + interval cost +
             // time-weighted worker stats already computed above (breakdown).
@@ -1137,6 +1157,59 @@ object ClusterMachineAndRecipeAutoTuner {
       }
     }
     allDecisions.toSeq
+  }
+
+  /**
+   * Final safety pass: clamp every recipe so it can never request more executors than the cluster can schedule, and
+   * (re)stamp `maxCoreUsagePct` / `maxMemoryUsagePct`. Runs AFTER trend + z-score scaling. Capacity is read from the
+   * clusterConf scaled-max fields written by the single tuner (`nodeCores = cluster_scaled_max_cores / max_workers`).
+   *
+   * Rewrites a file only when the guard clamps something OR the file is missing the `%` fields (which happens after a
+   * trend/z-score rewrite dropped them). This preserves parity with the existing passes around `cost_timeline`: a
+   * cluster untouched by any scaling keeps its single-tuner-emitted `%` (and `cost_timeline`); a scaled cluster — which
+   * already lost `cost_timeline` to the trend/z-score rewrite — is re-stamped with fresh `%`.
+   */
+  private def applyCapacityGuard(clusterName: String, outputDir: File, ratio: Double): Seq[GuardResult] = {
+    val fileNames = Seq(s"$clusterName-auto-scale-tuned.json", s"$clusterName-manually-tuned.json")
+    val all = ArrayBuffer.empty[GuardResult]
+    fileNames.foreach { fileName =>
+      val file = new File(outputDir, fileName)
+      if (file.exists()) {
+        try {
+          val config = SimpleJsonParser.parseFile(file)
+          def confInt(k: String): Option[Int] =
+            config.clusterConfFields.find(_._1 == k).flatMap { case (_, v) => scala.util.Try(v.toInt).toOption }
+          val maxWorkers = confInt("max_workers").getOrElse(0)
+          val scaledCores = confInt("cluster_scaled_max_cores").getOrElse(0)
+          val scaledMem = confInt("cluster_scaled_max_memory_gb").getOrElse(0)
+          if (maxWorkers <= 0 || scaledCores <= 0 || scaledMem <= 0) {
+            logger.warn(s"capacity guard skipped for $clusterName/$fileName: missing scaled-max clusterConf fields")
+          } else {
+            val nodeCores = scaledCores / maxWorkers
+            val nodeMem = scaledMem / maxWorkers
+            val sigs =
+              config.recipeOrder.map(r => CapacityGuardSignal(clusterName, r, nodeCores, nodeMem, maxWorkers, ratio))
+            val lookup: String => Seq[CapacityGuardSignal] = c => if (c == clusterName) sigs else Seq.empty
+            val result = RefinementPipeline.refine(config, Seq(new CapacityGuardVitamin(lookup)), Seq(outputDir))
+            val decisions = result.appliedBoosts.collect { case b: CapacityGuardBoost => b.result }
+            val clampedAny = decisions.exists(_.status != CapacityStatus.Ok)
+            val pctMissing = {
+              val have = config.rawJson.split("maxCoreUsagePct", -1).length - 1
+              have < config.recipeOrder.size
+            }
+            if (clampedAny || pctMissing) {
+              ClusterMachineAndRecipeTuner.writeFile(outputDir, fileName, RefinementPipeline.toRefinedJson(result))
+            }
+            all ++= decisions
+            val clamped = decisions.count(_.status != CapacityStatus.Ok)
+            if (clamped > 0) logger.info(s"  capacity guard on $fileName: $clamped recipe(s) clamped/tight/infeasible")
+          }
+        } catch {
+          case e: Exception => logger.warn(s"Failed capacity guard for $clusterName/$fileName: ${e.getMessage}")
+        }
+      }
+    }
+    all.toSeq
   }
 
   /**
