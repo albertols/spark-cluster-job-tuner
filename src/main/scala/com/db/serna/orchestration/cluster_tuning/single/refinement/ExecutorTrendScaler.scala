@@ -385,7 +385,7 @@ object ExecutorTrendScaler {
           pool -= wantCores
           d.copy(priorityRank = Some(idx + 1))
         } else {
-          pool = math.max(0, pool - cores)
+          pool = math.max(0, pool - cores) // a degraded +1 grant still consumes its one executor's worth of cores (floored at 0)
           val degradedMax = d.originalMax + 1
           val newFactor = degradedMax.toDouble / math.max(1, d.originalMax)
           val priorCum = d.cumulativeFactor / d.appliedFactor

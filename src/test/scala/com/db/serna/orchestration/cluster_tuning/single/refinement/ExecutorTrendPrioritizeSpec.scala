@@ -74,6 +74,22 @@ class ExecutorTrendPrioritizeSpec extends AnyFunSuite with Matchers {
     out.find(_.recipe == "zz.json").get.priorityRank shouldBe Some(2)
   }
 
+  test("degraded grants still consume pool: third candidate cannot sneak a full grant (poolRatio 0.5)") {
+    // pool = ceil(140 * 0.5) = 70 cores. a takes (12-4)*8=64 (pool 6). b wants 48 > 6 -> degrades,
+    // consuming 8 (pool 0). c wants 16 -> must ALSO degrade; if b's degrade did not consume, c's
+    // want would still exceed the 6 leftover anyway — so pin c via a small want: want (6-4)*1=2 cores
+    // with 1-core executors would fit 6 BUT must not fit 0 after b's debit.
+    val a = up("a.json", 4, 12, impact = 600.0)
+    val b = up("b.json", 4, 10, impact = 50.0)
+    val c = up("c.json", 4, 6, impact = 10.0)
+    val out = ExecutorTrendScaler.prioritize(Seq(rc(a), rc(b), rc(c, cores = 1)), clusterMaxTotalCores = 140, poolRatio = 0.5)
+    out.find(_.recipe == "a.json").get.newMax shouldBe 12 // full grant (64 <= 70)
+    out.find(_.recipe == "b.json").get.newMax shouldBe 5  // degraded, consumes 8 -> pool 0
+    val dc = out.find(_.recipe == "c.json").get
+    dc.newMax shouldBe 5 // would fit the pre-debit leftover (2 <= 6) — only correct if b's degrade consumed
+    dc.reason should include("pool-exhausted")
+  }
+
   test("cumulative factor of a degraded grant preserves the prior compound") {
     val prior = 1.5
     val d = up("b.json", 4, 10, impact = 50.0).copy(appliedFactor = 2.5, cumulativeFactor = prior * 2.5)
