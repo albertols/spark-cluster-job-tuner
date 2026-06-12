@@ -109,6 +109,17 @@ class ExecutorTrendScalerSpec extends AnyFunSuite with Matchers {
     d.newMin shouldBe 2 // unchanged
   }
 
+  test("Severe tier below creep pressure (0.5 <= p < 0.8) raises max but not min") {
+    // Severe: 10m->25m; pressure: p95Max 2 of max 3 = 0.67 — above capTouch 0.5, below MinCreepPressure 0.8
+    val ref = m(p95Dur = 600000, avgDur = 540000, p95Max = 2, runs = 20)
+    val cur = m(p95Dur = 1500000, avgDur = 1350000, p95Max = 2, runs = 20)
+    val d = decide(ref, cur, min = 2, max = 3)
+    d.direction shouldBe ScaleDirection.Up
+    d.severity shouldBe "severe"
+    d.newMax should be > 3
+    d.newMin shouldBe 2 // Severe alone is not enough — creep also needs pressure >= 0.8
+  }
+
   test("1 run admits only Critical, with conservative 1.5 step") {
     val refS = m(p95Dur = 600000, avgDur = 600000, p95Max = 3, runs = 1)
     val curS = m(p95Dur = 1500000, avgDur = 1500000, p95Max = 3, runs = 1) // Severe

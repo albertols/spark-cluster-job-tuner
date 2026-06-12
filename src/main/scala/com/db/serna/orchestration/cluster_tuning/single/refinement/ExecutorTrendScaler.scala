@@ -21,7 +21,8 @@ import com.db.serna.orchestration.cluster_tuning.single.{
  *   - `capTouchRatio` : UP only fires when cap-pressure (p95RunMax/max or fraction_reaching_cap) >= this.
  *   - `downGain` / `downSafetyMargin` / `downConfidenceFloor` : DOWN aggressiveness, demand headroom kept when
  *     shrinking, and the minimum confidence required to shrink at all.
- *   - `minRunsForConfidence` : minimum runs on each side for a duration ratio to be considered usable.
+ *   - `minRunsForConfidence` : runs (each side) at which a signal has full evidence; below it the graduated-evidence
+ *     rules in `admittedStepCap` apply.
  *   - `minDeltaMinutes` : absolute blended-duration change in minutes that gates BOTH the UP severity classification
  *     (a huge ratio on a seconds-long job is noise, not a signal) and, symmetrically, the DOWN trigger (a saving
  *     smaller than this is not worth shrinking for).
@@ -118,7 +119,8 @@ object ScaleSeverity {
  *
  * For manual recipes `newMin == newInitial == newMax` and all three carry the new `spark.executor.instances`.
  * `cumulativeFactor` is the value stamped as `appliedTrendScaleFactor` (compounds UP, reduces DOWN, carries on HOLD).
- * `severity` is the classified UP-tier label (negligible/moderate/severe/critical, "n/a" when unclassified).
+ * `severity` is the UP-side severity tier label; improvements and no-signal cases classify as "negligible" (the tier
+ * describes degradation only). "n/a" appears only on hand-constructed instances.
  * `impactMinutes` = max(0, blended delta minutes) x current runs — total wall-clock minutes lost per window.
  * `priorityRank` is set later by cluster-wide prioritization (Task 3); `decide` always leaves it None.
  */
@@ -300,7 +302,8 @@ object ExecutorTrendScaler {
           if (tier.rank >= ScaleSeverity.Severe.rank && pressure >= MinCreepPressure)
             math.max(currentMin, math.min(currentMin + 1, math.max(2, newMax - 1)))
           else currentMin
-        val newInitial = clampI(math.max(newMin, currentInitial), newMin, math.max(newMin, math.min(currentInitial + 1, newMax)))
+        val initialCeil = math.max(newMin, math.min(currentInitial + 1, newMax)) // initial follows by at most +1
+        val newInitial = clampI(math.max(newMin, currentInitial), newMin, initialCeil)
         TrendScaleDecision(
           recipe, isManual = false,
           currentMin, currentInitial, currentMax,
@@ -318,7 +321,7 @@ object ExecutorTrendScaler {
       val newMax = math.max(2, math.max(peakDemand, rawMax))
 
       if (isManual) {
-        val newInst = math.max(2, math.max(peakDemand, rawMax))
+        val newInst = newMax
         val noChange = newInst == currentMax
         TrendScaleDecision(
           recipe, isManual = true,
@@ -331,7 +334,8 @@ object ExecutorTrendScaler {
           s"manual instances $currentMax->$newInst ($diag)", tier.label, impactMin, None
         )
       } else {
-        // min shrinks at most 1 per run, never below steady demand or floor 2.
+        // min shrinks at most 1 per run — but is RAISED to steady demand when observed demand exceeds it
+        // (the demand floor dominates the creep), floor 2.
         val newMin = clampI(math.max(steadyDemand, currentMin - 1), 2, math.max(2, newMax - 1))
         val newInitial = clampI(math.max(newMin, math.min(currentInitial, newMax)), newMin, newMax)
         val noChange = newMax == currentMax && newMin == currentMin && newInitial == currentInitial
