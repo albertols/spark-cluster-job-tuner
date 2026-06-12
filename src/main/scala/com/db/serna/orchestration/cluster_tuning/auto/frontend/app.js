@@ -154,6 +154,10 @@ const METRIC_DOCS = {
     title: "Fraction reaching cap",
     body: "Share of runs that hit the executor cap. High values indicate sustained capacity pressure and a likely bottleneck."
   },
+  capacity_guard: {
+    title: "Capacity guard",
+    body: "A final safety pass that clamps every recipe's executor request to what the cluster can physically schedule. Capacity is bin-packed per node: capExecutors = max_workers × min(floor(ratio·nodeCores/executorCores), floor(ratio·nodeMemGb/executorMemGb)) with ratio = --max-cluster-util-ratio (default 0.90). The count shows how many recipes were checked this run; clamped recipes carry capacityStatus and ~100% core/memory usage in the utilization heatmap above."
+  },
   confidence: {
     title: "Confidence",
     body: "How trustworthy the trend assessment is, based on the minimum run count between reference and current dates. 1+ runs = 0.1, 5 = 0.5, 10+ = 1.0."
@@ -2206,6 +2210,8 @@ function renderClusterConfComparison(clusterName, refJson, curJson, refDate, cur
     ...(curConf ? Object.keys(curConf) : []),
   ]);
   const orderedKeys = orderConfKeys(Array.from(allKeys));
+  // capacityGuardedJobList is operational noise in the GUI — the count + the ⓘ doc cover it.
+  const visibleKeys = orderedKeys.filter(k => k !== 'capacityGuardedJobList');
 
   // Render value cells. Arrays (e.g. boostedMemoryHeapJobList) and
   // comma-joined string lists become a wrapped chip stack so a long list
@@ -2220,12 +2226,15 @@ function renderClusterConfComparison(clusterName, refJson, curJson, refDate, cur
     return escapeHtml(String(v));
   }
 
-  const rows = orderedKeys.map(k => {
+  const rows = visibleKeys.map(k => {
     const rv = refConf ? refConf[k] : undefined;
     const cv = curConf ? curConf[k] : undefined;
     const changed = rv !== undefined && cv !== undefined && JSON.stringify(rv) !== JSON.stringify(cv);
+    const keyHtml = k === 'capacityGuardedJobCount'
+      ? `${escapeHtml(k)} <span class="info-icon" data-doc-key="capacity_guard">ⓘ</span>`
+      : escapeHtml(k);
     return `<tr>
-      <td class="key">${escapeHtml(k)}</td>
+      <td class="key">${keyHtml}</td>
       <td>${renderConfValue(rv)}</td>
       <td class="${changed ? 'changed' : ''}">${renderConfValue(cv)}</td>
     </tr>`;
@@ -2995,9 +3004,11 @@ function _ipcWireToggle() {
 
 function orderConfKeys(keys) {
   const preferred = [
-    'num_workers', 'worker_machine_type', 'master_machine_type',
+    'num_workers', 'min_workers', 'max_workers',
+    'worker_machine_type', 'master_machine_type',
     'autoscaling_policy', 'tuner_version', 'total_no_of_jobs',
     'cluster_max_total_memory_gb', 'cluster_max_total_cores',
+    'cluster_scaled_max_cores', 'cluster_scaled_max_memory_gb',
     'accumulated_max_total_memory_per_jobs_gb',
     'driver_memory_gb', 'driver_cores', 'driver_memory_overhead_gb',
     'diagnostic_reason'
