@@ -1869,5 +1869,8 @@ object ClusterMachineAndRecipeTuner {
         case n => n
       }
     }
+
+    /** Always-on primary worker count = the autoscaling floor. (A single seam to swap in real policy min later.) */
+    def minWorkersForCluster(numWorkers: Int): Int = numWorkers
   }
 }
