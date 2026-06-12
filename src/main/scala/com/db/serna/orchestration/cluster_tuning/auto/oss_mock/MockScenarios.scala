@@ -903,6 +903,47 @@ object MockScenarios {
     MultiDateScenario(name = "durationDrift", perDate = Map(refDate -> ref, curDate -> cur))
   }
 
+  // ── capacityPressure — a recipe whose demand out-runs the cluster's capacity ─
+  //
+  // One small cluster with a single memory-heavy, cap-saturated recipe. Planning
+  // wants a large executor ceiling (high avg/p95 executor demand, high
+  // fraction_reaching_cap), but the cluster's per-node-packed scaled-max can only
+  // schedule a fraction of that — so the CapacityGuard final pass clamps the
+  // recipe's max executors and stamps `capacityStatus: "clamped"` plus the
+  // cores/memory utilization %. Used to prove the end-to-end clamp + red heatmap
+  // cell. Both dates carry the same hog so the AutoTuner re-plan path is exercised.
+
+  private def capacityHog(name: String): MockRecipe = MockRecipe(
+    name = name,
+    avgExecutorsPerJob = 16.0,
+    p95RunMaxExecutors = 28.0,
+    avgJobDurationMs = 30 * 60000.0,
+    p95JobDurationMs = 50 * 60000.0,
+    runs = 20L,
+    secondsAtCap = Some(1200L),
+    runsReachingCap = Some(18L),
+    totalRuns = Some(20L),
+    fractionReachingCap = Some(0.9),
+    maxConcurrentJobs = Some(2)
+  )
+
+  def capacityPressure(refDate: String, curDate: String, seed: Long = 1234L): MultiDateScenario = {
+    val (s1, e1) = windowFor(refDate)
+    val (s2, e2) = windowFor(curDate)
+
+    def cluster(start: Instant): MockCluster = MockCluster(
+      name = "mock-cluster-capacity",
+      recipes = Seq(capacityHog("_CAPACITY_HOG.json")),
+      incarnations = Seq(
+        MockIncarnation(start.plus(2, ChronoUnit.HOURS), start.plus(10, ChronoUnit.HOURS))
+      )
+    )
+
+    val ref = MockScenario(name = "capacityPressure-reference", clusters = Seq(cluster(s1)), window = (s1, e1), seed = seed)
+    val cur = MockScenario(name = "capacityPressure-current", clusters = Seq(cluster(s2)), window = (s2, e2), seed = seed)
+    MultiDateScenario(name = "capacityPressure", perDate = Map(refDate -> ref, curDate -> cur))
+  }
+
   // ── CLI lookup ─────────────────────────────────────────────────────────────
 
   /** Single-date scenarios callable by name from the CLI. */
@@ -939,7 +980,8 @@ object MockScenarios {
     "mixedDropAndDegrade" -> (mixedDropAndDegrade _),
     "multiDateSyntheticSpan" -> (multiDateSyntheticSpan _),
     "divergenceShowcase" -> (divergenceShowcase _),
-    "durationDrift" -> (durationDrift _)
+    "durationDrift" -> (durationDrift _),
+    "capacityPressure" -> (capacityPressure _)
   )
 
   val multiDateNames: Seq[String] = multiDate.keys.toSeq.sorted
