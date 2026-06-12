@@ -515,6 +515,7 @@ function parseRoute() {
     summary: p.get('summary') || null,
     divSort: p.get('divSort') || null,
     divDir: p.get('divDir') || null,
+    durMetric: p.get('durMetric') || null,
   };
 }
 
@@ -527,6 +528,7 @@ function buildUrl(route) {
   if (route.summary) p.set('summary', route.summary);
   if (route.divSort) p.set('divSort', route.divSort);
   if (route.divDir) p.set('divDir', route.divDir);
+  if (route.durMetric) p.set('durMetric', route.durMetric);
   const s = p.toString();
   return s ? `?${s}` : window.location.pathname;
 }
@@ -3024,7 +3026,15 @@ function orderConfKeys(keys) {
 
 function renderDetailCharts(cluster, clusterName) {
   const chartsDiv = document.getElementById('detail-charts');
+  // Destroy any Chart.js instances attached to the canvases we're about to
+  // replace (the toggle re-renders this section in place).
+  chartsDiv.querySelectorAll('canvas').forEach(c => {
+    if (c._chartInstance) { try { c._chartInstance.destroy(); } catch (e) {} }
+  });
   chartsDiv.innerHTML = '';
+
+  const durMetricKey = parseRoute().durMetric === 'avg' ? 'avg_job_duration_ms' : 'p95_job_duration_ms';
+  const durMetricLabel = durMetricKey === 'avg_job_duration_ms' ? 'Avg' : 'P95';
 
   // Include all recipes — new entries (no deltas) are rendered as a single
   // "New (current only)" bar; kept recipes (present only on the reference date,
@@ -3046,7 +3056,12 @@ function renderDetailCharts(cluster, clusterName) {
   // Duration chart
   const durContainer = document.createElement('div');
   durContainer.className = 'chart-container';
-  durContainer.innerHTML = `<h4>P95 Job Duration by Recipe <span class="info-icon" data-doc-key="p95">ⓘ</span></h4>
+  durContainer.innerHTML = `<h4>${durMetricLabel} Job Duration by Recipe
+      <span class="info-icon" data-doc-key="${durMetricLabel === 'Avg' ? 'avg' : 'p95'}">ⓘ</span>
+      <span class="seg-toggle dur-metric-toggle" role="tablist">
+        <button class="seg ${durMetricLabel === 'P95' ? 'active' : ''}" data-metric="p95" role="tab">P95</button>
+        <button class="seg ${durMetricLabel === 'Avg' ? 'active' : ''}" data-metric="avg" role="tab">Avg</button>
+      </span></h4>
     <div class="chart-scroll"><canvas id="dur-chart"></canvas></div>`;
   chartsDiv.appendChild(durContainer);
   const durCanvas = durContainer.querySelector('#dur-chart');
@@ -3070,8 +3085,8 @@ function renderDetailCharts(cluster, clusterName) {
   });
   const tooltipFullNames = recipes.map(r => r.recipe);
 
-  const durRefRaw = recipes.map(r => recipeMetricValue(r, 'p95_job_duration_ms', 'reference'));
-  const durCurRaw = recipes.map(r => recipeMetricValue(r, 'p95_job_duration_ms', 'current'));
+  const durRefRaw = recipes.map(r => recipeMetricValue(r, durMetricKey, 'reference'));
+  const durCurRaw = recipes.map(r => recipeMetricValue(r, durMetricKey, 'current'));
   const execRefRaw = recipes.map(r => recipeMetricValue(r, 'p95_run_max_executors', 'reference'));
   const execCurRaw = recipes.map(r => recipeMetricValue(r, 'p95_run_max_executors', 'current'));
 
@@ -3107,7 +3122,14 @@ function renderDetailCharts(cluster, clusterName) {
     if (recipe) navigate({ recipe: recipe.recipe });
   };
 
-  new Chart(durCanvas, {
+  // Both duration flavours in the tooltip regardless of the toggled metric.
+  const fmtDur = (v) => Number.isFinite(v) && v > 0 ? formatDuration(v) : '—';
+  const tooltipExtraLines = recipes.map(r => [
+    `P95  ref ${fmtDur(recipeMetricValue(r, 'p95_job_duration_ms', 'reference'))} · cur ${fmtDur(recipeMetricValue(r, 'p95_job_duration_ms', 'current'))}`,
+    `Avg  ref ${fmtDur(recipeMetricValue(r, 'avg_job_duration_ms', 'reference'))} · cur ${fmtDur(recipeMetricValue(r, 'avg_job_duration_ms', 'current'))}`
+  ]);
+
+  durCanvas._chartInstance = new Chart(durCanvas, {
     type: 'bar',
     data: {
       labels: fullLabels,
@@ -3123,10 +3145,11 @@ function renderDetailCharts(cluster, clusterName) {
       tooltipNames: tooltipFullNames,
       valueFormatter: (v) => formatDuration(v),
       onBarClick: onClickBar,
+      tooltipExtraLines,
     })
   });
 
-  new Chart(execCanvas, {
+  execCanvas._chartInstance = new Chart(execCanvas, {
     type: 'bar',
     data: {
       labels: fullLabels,
@@ -3143,6 +3166,15 @@ function renderDetailCharts(cluster, clusterName) {
       valueFormatter: (v) => formatNum(v),
       onBarClick: onClickBar,
     })
+  });
+
+  durContainer.querySelectorAll('.dur-metric-toggle .seg').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const route = Object.assign({}, parseRoute());
+      if (btn.dataset.metric === 'avg') route.durMetric = 'avg'; else delete route.durMetric;
+      history.replaceState(route, '', buildUrl(route));
+      renderDetailCharts(cluster, clusterName);
+    });
   });
 }
 
@@ -3182,7 +3214,7 @@ function recipeShortName(recipe) {
   return recipe.replace(/^_/, '').replace(/\.json$/, '');
 }
 
-function chartOpts({ horizontal, tooltipNames, valueFormatter, onBarClick }) {
+function chartOpts({ horizontal, tooltipNames, valueFormatter, onBarClick, tooltipExtraLines }) {
   const opts = {
     responsive: true,
     maintainAspectRatio: false,
@@ -3204,7 +3236,10 @@ function chartOpts({ horizontal, tooltipNames, valueFormatter, onBarClick }) {
         callbacks: {
           title: (items) => items[0] ? tooltipNames[items[0].dataIndex] : '',
           label: (item) => `${item.dataset.label}: ${valueFormatter(item.parsed[horizontal ? 'x' : 'y'])}`,
-          afterBody: () => '\nClick to view recipe spark conf →',
+          afterBody: (items) => {
+            const extra = (tooltipExtraLines && items[0]) ? tooltipExtraLines[items[0].dataIndex] : [];
+            return [...extra, '', 'Click to view recipe spark conf →'];
+          },
         }
       }
     },
