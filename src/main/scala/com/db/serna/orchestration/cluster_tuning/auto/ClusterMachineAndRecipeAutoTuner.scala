@@ -164,7 +164,8 @@ class AutoTunerConf(arguments: Seq[String]) extends ScallopConf(arguments) {
   )
   val trendScaleMinRuns: ScallopOption[Long] = opt[Long](
     default = None,
-    descr = "Minimum runs on each side for a usable duration ratio (default: 5).",
+    descr = "Runs (each side) at which a trend signal has full evidence (default: 5). Below it the " +
+      "graduated-evidence rules apply: 2-4 runs admit Severe+ only (cap demoted one tier); 1 run admits Critical only.",
     validate = r => r >= 0L
   )
   val trendDownscaleEnabled: ScallopOption[Boolean] = toggle(

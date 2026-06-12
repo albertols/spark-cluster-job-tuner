@@ -391,7 +391,7 @@ main(Array("--reference-date=2025_12_20", "--current-date=2026_04_15",
 | `--trend-up-pool-ratio` | 1.0 | Fraction of the cluster's schedulable cores forming the per-run scale-UP budget. UP grants are ranked by `impactMinutes` and drawn from this pool; exhausted grants degrade to `originalMax + 1`. |
 | `--trend-scale-deadband` | 0.10 | Fractional duration increase required to trigger trend scale-up (the UP hysteresis band). |
 | `--trend-scale-max-step` | bias preset | Per-run multiplicative clamp on trend scale-up. Range `[1.0, 5.0]`. |
-| `--trend-scale-min-runs` | 5 | Minimum runs on each side for a usable duration ratio (confidence floor). |
+| `--trend-scale-min-runs` | 5 | Runs (each side) at which a trend signal has **full evidence**. Below it the graduated-evidence rules apply: 2–4 runs admit Severe+ only (step cap demoted one tier); a single run admits Critical only, capped ×1.5. |
 | `--trend-downscale` / `--no-trend-downscale` | on | Enable / disable conservative trend-driven scale-DOWN when jobs speed up with cap headroom. |
 | `--max-cluster-util-ratio` | 0.90 | Hard ceiling on a recipe's executors as a fraction of the cluster's per-node-packed scaled-max capacity (cores AND memory). The `CapacityGuard` final pass clamps any recipe above it. Validated `0 < r ≤ 1`. |
 
@@ -643,7 +643,7 @@ Frontend:
 - **Generic `boost_groups` rendering** — frontend iterates the array; b14 / b16 / executor_scale chips, panels, and badges are produced uniformly.
 - **P95⇄Avg duration toggle** — the cluster-detail duration chart switches between P95 and Avg job duration, persisted via `?durMetric=avg`; the tooltip always shows both metrics regardless of the active one.
 - **Recipe-card change icons** — compact `E▲`/`m▲`/`M▲` chips on recipe cards, diffing executors / `spark.executor.memory` / max-executors between the reference and current `recipeSparkConf`.
-- **Cluster-conf min/max workers + capacity guard doc** — the cluster-conf table orders `min_workers`/`max_workers` right after `num_workers`, hides the noisy `capacityGuardedJobList` array behind the `capacity_guard` ⓘ doc popover (which lists the clamped recipes).
+- **Cluster-conf min/max workers + capacity guard doc** — the cluster-conf table orders `min_workers`/`max_workers` right after `num_workers`, hides the noisy `capacityGuardedJobList` array behind the `capacity_guard` ⓘ doc popover (which explains the per-node bin-packed clamp; clamped recipes remain visible in the utilization heatmap).
 - **Cluster Trend Summary KPIs** — `#detail-cluster-trend-summary` strip in cluster detail: paired-only Δ duration / Δ executor sums plus scaled-up/scaled-down recipe counts at a glance.
 - **Recipe typeahead in fleet search** — the fleet search box (`#search-wrap`) suggests matching recipes across all clusters (`#recipe-search-results`); picking one navigates straight to that cluster + recipe.
 - **Readable historical line charts** — stable per-cluster hues (`clusterHue`), top-8 movers drawn emphasised with the rest dimmed, and `.cs-legend` chips per chart that isolate on click / highlight on hover.
