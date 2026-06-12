@@ -22,9 +22,11 @@ import com.db.serna.orchestration.cluster_tuning.single.{
  *   - `downGain` / `downSafetyMargin` / `downConfidenceFloor` : DOWN aggressiveness, demand headroom kept when
  *     shrinking, and the minimum confidence required to shrink at all.
  *   - `minRunsForConfidence` : minimum runs on each side for a duration ratio to be considered usable.
- *   - `minDeltaMinutes` : absolute blended-duration change in minutes below which a trend is Negligible in both
- *     directions (a huge ratio on a seconds-long job is noise, not a signal).
- *   - `upPoolRatio` : fraction of cluster cores forming the per-run scale-UP pool, consumed by Task 3's prioritize.
+ *   - `minDeltaMinutes` : absolute blended-duration change in minutes that gates the UP severity classification
+ *     (a huge ratio on a seconds-long job is noise, not a signal); the DOWN-side floor arrives with the v2 decide
+ *     rewrite.
+ *   - `upPoolRatio` : fraction of cluster cores forming the per-run scale-UP budget used to prioritize grants
+ *     across a cluster's recipes.
  */
 final case class ScaleGains(
     gain: Double,
@@ -170,19 +172,21 @@ object ExecutorTrendScaler {
   /**
    * Graduated evidence: large effects need fewer observations. Returns the admitted per-run step cap,
    * or None when the signal is not admitted (insufficient evidence for its severity, or Negligible).
+   * runs >= minRunsForConfidence: full tier cap; 2 to minRunsForConfidence-1: Severe+ only, cap demoted
+   * one tier; 1 run: Critical only at SingleRunStepCap; otherwise none.
    */
   private[refinement] def admittedStepCap(tier: ScaleSeverity, runs: Long, gains: ScaleGains): Option[Double] = {
     def fullCap(t: ScaleSeverity): Double = t match {
       case ScaleSeverity.Critical => gains.maxStep * CriticalStepMultiplier
       case ScaleSeverity.Severe => gains.maxStep * SevereStepMultiplier
-      case _ => gains.maxStep
+      case ScaleSeverity.Moderate | ScaleSeverity.Negligible => gains.maxStep
     }
     if (tier == ScaleSeverity.Negligible) None
     else if (runs >= gains.minRunsForConfidence) Some(fullCap(tier))
     else if (runs >= 2) tier match {
       case ScaleSeverity.Critical => Some(fullCap(ScaleSeverity.Severe))
       case ScaleSeverity.Severe => Some(fullCap(ScaleSeverity.Moderate))
-      case _ => None
+      case ScaleSeverity.Moderate | ScaleSeverity.Negligible => None
     }
     else if (runs == 1 && tier == ScaleSeverity.Critical) Some(SingleRunStepCap)
     else None

@@ -66,4 +66,15 @@ class ExecutorTrendSeveritySpec extends AnyFunSuite with Matchers {
     ExecutorTrendScaler.admittedStepCap(ScaleSeverity.Critical, 0, g) shouldBe None
     ExecutorTrendScaler.admittedStepCap(ScaleSeverity.Negligible, 20, g) shouldBe None
   }
+
+  test("boundary pins: thresholds are inclusive (>=) and the demotion band starts at 2 runs") {
+    val g = ScaleGains.fromBias(com.db.serna.orchestration.cluster_tuning.single.CostPerformanceBalance)
+    cls(2.0, 10.0) shouldBe ScaleSeverity.Severe // exactly at both Severe thresholds
+    cls(3.0, 30.0) shouldBe ScaleSeverity.Critical // exactly at both Critical thresholds
+    cls(1.0 + deadband, 3.0) shouldBe ScaleSeverity.Moderate // exactly at deadband and minDelta
+    cls(1.0 + deadband - 1e-9, 3.0) shouldBe ScaleSeverity.Negligible
+    cls(1.0 + deadband, 3.0 - 1e-9) shouldBe ScaleSeverity.Negligible
+    ExecutorTrendScaler.admittedStepCap(ScaleSeverity.Severe, 2, g) shouldBe Some(g.maxStep) // band lower edge
+    ExecutorTrendScaler.admittedStepCap(ScaleSeverity.Critical, 2, g) shouldBe Some(g.maxStep * 1.5)
+  }
 }
