@@ -88,7 +88,10 @@
     </details>
     <h3 class="section-heading">Cluster Overview</h3>
     <div id="filters">
-      <input type="text" id="cluster-search" placeholder="Filter clusters..." />
+      <div id="search-wrap">
+        <input type="text" id="cluster-search" placeholder="Filter clusters or find a recipe..." autocomplete="off" />
+        <div id="recipe-search-results" style="display:none;"></div>
+      </div>
       <select id="trend-filter">
         <option value="all">All trends</option>
         <option value="degraded">Degraded</option>

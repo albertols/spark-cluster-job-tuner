@@ -608,7 +608,18 @@ function wireGlobalHandlers() {
     tab.addEventListener('click', () => navigate({ tab: tab.dataset.tab, cluster: null, recipe: null }));
   });
 
-  document.getElementById('cluster-search').addEventListener('input', renderClusterGrid);
+  const searchEl = document.getElementById('cluster-search');
+  searchEl.addEventListener('input', () => { renderClusterGrid(); renderRecipeSearchResults(); });
+  searchEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hideRecipeSearchResults();
+    if (e.key === 'Enter') {
+      const first = document.querySelector('#recipe-search-results .recipe-search-row');
+      if (first) first.click();
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#search-wrap')) hideRecipeSearchResults();
+  });
   document.getElementById('trend-filter').addEventListener('change', renderClusterGrid);
   document.getElementById('z-min').addEventListener('input', () => renderDivergenceTable());
 
@@ -1352,6 +1363,46 @@ function mountClusterUtilHeatmap(curJson) {
 // Escape a string for safe use inside a CSS attribute selector value.
 function cssAttrEscape(s) {
   return String(s).replace(/["\\]/g, '\\$&');
+}
+
+// Strip leading underscore and .json extension from a recipe filename.
+function recipeShortName(recipe) {
+  return String(recipe).replace(/^_/, '').replace(/\.json$/, '');
+}
+
+// ── Recipe typeahead (fleet search) ─────────────────────────────────────────
+
+function hideRecipeSearchResults() {
+  const box = document.getElementById('recipe-search-results');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+}
+
+function renderRecipeSearchResults() {
+  const box = document.getElementById('recipe-search-results');
+  const q = document.getElementById('cluster-search').value.trim().toLowerCase();
+  if (!box) return;
+  if (!data || q.length < 2) { hideRecipeSearchResults(); return; }
+  const matches = [];
+  (data.cluster_trends || []).forEach(c => {
+    c.recipes.forEach(r => {
+      if (r.recipe.toLowerCase().includes(q)) matches.push({ cluster: c.cluster, recipe: r.recipe, trend: r.trend });
+    });
+  });
+  if (!matches.length) { hideRecipeSearchResults(); return; }
+  box.innerHTML = matches.slice(0, 20).map(m =>
+    `<div class="recipe-search-row" data-cluster="${escapeAttr(m.cluster)}" data-recipe="${escapeAttr(m.recipe)}">
+       <span class="pill ${m.trend}">${m.trend}</span>
+       <span class="rsr-recipe" title="${escapeAttr(m.recipe)}">${escapeHtml(recipeShortName(m.recipe))}</span>
+       <span class="rsr-cluster">${escapeHtml(m.cluster)}</span>
+     </div>`).join('') +
+    (matches.length > 20 ? `<div class="rsr-more">+${matches.length - 20} more — keep typing</div>` : '');
+  box.style.display = 'block';
+  box.querySelectorAll('.recipe-search-row').forEach(row => {
+    row.addEventListener('click', () => {
+      hideRecipeSearchResults();
+      navigate({ cluster: row.dataset.cluster, recipe: row.dataset.recipe });
+    });
+  });
 }
 
 function renderClusterGrid() {
