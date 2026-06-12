@@ -1,0 +1,2 @@
+cluster_name,incarnation_idx,span_start_ts,span_end_ts,span_minutes,create_event_ts,delete_event_ts,has_explicit_create,has_explicit_delete,total_events
+mock-cluster-capacity,1,2099-04-01 02:00:00.000000 UTC,2099-04-01 10:00:00.000000 UTC,480,2099-04-01 02:00:00.000000 UTC,2099-04-01 10:00:00.000000 UTC,true,true,0

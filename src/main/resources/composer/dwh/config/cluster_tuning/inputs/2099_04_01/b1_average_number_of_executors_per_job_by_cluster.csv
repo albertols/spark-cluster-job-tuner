@@ -1,0 +1,2 @@
+cluster_name,recipe_filename,avg_executors_per_job
+mock-cluster-capacity,_CAPACITY_HOG.json,60
