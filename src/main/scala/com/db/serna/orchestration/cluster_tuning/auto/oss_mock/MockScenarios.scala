@@ -903,44 +903,57 @@ object MockScenarios {
     MultiDateScenario(name = "durationDrift", perDate = Map(refDate -> ref, curDate -> cur))
   }
 
-  // ── capacityPressure — a recipe whose demand out-runs the cluster's capacity ─
+  // ── capacityPressure — the censoring trap meets a hard capacity ceiling ──────
   //
-  // One small cluster with a single memory-heavy, cap-saturated recipe. Planning
-  // wants a large executor ceiling (high avg/p95 executor demand, high
-  // fraction_reaching_cap), but the cluster's per-node-packed scaled-max can only
-  // schedule a fraction of that — so the CapacityGuard final pass clamps the
-  // recipe's max executors and stamps `capacityStatus: "clamped"` plus the
-  // cores/memory utilization %. Used to prove the end-to-end clamp + red heatmap
-  // cell. Both dates carry the same hog so the AutoTuner re-plan path is exercised.
+  // One single-tenant cluster (maxConcurrentJobs = 1) with a single cap-saturated,
+  // high-demand recipe `_CAPACITY_HOG.json` that runs ~2× slower in the current date
+  // while pinned at its executor ceiling (`fraction_reaching_cap = 0.9`). The
+  // longitudinal trend scaler reads the slowdown and inflates the recipe's executor
+  // ceiling toward the cluster's full physical capacity; the CapacityGuard FINAL pass
+  // then clamps that inflated ceiling back to 0.90 of the per-node-packed capacity,
+  // stamping `capacityStatus: "clamped"` and the cores/memory utilization %. This is
+  // the end-to-end proof of the guard (and the red heatmap cell): the planner's own
+  // sizing buffer never trips the guard, only post-plan trend/z-score inflation does.
 
-  private def capacityHog(name: String): MockRecipe = MockRecipe(
+  private def capacityHog(name: String, p95DurMs: Double, avgDurMs: Double): MockRecipe = MockRecipe(
     name = name,
-    avgExecutorsPerJob = 16.0,
-    p95RunMaxExecutors = 28.0,
-    avgJobDurationMs = 30 * 60000.0,
-    p95JobDurationMs = 50 * 60000.0,
+    avgExecutorsPerJob = 60.0,
+    p95RunMaxExecutors = 96.0, // pinned at the cap across both dates (censored)
+    avgJobDurationMs = avgDurMs,
+    p95JobDurationMs = p95DurMs,
     runs = 20L,
     secondsAtCap = Some(1200L),
     runsReachingCap = Some(18L),
     totalRuns = Some(20L),
     fractionReachingCap = Some(0.9),
-    maxConcurrentJobs = Some(2)
+    maxConcurrentJobs = Some(1)
   )
 
   def capacityPressure(refDate: String, curDate: String, seed: Long = 1234L): MultiDateScenario = {
     val (s1, e1) = windowFor(refDate)
     val (s2, e2) = windowFor(curDate)
 
-    def cluster(start: Instant): MockCluster = MockCluster(
+    def cluster(start: Instant, p95DurMs: Double, avgDurMs: Double): MockCluster = MockCluster(
       name = "mock-cluster-capacity",
-      recipes = Seq(capacityHog("_CAPACITY_HOG.json")),
+      recipes = Seq(capacityHog("_CAPACITY_HOG.json", p95DurMs, avgDurMs)),
       incarnations = Seq(
         MockIncarnation(start.plus(2, ChronoUnit.HOURS), start.plus(10, ChronoUnit.HOURS))
       )
     )
 
-    val ref = MockScenario(name = "capacityPressure-reference", clusters = Seq(cluster(s1)), window = (s1, e1), seed = seed)
-    val cur = MockScenario(name = "capacityPressure-current", clusters = Seq(cluster(s2)), window = (s2, e2), seed = seed)
+    // Same executor ceiling, ~2× slower in current → the censoring case the trend scaler resolves.
+    val ref = MockScenario(
+      name = "capacityPressure-reference",
+      clusters = Seq(cluster(s1, p95DurMs = 100000.0, avgDurMs = 90000.0)),
+      window = (s1, e1),
+      seed = seed
+    )
+    val cur = MockScenario(
+      name = "capacityPressure-current",
+      clusters = Seq(cluster(s2, p95DurMs = 200000.0, avgDurMs = 180000.0)),
+      window = (s2, e2),
+      seed = seed
+    )
     MultiDateScenario(name = "capacityPressure", perDate = Map(refDate -> ref, curDate -> cur))
   }
 

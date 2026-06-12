@@ -5,7 +5,7 @@
   Reference date:  2099_01_01
   Current date:    2099_01_02
   Strategy:        default
-  Generated at:    2026-05-11T13:32:40.537170Z
+  Generated at:    2026-06-12T13:36:35.288145Z
 
 ------------------------------------------------------------------------
   TREND SUMMARY
@@ -36,15 +36,25 @@
   b16 OOM REBOOSTING  (2 recipe(s) across 2 cluster(s))
 ------------------------------------------------------------------------
   mock-cluster-show-holding  (1 recipe(s))
-    RDM_BOOST_HOLDING                                             spark.executor.memory: 8g -> 12g  (x1.5)
+    RDM_BOOST_HOLDING                                             spark.executor.memory: 12g -> 12g  (x1.5)  [holding]
   mock-cluster-show-oom  (1 recipe(s))
-    DQ3_OOM_RECURRING                                             spark.executor.memory: 8g -> 12g  (x1.5)
+    DQ3_OOM_RECURRING                                             spark.executor.memory: 12g -> 18g  (x1.5)  [re-boost · cumulative x2.25]
 
 ------------------------------------------------------------------------
   Z-SCORE EXECUTOR SCALE-UP  (1 recipe(s) across 1 cluster(s))
 ------------------------------------------------------------------------
   mock-cluster-show-needs-execs  (1 recipe(s))
-    DWH_NEEDS_MORE_EXECUTORS                                      spark.dynamicAllocation.maxExecutors: 14 -> 21  (x1.5)
+    DWH_NEEDS_MORE_EXECUTORS                                      spark.dynamicAllocation.maxExecutors: 28 -> 42  (x1.5)
+
+------------------------------------------------------------------------
+  TREND EXECUTOR SCALING  (3 recipe(s) across 3 cluster(s))
+------------------------------------------------------------------------
+  mock-cluster-show-holding  (1 recipe(s))
+    RDM_DEGRADED_COMPANION                                [up] min/max: 6/12 -> 7/15
+  mock-cluster-show-needs-execs  (1 recipe(s))
+    DWH_NEEDS_MORE_EXECUTORS                              [up] min/max: 12/14 -> 27/28
+  mock-cluster-show-oom  (1 recipe(s))
+    DQ3_OOM_RECURRING                                     [up] min/max: 6/12 -> 7/15
 
 ------------------------------------------------------------------------
   STATISTICAL ANALYSIS

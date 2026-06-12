@@ -1,0 +1,2 @@
+cluster_name,dag_id,no_of_jobs,num_of_workers,worker_machine_type,master_machine_type,real_used_avg_num_of_workers,real_used_min_workers,real_used_max_workers,total_active_minutes,estimated_cost_eur,TIMER_NAME,TIMER_TIME
+mock-cluster-capacity,UNKNOWN_DAG_ID,1,20,n2d-highcpu-48,n2d-highcpu-48,20.00,20,20,480.00,443.5200,ZERO_TIMER,00:00

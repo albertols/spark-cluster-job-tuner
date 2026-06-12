@@ -1,21 +1,21 @@
 {
-  "generated_at": "2026-05-11T14:52:57.044595Z",
+  "generated_at": "2026-06-12T13:36:35.267785Z",
   "entries": [
     {
-      "dir": "2100_01_01",
-      "reference_date": "2099_08_03",
-      "current_date": "2100_01_01",
+      "dir": "2099_04_02",
+      "reference_date": "2099_04_01",
+      "current_date": "2099_04_02",
       "strategy": "default",
-      "total_clusters": 6,
-      "total_recipes": 16,
+      "total_clusters": 1,
+      "total_recipes": 1,
       "trends": {
         "improved": 0,
-        "degraded": 0,
-        "stable": 16,
+        "degraded": 1,
+        "stable": 0,
         "new_entries": 0,
         "dropped_entries": 0
       },
-      "generated_at": "2026-05-11T14:50:30.397930Z"
+      "generated_at": "2026-06-12T13:34:20.141239Z"
     },
     {
       "dir": "2099_01_02",
@@ -31,7 +31,7 @@
         "new_entries": 1,
         "dropped_entries": 0
       },
-      "generated_at": "2026-05-11T13:32:40.350948Z"
+      "generated_at": "2026-06-12T13:36:35.194456Z"
     },
     {
       "dir": "2026_06_05",
@@ -80,22 +80,6 @@
         "dropped_entries": 0
       },
       "generated_at": "2026-05-04T15:54:50.030036Z"
-    },
-    {
-      "dir": "2026_05_11",
-      "reference_date": "2026_04_15",
-      "current_date": "2026_05_11",
-      "strategy": "default",
-      "total_clusters": 7,
-      "total_recipes": 17,
-      "trends": {
-        "improved": 0,
-        "degraded": 0,
-        "stable": 0,
-        "new_entries": 16,
-        "dropped_entries": 1
-      },
-      "generated_at": "2026-05-11T14:52:56.962274Z"
     },
     {
       "dir": "2026_04_30",
