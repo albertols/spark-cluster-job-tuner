@@ -1834,6 +1834,19 @@ h3.section-heading {
 }
 .cs-chart-cell.cs-chart-expanded .cs-chart-canvas { height: 440px; }
 
+/* Line-chart legend chips (top-8 emphasised clusters) */
+.cs-legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
+.cs-legend-chip {
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  font-size: 11px; color: #c9d1d9; background: #161b22; border: 1px solid #30363d;
+  border-radius: 10px; padding: 2px 8px; max-width: 220px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cs-legend-chip:hover { border-color: #8b949e; }
+.cs-legend-chip.active { border-color: #d29922; color: #f0f6fc; }
+.cs-legend-chip .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.cs-legend-more { font-size: 11px; color: #8b949e; align-self: center; }
+
 
 /* Distribution chart zoom hint */
 .cs-zoom-hint {

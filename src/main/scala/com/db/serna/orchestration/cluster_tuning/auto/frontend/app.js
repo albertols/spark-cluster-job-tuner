@@ -4909,34 +4909,50 @@ function renderCsKpis(history, currentEntry) {
   ].join('');
 }
 
+// Stable per-cluster hue (same color across charts and runs).
+function clusterHue(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = ((h * 31) + name.charCodeAt(i)) >>> 0;
+  return h % 360;
+}
+
 // Build a multi-series line chart: one line per cluster, dates on the x-axis.
-// The current-date cluster lines render gold + thicker so users can spot them.
+// The top-8 clusters by latest value get full-color emphasis + legend chips;
+// the rest render dimmed so the chart stays readable.
 function renderCsLineChart(canvasId, history, currentDate, valueKey, label, formatter) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
 
   const dates = history.map(h => h.date);
   const allClusters = Array.from(new Set(history.flatMap(h => h.rows.map(r => r.cluster_name)))).sort();
-  const currentEntry = history.find(h => h.date === currentDate);
-  const currentClusters = new Set((currentEntry ? currentEntry.rows : []).map(r => r.cluster_name));
 
-  // Assign each cluster a stable hue so colors don't flicker between charts.
-  const datasets = allClusters.map((c, i) => {
+  // Rank by latest non-null value: the biggest movers get full-color emphasis + a legend chip.
+  const latestVal = (c) => {
+    for (let i = history.length - 1; i >= 0; i--) {
+      const row = history[i].rows.find(r => r.cluster_name === c);
+      if (row && row[valueKey] != null) return Number(row[valueKey]) || 0;
+    }
+    return 0;
+  };
+  const TOP_N = 8;
+  const topClusters = new Set(allClusters.slice().sort((a, b) => latestVal(b) - latestVal(a)).slice(0, TOP_N));
+
+  const datasets = allClusters.map((c) => {
     const series = history.map(h => {
       const row = h.rows.find(r => r.cluster_name === c);
       return row ? row[valueKey] : null;
     });
-    const isCurrent = currentClusters.has(c);
-    const hue = (i * 47) % 360;
+    const hue = clusterHue(c);
+    const top = topClusters.has(c);
     return {
       label: c,
       data: series,
-      borderColor: isCurrent ? 'rgba(210,153,34,1)' : `hsla(${hue}, 35%, 60%, 0.55)`,
+      borderColor: `hsla(${hue}, ${top ? 70 : 25}%, ${top ? 60 : 45}%, ${top ? 1 : 0.25})`,
       backgroundColor: 'transparent',
-      borderWidth: isCurrent ? 2.4 : 1.1,
+      borderWidth: top ? 2.2 : 1,
       tension: 0.2,
       spanGaps: true,
-      pointRadius: 2.5,
+      pointRadius: top ? 2.5 : 0,
       pointHoverRadius: 4
     };
   });
@@ -4973,6 +4989,46 @@ function renderCsLineChart(canvasId, history, currentDate, valueKey, label, form
     }
   });
   canvas._chartInstance = chart;
+
+  // Legend chips for the emphasised clusters. Click = isolate/restore; hover = highlight.
+  const host = canvas.parentElement;
+  let legend = host.parentElement.querySelector(`.cs-legend[data-for="${canvasId}"]`);
+  if (legend) legend.remove();
+  legend = document.createElement('div');
+  legend.className = 'cs-legend';
+  legend.dataset.for = canvasId;
+  const topList = allClusters.filter(c => topClusters.has(c))
+    .sort((a, b) => latestVal(b) - latestVal(a));
+  legend.innerHTML = topList.map(c =>
+    `<span class="cs-legend-chip" data-cluster="${escapeAttr(c)}" title="${escapeAttr(c)}">
+       <span class="dot" style="background:hsl(${clusterHue(c)},70%,60%)"></span>${escapeHtml(c)}</span>`
+  ).join('') + (allClusters.length > topList.length
+    ? `<span class="cs-legend-more">+${allClusters.length - topList.length} more (dimmed)</span>` : '');
+  host.parentElement.insertBefore(legend, host);
+
+  let isolated = null;
+  const applyEmphasis = (focus) => {
+    chart.data.datasets.forEach(ds => {
+      const top = topClusters.has(ds.label);
+      const hue = clusterHue(ds.label);
+      const on = focus === null ? top : ds.label === focus;
+      const dimAll = focus !== null;
+      ds.borderColor = `hsla(${hue}, ${on ? 70 : 25}%, ${on ? 60 : 45}%, ${on ? 1 : (dimAll ? 0.08 : 0.25)})`;
+      ds.borderWidth = on ? 2.4 : 1;
+      ds.pointRadius = on ? 2.5 : 0;
+    });
+    chart.update('none');
+  };
+  legend.querySelectorAll('.cs-legend-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      isolated = isolated === chip.dataset.cluster ? null : chip.dataset.cluster;
+      legend.querySelectorAll('.cs-legend-chip').forEach(c2 =>
+        c2.classList.toggle('active', c2.dataset.cluster === isolated));
+      applyEmphasis(isolated);
+    });
+    chip.addEventListener('mouseenter', () => { if (!isolated) applyEmphasis(chip.dataset.cluster); });
+    chip.addEventListener('mouseleave', () => { if (!isolated) applyEmphasis(null); });
+  });
 
   // Middle-click support
   canvas.addEventListener('auxclick', (e) => {
