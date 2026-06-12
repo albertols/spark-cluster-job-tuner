@@ -352,7 +352,6 @@ object ClusterMachineAndRecipeAutoTuner {
     val trendGains: ScaleGains = ScaleGains.fromBias(
       tuningStrategy.biasMode,
       gainOverride = conf.trendScaleGain.toOption,
-      minGainOverride = conf.trendMinGain.toOption,
       maxStepOverride = conf.trendScaleMaxStep.toOption,
       deadbandUpOverride = conf.trendScaleDeadband.toOption,
       minRunsOverride = conf.trendScaleMinRuns.toOption,

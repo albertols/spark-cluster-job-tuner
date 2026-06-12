@@ -38,7 +38,7 @@ class ExecutorTrendVitaminSpec extends AnyFunSuite with Matchers {
 
     val applied = vitamin.applyBoosts(boosts, recipes)("_r.json")
     applied.sparkOptsMap("spark.dynamicAllocation.maxExecutors").toInt should be > 3
-    applied.sparkOptsMap("spark.dynamicAllocation.minExecutors").toInt should be > 2
+    applied.sparkOptsMap("spark.dynamicAllocation.minExecutors").toInt should be >= 2 // v2 (Task 2) reworks min-creep
     applied.totalExecutorMaxAllocatedMemoryGb shouldBe applied.sparkOptsMap("spark.dynamicAllocation.maxExecutors").toInt * 8
     applied.extraFields should contain key "appliedTrendScaleFactor"
   }

@@ -13,8 +13,7 @@ import com.db.serna.orchestration.cluster_tuning.single.{
 /**
  * Tunable gains for [[ExecutorTrendScaler]]. Derived from the active [[BiasMode]] with optional CLI overrides.
  *
- *   - `gain` / `minGain` : how strongly `max` / `min` track the duration trend on scale-UP (minGain < gain so the
- *     always-on floor rises more conservatively than the ceiling).
+ *   - `gain` : how strongly the allocation tracks the duration trend on scale-UP.
  *   - `maxStep` / `minStep` : per-run multiplicative clamps on UP (>= 1) and DOWN (<= 1) so a single run cannot
  *     explode or collapse an allocation.
  *   - `deadbandUp` / `deadbandDown` : fractional duration change required to trigger UP / DOWN. The band between them
@@ -23,10 +22,12 @@ import com.db.serna.orchestration.cluster_tuning.single.{
  *   - `downGain` / `downSafetyMargin` / `downConfidenceFloor` : DOWN aggressiveness, demand headroom kept when
  *     shrinking, and the minimum confidence required to shrink at all.
  *   - `minRunsForConfidence` : minimum runs on each side for a duration ratio to be considered usable.
+ *   - `minDeltaMinutes` : absolute blended-duration change in minutes below which a trend is Negligible in both
+ *     directions (a huge ratio on a seconds-long job is noise, not a signal).
+ *   - `upPoolRatio` : fraction of cluster cores forming the per-run scale-UP pool, consumed by Task 3's prioritize.
  */
 final case class ScaleGains(
     gain: Double,
-    minGain: Double,
     maxStep: Double,
     minStep: Double,
     deadbandUp: Double,
@@ -36,7 +37,9 @@ final case class ScaleGains(
     downConfidenceFloor: Double,
     capTouchRatio: Double,
     minRunsForConfidence: Long,
-    downscaleEnabled: Boolean
+    downscaleEnabled: Boolean,
+    minDeltaMinutes: Double,
+    upPoolRatio: Double
 )
 
 object ScaleGains {
@@ -48,31 +51,33 @@ object ScaleGains {
   private val DefaultDownConfidenceFloor = 0.5
   private val DefaultCapTouchRatio = 0.5
   private val DefaultMinRuns = 5L
+  private val DefaultMinDeltaMinutes = 3.0
+  private val DefaultUpPoolRatio = 1.0
 
   /**
-   * Per-bias (gain, minGain, maxStep, deadbandDown, downGain). `BiasMode` is a sealed trait, so this match is
-   * exhaustive over its three cases by construction — no wildcard fallback, so adding a fourth bias becomes a
-   * compile-time warning here rather than silently inheriting the balanced preset.
+   * Per-bias (gain, maxStep, deadbandDown, downGain). `BiasMode` is a sealed trait, so this match is exhaustive over
+   * its three cases by construction — no wildcard fallback, so adding a fourth bias becomes a compile-time warning
+   * here rather than silently inheriting the balanced preset.
    */
-  private def biasTuple(bias: BiasMode): (Double, Double, Double, Double, Double) = bias match {
-    case CostBiased => (0.35, 0.15, 1.5, 0.05, 0.6)
-    case PerformanceBiased => (0.70, 0.40, 2.5, 0.20, 0.25)
-    case CostPerformanceBalance => (0.50, 0.25, 2.0, 0.10, 0.4)
+  private def biasTuple(bias: BiasMode): (Double, Double, Double, Double) = bias match {
+    case CostBiased => (0.35, 1.5, 0.05, 0.6)
+    case PerformanceBiased => (0.70, 2.5, 0.20, 0.25)
+    case CostPerformanceBalance => (0.50, 2.0, 0.10, 0.4)
   }
 
   def fromBias(
       bias: BiasMode,
       gainOverride: Option[Double] = None,
-      minGainOverride: Option[Double] = None,
       maxStepOverride: Option[Double] = None,
       deadbandUpOverride: Option[Double] = None,
       minRunsOverride: Option[Long] = None,
-      downscaleEnabledOverride: Option[Boolean] = None
+      downscaleEnabledOverride: Option[Boolean] = None,
+      minDeltaMinutesOverride: Option[Double] = None,
+      upPoolRatioOverride: Option[Double] = None
   ): ScaleGains = {
-    val (gain, minGain, maxStep, deadbandDown, downGain) = biasTuple(bias)
+    val (gain, maxStep, deadbandDown, downGain) = biasTuple(bias)
     ScaleGains(
       gain = gainOverride.getOrElse(gain),
-      minGain = minGainOverride.getOrElse(minGain),
       maxStep = maxStepOverride.getOrElse(maxStep),
       minStep = DefaultMinStep,
       deadbandUp = deadbandUpOverride.getOrElse(DefaultDeadbandUp),
@@ -82,7 +87,9 @@ object ScaleGains {
       downConfidenceFloor = DefaultDownConfidenceFloor,
       capTouchRatio = DefaultCapTouchRatio,
       minRunsForConfidence = minRunsOverride.getOrElse(DefaultMinRuns),
-      downscaleEnabled = downscaleEnabledOverride.getOrElse(true)
+      downscaleEnabled = downscaleEnabledOverride.getOrElse(true),
+      minDeltaMinutes = minDeltaMinutesOverride.getOrElse(DefaultMinDeltaMinutes),
+      upPoolRatio = upPoolRatioOverride.getOrElse(DefaultUpPoolRatio)
     )
   }
 }
@@ -94,6 +101,14 @@ object ScaleDirection {
   case object Up extends ScaleDirection { val label = "up" }
   case object Down extends ScaleDirection { val label = "down" }
   case object Hold extends ScaleDirection { val label = "hold" }
+}
+
+sealed trait ScaleSeverity { def label: String; def rank: Int }
+object ScaleSeverity {
+  case object Negligible extends ScaleSeverity { val label = "negligible"; val rank = 0 }
+  case object Moderate extends ScaleSeverity { val label = "moderate"; val rank = 1 }
+  case object Severe extends ScaleSeverity { val label = "severe"; val rank = 2 }
+  case object Critical extends ScaleSeverity { val label = "critical"; val rank = 3 }
 }
 
 /**
@@ -130,6 +145,49 @@ object ExecutorTrendScaler {
   /** Runs (each side) at which confidence reaches 1.0 — mirrors TrendDetector.computeConfidence's /10 ramp. */
   private val ConfidenceFullyRampedRuns: Double = 10.0
 
+  // Severity thresholds: a tier needs BOTH the relative ratio and the absolute minutes lost.
+  val SevereRatio: Double = 2.0
+  val CriticalRatio: Double = 3.0
+  val SevereDeltaMinutes: Double = 10.0
+  val CriticalDeltaMinutes: Double = 30.0
+  val SevereStepMultiplier: Double = 1.5
+  val CriticalStepMultiplier: Double = 2.0
+  val SingleRunStepCap: Double = 1.5
+  val MinCreepPressure: Double = 0.8
+  val ConfidenceFloor: Double = 0.5
+
+  private[refinement] def classifySeverity(
+      durRatio: Double,
+      deltaMin: Double,
+      deadbandUp: Double,
+      minDeltaMinutes: Double
+  ): ScaleSeverity =
+    if (durRatio < 1.0 + deadbandUp || deltaMin < minDeltaMinutes) ScaleSeverity.Negligible
+    else if (durRatio >= CriticalRatio && deltaMin >= CriticalDeltaMinutes) ScaleSeverity.Critical
+    else if (durRatio >= SevereRatio && deltaMin >= SevereDeltaMinutes) ScaleSeverity.Severe
+    else ScaleSeverity.Moderate
+
+  /**
+   * Graduated evidence: large effects need fewer observations. Returns the admitted per-run step cap,
+   * or None when the signal is not admitted (insufficient evidence for its severity, or Negligible).
+   */
+  private[refinement] def admittedStepCap(tier: ScaleSeverity, runs: Long, gains: ScaleGains): Option[Double] = {
+    def fullCap(t: ScaleSeverity): Double = t match {
+      case ScaleSeverity.Critical => gains.maxStep * CriticalStepMultiplier
+      case ScaleSeverity.Severe => gains.maxStep * SevereStepMultiplier
+      case _ => gains.maxStep
+    }
+    if (tier == ScaleSeverity.Negligible) None
+    else if (runs >= gains.minRunsForConfidence) Some(fullCap(tier))
+    else if (runs >= 2) tier match {
+      case ScaleSeverity.Critical => Some(fullCap(ScaleSeverity.Severe))
+      case ScaleSeverity.Severe => Some(fullCap(ScaleSeverity.Moderate))
+      case _ => None
+    }
+    else if (runs == 1 && tier == ScaleSeverity.Critical) Some(SingleRunStepCap)
+    else None
+  }
+
   private def clampD(v: Double, lo: Double, hi: Double): Double = math.max(lo, math.min(hi, v))
   private def clampI(v: Int, lo: Int, hi: Int): Int = math.max(lo, math.min(hi, v))
 
@@ -161,7 +219,7 @@ object ExecutorTrendScaler {
    *
    * Returns a HOLD (config unchanged, appliedFactor 1.0) when the blended duration ratio sits inside the deadband, or
    * when an UP signal is not cap-pressured / a DOWN signal still has cap-pressure. UP scales `max` toward the blended
-   * duration trend (and `min` more conservatively via `minGain`), never shrinking below `currentMax` even when
+   * duration trend, never shrinking below `currentMax` even when
    * `capacity` is tight. DOWN shrinks toward observed demand with a safety margin, never below the observed peak or a
    * floor of 2, and stamps the carried factor unchanged when the demand floor blocks any move.
    */
@@ -233,7 +291,7 @@ object ExecutorTrendScaler {
           f"manual instances $currentMax->$newInst (durRatio=$durRatio%.2f, pressure=$pressure%.2f, conf=$conf%.2f)"
         )
       } else {
-        val minFactor = 1.0 + gains.minGain * (durRatio - 1.0) * conf
+        val minFactor = 1.0 // v2 (Task 2) reworks min-creep; minGain removed from ScaleGains
         val rawMin = math.ceil(currentMin * minFactor).toInt
         val newMin = clampI(rawMin, 2, math.max(2, newMax - 1))
         val newInitial = clampI(math.max(newMin, currentInitial), newMin, newMax)

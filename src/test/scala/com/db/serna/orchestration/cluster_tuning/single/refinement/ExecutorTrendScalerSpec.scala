@@ -50,7 +50,7 @@ class ExecutorTrendScalerSpec extends AnyFunSuite with Matchers {
     val d = decide(ref, cur, min = 2, max = 3)
     d.direction shouldBe ScaleDirection.Up
     d.newMax should be > 3
-    d.newMin should be > 2
+    d.newMin should be >= 2 // v2 (Task 2) reworks min-creep
     d.newMin should be <= d.newMax - 1
     d.state shouldBe BoostState.New
   }
