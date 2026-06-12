@@ -2530,3 +2530,25 @@ h3.section-heading {
 .wiz-prov-label code { color: #58a6ff; background: transparent; padding: 0; font-size: 11px; }
 .wiz-prov-spin { display: inline-block; color: #58a6ff; animation: wiz-spin 1.2s linear infinite; }
 @keyframes wiz-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ── Cluster utilization heatmap (cores band over memory band) ─────────────── */
+.util-heatmap-wrap { margin: 16px 0; }
+.util-heatmap-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.util-title { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: #8b949e; }
+.util-zoom button { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; width: 24px; height: 22px; cursor: pointer; margin-left: 4px; }
+.util-zoom button:hover { border-color: #58a6ff; }
+.util-heatmap { --util-cell: 12px; display: flex; flex-direction: column; gap: 8px; }
+.util-band { display: flex; align-items: flex-start; gap: 8px; }
+.util-band-label { width: 56px; flex: 0 0 56px; font-size: 11px; color: #8b949e; padding-top: 2px; }
+.util-grid { display: grid; grid-template-columns: repeat(auto-fill, var(--util-cell)); gap: 2px; flex: 1; }
+.util-cell { width: var(--util-cell); height: var(--util-cell); border-radius: 2px; cursor: pointer; }
+.util-green { background: #2e7d32; }
+.util-amber { background: #c9a227; }
+.util-orange { background: #d97706; }
+.util-red { background: #c62828; }
+.util-clamped { background: #c62828; box-shadow: inset 0 0 0 2px #ff5252; }
+.util-infeasible { background: repeating-linear-gradient(45deg, #c62828, #c62828 3px, #7a0000 3px, #7a0000 6px); }
+.util-none { background: #30363d; }
+.util-legend { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 11px; color: #8b949e; }
+.util-legend .util-cell { width: 12px; height: 12px; cursor: default; margin-left: 10px; }
+.util-empty { font-size: 12px; color: #8b949e; padding: 10px; border: 1px dashed #30363d; border-radius: 6px; }
