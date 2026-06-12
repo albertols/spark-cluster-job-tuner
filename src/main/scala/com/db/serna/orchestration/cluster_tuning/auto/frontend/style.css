@@ -470,6 +470,21 @@ main {
   gap: 8px;
 }
 
+/* ── Cluster Trend Summary (aggregated ref→cur executor allocation KPIs) ── */
+#detail-cluster-trend-summary { margin: 14px 0; }
+.trend-kpi-strip { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0; }
+.trend-kpi { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 8px 12px; min-width: 170px; }
+.trend-kpi-label { color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+.trend-kpi-value { color: #f0f6fc; font-size: 15px; margin-top: 2px; }
+.trend-kpi-delta { font-size: 12px; margin-left: 6px; }
+.trend-kpi-delta.up, .trend-kpi-counts .up { color: #d29922; }
+.trend-kpi-delta.down, .trend-kpi-counts .down { color: #39c5cf; }
+.trend-kpi-delta.flat, .trend-kpi-counts .flat { color: #8b949e; }
+.trend-kpi-counts { color: #c9d1d9; font-size: 12.5px; margin: 4px 0; }
+.trend-kpi-counts .new { color: #d29922; }
+.trend-kpi-counts .dropped { color: #8b949e; }
+.trend-kpi-note { color: #8b949e; font-size: 11.5px; }
+
 #detail-cluster-conf {
   background: #161b22;
   border: 1px solid #30363d;

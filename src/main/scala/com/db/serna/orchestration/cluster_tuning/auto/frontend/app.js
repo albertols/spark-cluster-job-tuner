@@ -1538,9 +1538,11 @@ async function showClusterDetailRaw(clusterName) {
   document.getElementById('detail-cluster-conf').innerHTML =
     `<h3>Cluster Configuration <span class="info-icon" data-doc-key="trend" title="Compares reference vs current date config">ⓘ</span></h3>` +
     `<div class="empty-msg">Loading cluster configurations…</div>`;
+  document.getElementById('detail-cluster-trend-summary').innerHTML = '';
 
   loadClusterJsonsForDates(clusterName).then(({ ref, cur, prevRef, refDate, curDate, prevRefDate }) => {
     mountClusterUtilHeatmap(cur);
+    renderClusterTrendSummary(clusterName, ref, cur, refDate, curDate);
     renderClusterConfComparison(clusterName, ref, cur, refDate, curDate);
     annotateKeptRecipeCards(cur);
     annotateConfChangeIcons(ref, cur);
@@ -2248,6 +2250,75 @@ function renderDetailClusterCost(clusterName, refJson, curJson, refDate, curDate
   });
 
   _dccApplyTrioLayout();
+}
+
+// Aggregate executor/cores/memory allocation per side from recipeSparkConf.
+function aggregateRecipeAlloc(json) {
+  const conf = (json && json.recipeSparkConf) || {};
+  const per = {};
+  Object.keys(conf).forEach(name => {
+    const so = conf[name].sparkOptsMap || {};
+    const dyn = so['spark.dynamicAllocation.enabled'] === 'true';
+    const max = parseInt(dyn ? so['spark.dynamicAllocation.maxExecutors'] : so['spark.executor.instances'], 10);
+    const min = parseInt(dyn ? so['spark.dynamicAllocation.minExecutors'] : so['spark.executor.instances'], 10);
+    const cores = parseInt(so['spark.executor.cores'], 10) || 0;
+    const memGb = parseMemGbStr(so['spark.executor.memory']) || 0;
+    if (!Number.isFinite(max) || !Number.isFinite(min)) return;
+    per[name] = { min, max, cores: max * cores, memGb: max * memGb };
+  });
+  return per;
+}
+
+function renderClusterTrendSummary(clusterName, refJson, curJson, refDate, curDate) {
+  const target = document.getElementById('detail-cluster-trend-summary');
+  if (!target) return;
+  const refAlloc = aggregateRecipeAlloc(refJson);
+  const curAlloc = aggregateRecipeAlloc(curJson);
+  const refNames = Object.keys(refAlloc), curNames = Object.keys(curAlloc);
+  if (!refNames.length && !curNames.length) { target.innerHTML = ''; return; }
+
+  const paired = curNames.filter(n => refAlloc[n]);
+  const newOnly = curNames.filter(n => !refAlloc[n]).length;
+  const droppedOnly = refNames.filter(n => !curAlloc[n]).length;
+
+  // Δ sums over PAIRED recipes only (new/dropped would skew the comparison).
+  const sum = (names, alloc, k) => names.reduce((s, n) => s + alloc[n][k], 0);
+  const tiles = [
+    { label: 'Σ min executors', k: 'min', fmt: formatNum },
+    { label: 'Σ max executors', k: 'max', fmt: formatNum },
+    { label: 'Σ cores @ max', k: 'cores', fmt: formatNum },
+    { label: 'Σ memory @ max (GB)', k: 'memGb', fmt: (v) => formatNum(Math.round(v)) },
+  ].map(t => {
+    const a = sum(paired, refAlloc, t.k), b = sum(paired, curAlloc, t.k);
+    const d = b - a;
+    const cls = d > 0 ? 'up' : d < 0 ? 'down' : 'flat';
+    const arrow = d > 0 ? '▲' : d < 0 ? '▼' : '＝';
+    return `<div class="trend-kpi">
+      <div class="trend-kpi-label">${t.label}</div>
+      <div class="trend-kpi-value">${t.fmt(a)} → ${t.fmt(b)}
+        <span class="trend-kpi-delta ${cls}">${arrow} ${d > 0 ? '+' : ''}${t.fmt(d)}</span></div>
+    </div>`;
+  }).join('');
+
+  let up = 0, down = 0, same = 0;
+  paired.forEach(n => {
+    const d = curAlloc[n].max - refAlloc[n].max;
+    if (d > 0) up++; else if (d < 0) down++; else same++;
+  });
+  const pct = (n) => paired.length ? ` (${Math.round(100 * n / paired.length)}%)` : '';
+  const counts =
+    `<div class="trend-kpi-counts">` +
+    `<span class="up">▲ ${up} scaled up${pct(up)}</span> · ` +
+    `<span class="down">▼ ${down} scaled down${pct(down)}</span> · ` +
+    `<span class="flat">＝ ${same} unchanged${pct(same)}</span>` +
+    (newOnly ? ` · <span class="new">🆕 ${newOnly} new</span>` : '') +
+    (droppedOnly ? ` · <span class="dropped">${droppedOnly} dropped</span>` : '') +
+    `</div>`;
+
+  target.innerHTML =
+    `<h3>Cluster Trend Summary <span class="info-icon" data-doc-key="trend" title="Aggregated executor allocation across all recipes, reference vs current">ⓘ</span></h3>` +
+    `<div class="trend-kpi-strip">${tiles}</div>${counts}` +
+    `<div class="trend-kpi-note">Sums over the ${paired.length} recipes present on both dates (${escapeHtml(formatDate(refDate))} → ${escapeHtml(formatDate(curDate))}).</div>`;
 }
 
 function renderClusterConfComparison(clusterName, refJson, curJson, refDate, curDate) {
