@@ -354,4 +354,56 @@ object ExecutorTrendScaler {
       hold(s"within deadband or gate not met ($diag)")
     }
   }
+
+  // ── Cluster-wide prioritization ──────────────────────────────────────────────
+
+  /** Pairs a decision with its recipe's spark.executor.cores so the pool can be budgeted in CORES. */
+  final case class RecipeCores(decision: TrendScaleDecision, execCores: Int)
+
+  /**
+   * Capacity-budgeted prioritization across one cluster's trend decisions. UP grants draw, in
+   * impact order (total minutes lost per window), from a per-run pool of `poolRatio × clusterMaxTotalCores`
+   * cores; each grant consumes (newMax − originalMax) × execCores. When the pool runs dry, remaining
+   * UP candidates are degraded to originalMax + 1 — reduced, never starved (every admitted signal
+   * still moves). Jobs are staggered in time, so this is intentionally a growth-rate bound, not a
+   * concurrency bound; CapacityGuard stays the physical per-recipe clamp afterwards.
+   * Holds/Downs pass through untouched. Input order is preserved.
+   */
+  def prioritize(inputs: Seq[RecipeCores], clusterMaxTotalCores: Int, poolRatio: Double): Seq[TrendScaleDecision] = {
+    if (clusterMaxTotalCores <= 0) return inputs.map(_.decision)
+    var pool = math.max(0, math.ceil(clusterMaxTotalCores * poolRatio).toInt)
+    val isUpGrant: TrendScaleDecision => Boolean = d => d.direction == ScaleDirection.Up && d.newMax > d.originalMax
+    val ranked = inputs
+      .filter(i => isUpGrant(i.decision))
+      .sortBy(i => (-i.decision.impactMinutes, -i.decision.appliedFactor, i.decision.recipe))
+    val adjusted = scala.collection.mutable.Map.empty[String, TrendScaleDecision]
+    ranked.zipWithIndex.foreach { case (RecipeCores(d, ec), idx) =>
+      val cores = math.max(1, ec)
+      val wantCores = (d.newMax - d.originalMax) * cores
+      val granted =
+        if (wantCores <= pool) {
+          pool -= wantCores
+          d.copy(priorityRank = Some(idx + 1))
+        } else {
+          pool = math.max(0, pool - cores)
+          val degradedMax = d.originalMax + 1
+          val newFactor = degradedMax.toDouble / math.max(1, d.originalMax)
+          val priorCum = d.cumulativeFactor / d.appliedFactor
+          val annotated = d.reason + s" [pool-exhausted: granted +1 of +${d.newMax - d.originalMax}]"
+          if (d.isManual)
+            d.copy(newMin = degradedMax, newInitial = degradedMax, newMax = degradedMax,
+              appliedFactor = newFactor, cumulativeFactor = priorCum * newFactor,
+              priorityRank = Some(idx + 1), reason = annotated)
+          else {
+            val dMin = math.min(d.newMin, math.max(2, degradedMax - 1))
+            val dInit = math.max(dMin, math.min(d.newInitial, degradedMax))
+            d.copy(newMin = dMin, newInitial = dInit, newMax = degradedMax,
+              appliedFactor = newFactor, cumulativeFactor = priorCum * newFactor,
+              priorityRank = Some(idx + 1), reason = annotated)
+          }
+        }
+      adjusted(d.recipe) = granted
+    }
+    inputs.map(i => adjusted.getOrElse(i.decision.recipe, i.decision))
+  }
 }
