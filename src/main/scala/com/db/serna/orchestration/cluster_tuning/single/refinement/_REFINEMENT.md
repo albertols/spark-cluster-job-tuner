@@ -126,12 +126,29 @@ This file is grouped by vitamin name, with the full CSV source path and all unma
 |---------|--------|---------------|---------|--------|
 | [`MemoryHeapBoostVitamin`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/RefinementVitamins.scala) | `b16_oom_job_driver_exceptions.csv` | `spark.executor.memory` | `java.lang.OutOfMemoryError: Java heap space` | Active |
 | [`ExecutorScaleVitamin`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/RefinementVitamins.scala) | **Derived** — `divergences_current_snapshot` from the AutoTuner (NOT a CSV) | `spark.dynamicAllocation.maxExecutors` | High positive z-score on `avg/p95_job_duration_ms` for a paired (non-new) recipe whose `p95_run_max_executors` is cap-touching | Active (AutoTuner only) |
+| [`ExecutorTrendVitamin`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/ExecutorTrendVitamin.scala) | **Derived** — paired (reference, current) `RecipeMetrics` from the AutoTuner (NOT a CSV) | `spark.dynamicAllocation.{min,initial,max}Executors` (or `spark.executor.instances` for manual) | Longitudinal duration trend on a cap-pressured recipe — see [Trend-driven executor scaling](#trend-driven-executor-scaling) | Active (AutoTuner only) |
 | `MemoryOverheadBoostVitamin` | `b17` (future) | `spark.executor.memoryOverhead` | Container killed (off-heap) | Planned |
 | `GCPressureBoostVitamin` | `b19` (future) | `spark.executor.memory` + GC opts | GC time > 10% of task time | Planned |
 | `ShuffleSpillBoostVitamin` | `b18` (future) | `spark.sql.shuffle.partitions` | Excessive shuffle spill to disk | Planned |
 | `BroadcastTimeoutBoostVitamin` | `b20` (future) | `spark.sql.broadcastTimeout` | BroadcastExchangeExec timeout | Planned |
 
 `ExecutorScaleVitamin` is the first vitamin whose signal source is **derived** (in-memory, divergence-driven) rather than CSV-driven. The vitamin's `loadSignals(inputDir, clusterName)` ignores `inputDir` and pulls signals from a constructor-injected `signalsForCluster` lookup populated by the AutoTuner. It is wired only in the AutoTuner path (not in the standalone refinement app's pipeline).
+
+## Trend-driven executor scaling
+
+`ExecutorTrendVitamin` closes the **censoring trap**: a job pinned at its `maxExecutors` cannot express that it needs *more* parallelism. Its runtime stops improving once it saturates the cap, so a duration regression looks identical to "stable at the ceiling" — the z-score path (which keys off duration outliers vs. siblings) can miss it, and even when it fires it only lifts `max`. The trend path instead reads the **longitudinal** reference→current duration change for the *same* recipe and, when the job is cap-pressured, raises the whole allocation proportionally.
+
+The math lives in the pure [`ExecutorTrendScaler.decide`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/ExecutorTrendScaler.scala) (Spark-free, fully unit-tested); the vitamin is a thin adapter that reads the allocation out of the recipe JSON, derives executor capacity, calls `decide`, and writes the result back through the standard pipeline.
+
+- **Driver:** a blended duration ratio `0.7·p95Ratio + 0.3·avgRatio` (each `current/reference`, guarded to `1.0` when either side is non-positive or below the min-runs confidence floor).
+- **Cap-pressure gate:** `max(p95RunMaxExecutors / currentMax, fraction_reaching_cap)`. Scale-**UP** only fires when this is ≥ `capTouchRatio` (default 0.5) — a slowdown on a job that *isn't* parallelism-bound (plenty of idle executors) **Holds** instead.
+- **Hysteresis deadbands:** UP needs the ratio ≥ `1 + deadbandUp`; DOWN needs it ≤ `1 − deadbandDown`. The band between is a no-op zone that prevents flapping on run-to-run noise.
+- **Proportional sizing:** `max` tracks the ratio with `gain`; `min` tracks it with a smaller `minGain` (the always-on floor rises more conservatively than the ceiling). UP is clamped per run by `maxStep`; results are clamped to cluster capacity and `min ≤ max − 1`.
+- **Conservative scale-DOWN:** when a job speeds up *and* has cap headroom *and* clears the `downConfidenceFloor`, the allocation shrinks by `downGain` — but never below observed peak demand (`p95RunMaxExecutors`) for `max` or steady demand (`avgExecutorsPerJob`) for `min`, each kept with a `downSafetyMargin`, and never below the floor of 2. Disable entirely with `--no-trend-downscale`.
+- **Manual recipes:** `spark.executor.instances` is scaled as a single count (floor 2); `min == initial == max` in the decision.
+- **Bias-derived gains:** [`ScaleGains.fromBias`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/ExecutorTrendScaler.scala) orders up-aggressiveness `Cost < Balance < Performance` and down-aggressiveness `Performance < Balance < Cost`. CLI flags override individual gains — see [`_AUTO_TUNING.md`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/_AUTO_TUNING.md).
+
+The trend path runs **before** the z-score `ExecutorScaleVitamin` and stamps its own `appliedTrendScaleFactor`, distinct from `appliedExecutorScaleFactor`, so the two mechanisms compose without lifecycle cross-talk — the combined effect on a recipe is the product of the two fields. Like the z-score path it uses the same `New`/`ReBoost`/`Holding` lifecycle and depends on [`BoostMetadataCarrier.carryTrendMetadata`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/auto/BoostMetadataCarrier.scala) to survive a from-scratch cluster re-plan.
 
 ## Boost State Lifecycle
 
@@ -174,6 +191,7 @@ Added per affected recipe alongside `parallelizationFactor`. Each vitamin owns i
   "parallelizationFactor": 5,
   "appliedMemoryHeapBoostFactor": 2.25,
   "appliedExecutorScaleFactor": 1.5,
+  "appliedTrendScaleFactor": 1.5,
   "sparkOptsMap": {
     "spark.executor.memory": "18g",
     "spark.dynamicAllocation.maxExecutors": "21",
@@ -186,6 +204,7 @@ Added per affected recipe alongside `parallelizationFactor`. Each vitamin owns i
 |---|---|---|
 | `appliedMemoryHeapBoostFactor` | `MemoryHeapBoostVitamin` | Cumulative factor (e.g. 1.5 → 2.25 → 3.375 across `New` → `ReBoost` → `ReBoost`). On `Holding` runs the value is preserved as-is. |
 | `appliedExecutorScaleFactor` | `ExecutorScaleVitamin` | Same shape, applied to `spark.dynamicAllocation.maxExecutors`. Lives only on DA recipes (manual recipes are skipped). |
+| `appliedTrendScaleFactor` | `ExecutorTrendVitamin` | Cumulative factor applied to the whole allocation (`min`/`initial`/`max`, or `instances` for manual). Compounds on UP `ReBoost`, multiplies down `< 1.0` on scale-DOWN, and is preserved on `Holding`. Distinct from `appliedExecutorScaleFactor` so the trend and z-score paths never cross-talk. |
 
 ## CLI Usage
 
