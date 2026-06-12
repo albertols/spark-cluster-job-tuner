@@ -910,9 +910,9 @@ object MockScenarios {
   // high-demand recipe `_CAPACITY_HOG.json` that runs ~2.5× slower with ≥10 min lost
   // per run in the current date — Severe under the v2 severity model (ratio AND
   // absolute magnitude) — while pinned at its executor ceiling
-  // (`fraction_reaching_cap = 0.9`). The
-  // longitudinal trend scaler reads the slowdown and inflates the recipe's executor
-  // ceiling toward the cluster's full physical capacity; the CapacityGuard FINAL pass
+  // (`fraction_reaching_cap = 0.9`). The longitudinal trend scaler reads the slowdown
+  // and inflates the recipe's executor ceiling toward the cluster's full physical
+  // capacity; the CapacityGuard FINAL pass
   // then clamps that inflated ceiling back to 0.90 of the per-node-packed capacity,
   // stamping `capacityStatus: "clamped"` and the cores/memory utilization %. This is
   // the end-to-end proof of the guard (and the red heatmap cell): the planner's own

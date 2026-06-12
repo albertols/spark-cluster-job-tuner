@@ -247,12 +247,24 @@ Disable with `--executor-scale-factor=1.0`.
 
 Runs **before** the z-score pass and feeds off the same `pairs` the AutoTuner already computes — the per-recipe reference→current `RecipeMetrics`. Where the z-score path keys off *cross-recipe* duration outliers (and only lifts `max`), the trend path keys off the *same recipe's longitudinal* slowdown and resizes the **whole** allocation, closing the censoring trap where a job pinned at its `maxExecutors` cannot signal that it needs more parallelism. The full decision logic and gates are documented in [`_REFINEMENT.md` → Trend-driven executor scaling](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/_REFINEMENT.md#trend-driven-executor-scaling).
 
-**Effect:**
+**Effect (v2, magnitude-aware):**
 
-- `spark.dynamicAllocation.{min,initial,max}Executors` move proportionally to the blended duration ratio (`min` rises more conservatively than `max` via `minGain < gain`), clamped to cluster capacity and `min ≤ max − 1`. Manual recipes scale `spark.executor.instances` as a single count.
-- Conservative scale-**DOWN** when a job speeds up with cap headroom — never below observed peak/steady demand + margin, never below 2. Disable with `--no-trend-downscale`.
+- The blended duration trend (`0.7·p95 + 0.3·avg`) is classified into a **severity tier**; every tier above Negligible requires **BOTH** the relative ratio and the absolute minutes lost:
+
+| Tier | Conditions (both required) | Per-run step cap |
+|---|---|---|
+| Negligible | ratio below deadband **or** blended delta < `--trend-min-delta-minutes` (3 min) | never scales |
+| Moderate | above deadband **and** delta ≥ min-delta | bias `maxStep` × 1 |
+| Severe | ratio ≥ 2 **and** delta ≥ 10 min | bias `maxStep` × 1.5 |
+| Critical | ratio ≥ 3 **and** delta ≥ 30 min | bias `maxStep` × 2 |
+
+- **Graduated evidence:** with `runs = min(refRuns, curRuns)` — ≥ `--trend-scale-min-runs` (5) admits any non-Negligible tier at full cap; 2–4 runs admit Severe+ only, cap demoted one tier; a single run admits Critical only, capped ×1.5. Confidence is floored at 0.5 once admitted.
+- `spark.dynamicAllocation.maxExecutors` moves proportionally to the ratio (clamped by the admitted step cap and cluster capacity, `min ≤ max − 1`); `minExecutors` **creeps at most +1 per run**, only when Severe+ **and** cap-pressure ≥ 0.8, with `initial` following by at most +1. Manual recipes scale `spark.executor.instances` as a single count.
+- Conservative scale-**DOWN** when a job speeds up with cap headroom — requires the blended saving ≥ `--trend-min-delta-minutes`; `max` never drops below observed peak demand + margin (floor 2) and `min` shrinks at most −1 per run, never below steady demand. Disable with `--no-trend-downscale`.
+- **Cluster-wide prioritization:** UP grants are ranked by `impactMinutes = Δminutes × current runs` (desc) and drawn from a pool of `--trend-up-pool-ratio` (default 1.0) × the cluster's schedulable cores; a grant that exhausts the pool degrades to `originalMax + 1` (never starved to zero).
 - `appliedTrendScaleFactor` stamped per recipe — **distinct** from `appliedExecutorScaleFactor` so the trend baseline and the z-score extra-boost compose without lifecycle cross-talk (combined effect = product of the two fields).
 - `BoostMetadataCarrier.carryTrendMetadata` carries the prior boosted `min`/`initial`/`max` and the factor into a freshly re-planned cluster JSON (same rationale as the b16 carry) so `Holding` / `ReBoost` survive a from-scratch re-plan.
+- The `executor_trend` boost-group entries carry `severity`, `impact_minutes` and (for prioritized UP grants) `priority_rank`.
 
 Lifecycle (`New` / `ReBoost` / `Holding`) is identical to b16/z-score. Gains derive from the active bias preset; override per gain with the `--trend-*` flags below.
 
@@ -375,7 +387,8 @@ main(Array("--reference-date=2025_12_20", "--current-date=2026_04_15",
 | `--scale-z-threshold` | 3.0 | Min positive z-score on `avg/p95_job_duration_ms` that triggers an executor scale-up (separate, stricter than `--divergence-z-threshold`) |
 | `--scale-cap-touch-ratio` | 0.5 | Cap-touching gate: scale-up only fires when `p95_run_max_executors / current maxExecutors ≥ this`. Permissive by default; raise to `0.85` for near-saturation only. |
 | `--trend-scale-gain` | bias preset | Override the up-scale gain on `maxExecutors`. Higher = more aggressive trend scale-up. Range `[0.0, 2.0]`. |
-| `--trend-min-gain` | bias preset | Override the up-scale gain on `minExecutors` (normally `< --trend-scale-gain` so the floor rises more conservatively). Range `[0.0, 2.0]`. |
+| `--trend-min-delta-minutes` | 3.0 | Absolute blended-duration change (minutes) below which a trend is **Negligible** and never scales. Gates the UP severity classification and doubles as the symmetric DOWN saving floor. |
+| `--trend-up-pool-ratio` | 1.0 | Fraction of the cluster's schedulable cores forming the per-run scale-UP budget. UP grants are ranked by `impactMinutes` and drawn from this pool; exhausted grants degrade to `originalMax + 1`. |
 | `--trend-scale-deadband` | 0.10 | Fractional duration increase required to trigger trend scale-up (the UP hysteresis band). |
 | `--trend-scale-max-step` | bias preset | Per-run multiplicative clamp on trend scale-up. Range `[1.0, 5.0]`. |
 | `--trend-scale-min-runs` | 5 | Minimum runs on each side for a usable duration ratio (confidence floor). |
@@ -399,7 +412,7 @@ All outputs are written to `outputs/<current_date>/` (the same dir the single tu
 | `_generation_summary.json` | Quota tracking and strategy metadata |
 | `_generation_summary.csv` | Same as above in CSV format |
 | `_generation_summary_auto_tuner.txt` | Human-readable summary report (b14 / b16 / z-score executor scale-up boosts, evolution stats) |
-| `_generation_summary_auto_tuner.json` | Structured sibling consumed by the dashboard. Contains `boost_groups` array — one entry per code (`b14`, `b16`, `executor_scale`, `executor_trend`, future bNN) with `kind`, `count`, `count_new`, `count_holding`, `cluster_count`, `entries`, and `source` (`derived` for the z-score group, `trend` for `executor_trend`). The `executor_trend` group additionally carries `count_up` / `count_down`. |
+| `_generation_summary_auto_tuner.json` | Structured sibling consumed by the dashboard. Contains `boost_groups` array — one entry per code (`b14`, `b16`, `executor_scale`, `executor_trend`, future bNN) with `kind`, `count`, `count_new`, `count_holding`, `cluster_count`, `entries`, and `source` (`derived` for the z-score group, `trend` for `executor_trend`). The `executor_trend` group additionally carries `count_up` / `count_down`, and its per-recipe entries carry `severity`, `impact_minutes` and (for prioritized UP grants) `priority_rank`. |
 | `_clusters-summary.csv` | All clusters sorted by workers desc, jobs desc |
 | `_clusters-summary-only-clusters-wf.csv` | Filtered to `clusters-wf-` prefix |
 | `_clusters-summary_top_jobs.csv` | Sorted by job count |
@@ -624,7 +637,7 @@ Frontend:
 ### Recently Implemented
 
 - **Z-score-driven executor scale-up** (`ExecutorScaleVitamin`) — feeds off `divergences_current_snapshot`; bumps `spark.dynamicAllocation.maxExecutors`. CLI: `--executor-scale-factor`, `--scale-z-threshold`, `--scale-cap-touch-ratio`.
-- **Trend-driven executor scaling** (`ExecutorTrendVitamin`) — feeds off the per-recipe reference→current duration trend; resizes `min`/`initial`/`max` (or manual `instances`) proportionally, closing the cap-pressure censoring trap. Runs before the z-score pass and stamps `appliedTrendScaleFactor`. CLI: `--trend-scale-gain`, `--trend-min-gain`, `--trend-scale-deadband`, `--trend-scale-max-step`, `--trend-scale-min-runs`, `--trend-downscale`/`--no-trend-downscale`. Emits the `executor_trend` boost group.
+- **Trend-driven executor scaling v2** (`ExecutorTrendVitamin`) — feeds off the per-recipe reference→current duration trend; severity tiers (Negligible/Moderate/Severe/Critical, ratio AND absolute minutes), graduated evidence, ±1 min/initial creep, impact-ranked cluster-wide scale-up pool. Runs before the z-score pass and stamps `appliedTrendScaleFactor`. CLI: `--trend-scale-gain`, `--trend-min-delta-minutes`, `--trend-up-pool-ratio`, `--trend-scale-deadband`, `--trend-scale-max-step`, `--trend-scale-min-runs`, `--trend-downscale`/`--no-trend-downscale`. Emits the `executor_trend` boost group with per-recipe `severity`/`impact_minutes`/`priority_rank`.
 - **B16 boost compounding across re-plans** (`BoostMetadataCarrier`) — prior boost factor + boosted memory + totals carried from REF output into freshly replanned CUR output, so `applyB16Reboosting` can correctly route to `Holding` / `ReBoost`.
 - **Sortable divergences table** — click-to-sort per column with asc/desc toggle, persisted via `?divSort=…&divDir=…`.
 - **Generic `boost_groups` rendering** — frontend iterates the array; b14 / b16 / executor_scale chips, panels, and badges are produced uniformly.

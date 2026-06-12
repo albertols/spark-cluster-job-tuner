@@ -224,7 +224,9 @@ object ClusterMachineAndRecipeAutoTuner {
     logger.info(
       s"AutoTuner starting: reference=$refDate current=$curDate strategy=$strategyName " +
         s"keepHistorical=$keepHistorical b16Factor=$b16Factor executorScaleFactor=$executorScaleFactor " +
-        s"scaleZThreshold=$scaleZThreshold scaleCapTouchRatio=$scaleCapTouchRatio"
+        s"scaleZThreshold=$scaleZThreshold scaleCapTouchRatio=$scaleCapTouchRatio " +
+        s"trendMinDeltaMinutes=${conf.trendMinDeltaMinutes.toOption.getOrElse("default(3.0)")} " +
+        s"trendUpPoolRatio=${conf.trendUpPoolRatio.toOption.getOrElse("default(1.0)")}"
     )
 
     // 1. Load snapshots for both dates
