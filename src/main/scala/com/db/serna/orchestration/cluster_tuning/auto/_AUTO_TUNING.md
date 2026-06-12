@@ -641,3 +641,9 @@ Frontend:
 - **B16 boost compounding across re-plans** (`BoostMetadataCarrier`) — prior boost factor + boosted memory + totals carried from REF output into freshly replanned CUR output, so `applyB16Reboosting` can correctly route to `Holding` / `ReBoost`.
 - **Sortable divergences table** — click-to-sort per column with asc/desc toggle, persisted via `?divSort=…&divDir=…`.
 - **Generic `boost_groups` rendering** — frontend iterates the array; b14 / b16 / executor_scale chips, panels, and badges are produced uniformly.
+- **P95⇄Avg duration toggle** — the cluster-detail duration chart switches between P95 and Avg job duration, persisted via `?durMetric=avg`; the tooltip always shows both metrics regardless of the active one.
+- **Recipe-card change icons** — compact `E▲`/`m▲`/`M▲` chips on recipe cards, diffing executors / `spark.executor.memory` / max-executors between the reference and current `recipeSparkConf`.
+- **Cluster-conf min/max workers + capacity guard doc** — the cluster-conf table orders `min_workers`/`max_workers` right after `num_workers`, hides the noisy `capacityGuardedJobList` array behind the `capacity_guard` ⓘ doc popover (which lists the clamped recipes).
+- **Cluster Trend Summary KPIs** — `#detail-cluster-trend-summary` strip in cluster detail: paired-only Δ duration / Δ executor sums plus scaled-up/scaled-down recipe counts at a glance.
+- **Recipe typeahead in fleet search** — the fleet search box (`#search-wrap`) suggests matching recipes across all clusters (`#recipe-search-results`); picking one navigates straight to that cluster + recipe.
+- **Readable historical line charts** — stable per-cluster hues (`clusterHue`), top-8 movers drawn emphasised with the rest dimmed, and `.cs-legend` chips per chart that isolate on click / highlight on hover.

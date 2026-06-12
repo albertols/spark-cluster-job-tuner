@@ -1391,7 +1391,7 @@ function renderRecipeSearchResults() {
   if (!matches.length) { hideRecipeSearchResults(); return; }
   box.innerHTML = matches.slice(0, 20).map(m =>
     `<div class="recipe-search-row" data-cluster="${escapeAttr(m.cluster)}" data-recipe="${escapeAttr(m.recipe)}">
-       <span class="pill ${m.trend}">${m.trend}</span>
+       <span class="pill ${escapeAttr(m.trend)}">${escapeHtml(m.trend)}</span>
        <span class="rsr-recipe" title="${escapeAttr(m.recipe)}">${escapeHtml(recipeShortName(m.recipe))}</span>
        <span class="rsr-cluster">${escapeHtml(m.cluster)}</span>
      </div>`).join('') +
@@ -3237,8 +3237,8 @@ function renderDetailCharts(cluster, clusterName) {
   durContainer.innerHTML = `<h4>${durMetricLabel} Job Duration by Recipe
       <span class="info-icon" data-doc-key="${durMetricLabel === 'Avg' ? 'avg' : 'p95'}">ⓘ</span>
       <span class="seg-toggle dur-metric-toggle" role="tablist">
-        <button class="seg ${durMetricLabel === 'P95' ? 'active' : ''}" data-metric="p95" role="tab">P95</button>
-        <button class="seg ${durMetricLabel === 'Avg' ? 'active' : ''}" data-metric="avg" role="tab">Avg</button>
+        <button class="seg ${durMetricLabel === 'P95' ? 'active' : ''}" data-metric="p95" role="tab" aria-selected="${durMetricLabel === 'P95' ? 'true' : 'false'}">P95</button>
+        <button class="seg ${durMetricLabel === 'Avg' ? 'active' : ''}" data-metric="avg" role="tab" aria-selected="${durMetricLabel === 'Avg' ? 'true' : 'false'}">Avg</button>
       </span></h4>
     <div class="chart-scroll"><canvas id="dur-chart"></canvas></div>`;
   chartsDiv.appendChild(durContainer);
@@ -4774,7 +4774,7 @@ async function renderClusterSummaryGraphs() {
 
   renderCsKpis(history, currentEntryHist);
   wireCsExpandButtons();
-  renderCsLineCharts(history, currentDate);
+  renderCsLineCharts(history);
   renderCsAreaChart(history, currentDate);
   renderCsScatters(history, currentDate);
   renderCsDistribution(history, currentDate);
@@ -4919,7 +4919,7 @@ function clusterHue(name) {
 // Build a multi-series line chart: one line per cluster, dates on the x-axis.
 // The top-8 clusters by latest value get full-color emphasis + legend chips;
 // the rest render dimmed so the chart stays readable.
-function renderCsLineChart(canvasId, history, currentDate, valueKey, label, formatter) {
+function renderCsLineChart(canvasId, history, valueKey, label, formatter) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
 
@@ -5042,11 +5042,11 @@ function renderCsLineChart(canvasId, history, currentDate, valueKey, label, form
   });
 }
 
-function renderCsLineCharts(history, currentDate) {
-  renderCsLineChart('cs-line-cost', history, currentDate, 'estimated_cost_eur', '€', (v) => `${formatNum(v)} €`);
-  renderCsLineChart('cs-line-workers', history, currentDate, 'num_of_workers', 'workers', (v) => formatNum(v));
-  renderCsLineChart('cs-line-minutes', history, currentDate, 'total_active_minutes', 'min', (v) => formatNum(v));
-  renderCsLineChart('cs-line-jobs', history, currentDate, 'no_of_jobs', 'jobs', (v) => formatNum(v));
+function renderCsLineCharts(history) {
+  renderCsLineChart('cs-line-cost', history, 'estimated_cost_eur', '€', (v) => `${formatNum(v)} €`);
+  renderCsLineChart('cs-line-workers', history, 'num_of_workers', 'workers', (v) => formatNum(v));
+  renderCsLineChart('cs-line-minutes', history, 'total_active_minutes', 'min', (v) => formatNum(v));
+  renderCsLineChart('cs-line-jobs', history, 'no_of_jobs', 'jobs', (v) => formatNum(v));
 }
 
 // Stacked-area chart of cost across all clusters over time.
