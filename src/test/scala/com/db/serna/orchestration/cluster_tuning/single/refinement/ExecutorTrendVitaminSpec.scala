@@ -113,6 +113,7 @@ class ExecutorTrendVitaminSpec extends AnyFunSuite with Matchers {
     big.priorityRank shouldBe Some(1)
     big.newMax shouldBe 8 // capacity-clamped full grant: +4 executors × 8 cores = the whole 32-core pool
     small.newMax shouldBe 5 // degraded to +1, not zero
+    small.priorityRank shouldBe Some(2)
     small.reason should include("pool-exhausted")
   }
 }

@@ -615,7 +615,7 @@ class ExecutorTrendVitamin(
     val trendSignals = signals.collect { case s: TrendScaleSignal => s }
 
     // Phase 1: independent per-recipe decisions.
-    val perRecipe: Seq[(TrendScaleSignal, RecipeConfig, TrendScaleDecision, Int)] = trendSignals.flatMap { sig =>
+    val perRecipe: Seq[(TrendScaleDecision, Int, Option[Double])] = trendSignals.flatMap { sig =>
       recipes.get(sig.recipeFilename).map { rc =>
         val (isManual, min, initial, max) = extractAllocation(rc)
         val execCores =
@@ -626,14 +626,15 @@ class ExecutorTrendVitamin(
         val decision =
           ExecutorTrendScaler.decide(sig.recipeFilename, isManual, min, initial, max, sig.reference, sig.current,
             gains, capacity, prior)
-        (sig, rc, decision, execCores)
+        (decision, execCores, prior)
       }
     }
 
     // Phase 2: cluster-wide capacity-budgeted prioritization of the UP grants.
+    // Precondition: all signals in one computeBoosts call belong to ONE cluster (the pipeline runs per cluster JSON), so the first signal's clusterMaxTotalCores is the cluster's.
     val clusterCores = trendSignals.headOption.map(_.clusterMaxTotalCores).getOrElse(0)
     val prioritized = ExecutorTrendScaler.prioritize(
-      perRecipe.map { case (_, _, d, ec) => ExecutorTrendScaler.RecipeCores(d, ec) },
+      perRecipe.map { case (d, ec, _) => ExecutorTrendScaler.RecipeCores(d, ec) },
       clusterCores,
       gains.upPoolRatio
     )
@@ -642,9 +643,8 @@ class ExecutorTrendVitamin(
     // must keep stamping (Holding). Stable recipes with no prior tag produce nothing — this keeps the
     // pipeline's per-vitamin counter/list (trendScaledJobCount/List) meaningful rather than listing the
     // whole fleet.
-    perRecipe.zip(prioritized).flatMap { case ((sig, rc, _, _), d) =>
-      val prior = rc.extraFields.get(boostFieldKey).flatMap(s => scala.util.Try(s.toDouble).toOption)
-      if (d.changed || prior.isDefined) Some(TrendScaleBoost(sig.recipeFilename, d)) else None
+    perRecipe.zip(prioritized).flatMap { case ((_, _, prior), d) =>
+      if (d.changed || prior.isDefined) Some(TrendScaleBoost(d.recipe, d)) else None
     }
   }
 
