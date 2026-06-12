@@ -1,2 +1,2 @@
 cluster_name,recipe_filename,peak_job_duration_ms
-mock-cluster-capacity,_CAPACITY_HOG.json,200000
+mock-cluster-capacity,_CAPACITY_HOG.json,3000000

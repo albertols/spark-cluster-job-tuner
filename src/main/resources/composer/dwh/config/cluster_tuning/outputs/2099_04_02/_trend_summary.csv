@@ -1,2 +1,2 @@
 cluster,recipe,trend,confidence,action,reason,p95_duration_ref,p95_duration_cur,p95_duration_pct_change
-mock-cluster-capacity,_CAPACITY_HOG.json,degraded,1,boost_resources,Performance degraded: p95_job_duration_ms changed 100.0%. Re-planning with current metrics.,100000,200000,100
+mock-cluster-capacity,_CAPACITY_HOG.json,degraded,1,boost_resources,Performance degraded: p95_job_duration_ms changed 150.0%. Re-planning with current metrics.,1200000,3000000,150

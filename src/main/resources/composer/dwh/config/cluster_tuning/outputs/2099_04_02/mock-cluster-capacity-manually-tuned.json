@@ -24,7 +24,7 @@
   "recipeSparkConf": {
     "_CAPACITY_HOG.json": {
       "parallelizationFactor": 5,
-      "appliedTrendScaleFactor": 1.5,
+      "appliedTrendScaleFactor": 1.75,
       "maxCoreUsagePct": 83.3,
       "maxMemoryUsagePct": 41.7,
       "capacityStatus": "clamped",
