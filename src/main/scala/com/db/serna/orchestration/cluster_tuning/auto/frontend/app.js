@@ -1543,6 +1543,7 @@ async function showClusterDetailRaw(clusterName) {
     mountClusterUtilHeatmap(cur);
     renderClusterConfComparison(clusterName, ref, cur, refDate, curDate);
     annotateKeptRecipeCards(cur);
+    annotateConfChangeIcons(ref, cur);
     renderDetailClusterCost(clusterName, ref, cur, refDate, curDate, prevRef, prevRefDate);
   });
 
@@ -1621,6 +1622,61 @@ function annotateKeptRecipeCards(curJson) {
     } else {
       heading.appendChild(pill);
     }
+  });
+}
+
+// Parse "8g" / "512m" → GB number (null when unparseable).
+function parseMemGbStr(s) {
+  const m = /^(\d+(?:\.\d+)?)\s*([gGmM])/.exec(String(s || ''));
+  if (!m) return null;
+  const v = parseFloat(m[1]);
+  return m[2].toLowerCase() === 'g' ? v : v / 1024;
+}
+
+// Append compact ▲/▼ chips after each recipe name showing what the new config
+// changed vs the reference date: executors (min/max or instances) and memory.
+function annotateConfChangeIcons(refJson, curJson) {
+  if (!refJson || !refJson.recipeSparkConf || !curJson || !curJson.recipeSparkConf) return;
+  const refConf = refJson.recipeSparkConf, curConf = curJson.recipeSparkConf;
+  document.querySelectorAll('.detail-recipe-card').forEach(card => {
+    const recipe = card.dataset.recipe;
+    const rc = refConf[recipe], cc = curConf[recipe];
+    if (!rc || !cc || !rc.sparkOptsMap || !cc.sparkOptsMap) return;
+    const heading = card.querySelector('h4');
+    if (!heading || heading.querySelector('.conf-delta-icons')) return; // idempotent
+
+    const icons = [];
+    const intDelta = (key, glyph, label) => {
+      const a = parseInt(rc.sparkOptsMap[key], 10), b = parseInt(cc.sparkOptsMap[key], 10);
+      if (Number.isFinite(a) && Number.isFinite(b) && a !== b) {
+        icons.push({ dir: b > a ? 'up' : 'down', glyph, title: `${label}: ${a} → ${b}` });
+      }
+    };
+    intDelta('spark.dynamicAllocation.maxExecutors', 'E', 'maxExecutors');
+    intDelta('spark.dynamicAllocation.minExecutors', 'm', 'minExecutors');
+    intDelta('spark.executor.instances', 'E', 'executor instances');
+    const memA = parseMemGbStr(rc.sparkOptsMap['spark.executor.memory']);
+    const memB = parseMemGbStr(cc.sparkOptsMap['spark.executor.memory']);
+    if (memA !== null && memB !== null && memA !== memB) {
+      icons.push({
+        dir: memB > memA ? 'up' : 'down', glyph: 'M',
+        title: `executor memory: ${rc.sparkOptsMap['spark.executor.memory']} → ${cc.sparkOptsMap['spark.executor.memory']}`
+      });
+    }
+    if (!icons.length) return;
+
+    const wrap = document.createElement('span');
+    wrap.className = 'conf-delta-icons';
+    icons.forEach(ic => {
+      const s = document.createElement('span');
+      s.className = `conf-delta-icon ${ic.dir}`;
+      s.textContent = `${ic.glyph}${ic.dir === 'up' ? '▲' : '▼'}`;
+      s.title = ic.title;
+      wrap.appendChild(s);
+    });
+    const nameSpan = heading.querySelector('.recipe-name-text');
+    if (nameSpan && nameSpan.parentNode) nameSpan.parentNode.insertBefore(wrap, nameSpan.nextSibling);
+    else heading.appendChild(wrap);
   });
 }
 

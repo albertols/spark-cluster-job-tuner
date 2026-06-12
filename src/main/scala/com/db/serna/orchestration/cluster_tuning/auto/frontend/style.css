@@ -1644,6 +1644,15 @@ h3.section-heading {
   cursor: help;
 }
 
+/* ── Config-change delta icons (▲/▼ chips on recipe card headings) ──────── */
+.conf-delta-icons { display: inline-flex; gap: 3px; margin-left: 6px; vertical-align: middle; }
+.conf-delta-icon {
+  font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 8px;
+  cursor: help; letter-spacing: 0.3px;
+}
+.conf-delta-icon.up { color: #d29922; background: rgba(210, 153, 34, 0.15); border: 1px solid rgba(210, 153, 34, 0.45); }
+.conf-delta-icon.down { color: #39c5cf; background: rgba(57, 197, 207, 0.12); border: 1px solid rgba(57, 197, 207, 0.4); }
+
 /* ── Z-score strip plot ──────────────────────────────────────────────────── */
 #z-strip-plot { margin: 12px 0 16px; }
 .z-strip-row { margin-bottom: 4px; }
