@@ -797,7 +797,8 @@ object ClusterMachineAndRecipeAutoTuner {
       divergences.size,
       b14HoldingClusters.toSeq,
       b14StateByCluster.toMap,
-      executorScaleBoostedRecipes.toSeq
+      executorScaleBoostedRecipes.toSeq,
+      trendScaledRecipes.toSeq
     )
 
     logger.info(s"AutoTuner finished. Output: ${curOutputDir.getPath}")
@@ -1286,7 +1287,8 @@ object ClusterMachineAndRecipeAutoTuner {
       divergenceCount: Int,
       b14Holding: Seq[(String, String)] = Seq.empty,
       b14StateByCluster: Map[String, String] = Map.empty,
-      executorScaleBoosts: Seq[(String, Seq[ExecutorScaleBoost])] = Seq.empty
+      executorScaleBoosts: Seq[(String, Seq[ExecutorScaleBoost])] = Seq.empty,
+      trendScaledRecipes: Seq[(String, Seq[TrendScaleDecision])] = Seq.empty
   ): Unit = {
     val trendCounts = allTrends.groupBy(_.trend.label).mapValues(_.size)
     val totalRecipes = allTrends.size
@@ -1398,6 +1400,39 @@ object ClusterMachineAndRecipeAutoTuner {
     }
     sb.append("\n")
 
+    val trTotalClusters = trendScaledRecipes.size
+    val trTotalRecipes = trendScaledRecipes.flatMap { case (_, ds) => ds.map(_.recipe) }.distinct.size
+    sb.append("-" * 72).append("\n")
+    sb.append(s"  TREND EXECUTOR SCALING  ($trTotalRecipes recipe(s) across $trTotalClusters cluster(s))\n")
+    sb.append("-" * 72).append("\n")
+    if (trendScaledRecipes.isEmpty) {
+      sb.append("  (none)\n")
+    } else {
+      trendScaledRecipes.foreach { case (cluster, decisions) =>
+        val unique = decisions.groupBy(_.recipe).values.map(_.head).toSeq.sortBy(_.recipe)
+        sb.append(s"  $cluster  (${unique.size} recipe(s))\n")
+        unique.foreach { d =>
+          val recipe = d.recipe.stripPrefix("_").stripSuffix(".json")
+          val tag = d.state match {
+            case BoostState.New => ""
+            case BoostState.ReBoost => f"  [re-boost · cumulative x${d.cumulativeFactor}%.2f]"
+            case BoostState.Holding => "  [holding]"
+          }
+          if (d.isManual)
+            sb.append(
+              ("    %-52s  [%s] spark.executor.instances: %d -> %d%s\n")
+                .format(recipe, d.direction.label, d.originalMax, d.newMax, tag)
+            )
+          else
+            sb.append(
+              ("    %-52s  [%s] min/max: %d/%d -> %d/%d%s\n")
+                .format(recipe, d.direction.label, d.originalMin, d.originalMax, d.newMin, d.newMax, tag)
+            )
+        }
+      }
+    }
+    sb.append("\n")
+
     sb.append("-" * 72).append("\n")
     sb.append("  STATISTICAL ANALYSIS\n")
     sb.append("-" * 72).append("\n")
@@ -1427,8 +1462,73 @@ object ClusterMachineAndRecipeAutoTuner {
       divergenceCount,
       b14Holding,
       b14StateByCluster,
-      executorScaleBoosts
+      executorScaleBoosts,
+      trendScaledRecipes
     )
+  }
+
+  /**
+   * Build the `executor_trend` entry for the structured summary's `boost_groups` array. Self-contained (own quoting)
+   * so it can be unit-tested in isolation. `source: "trend"` and the `count_up`/`count_down` fields distinguish this
+   * longitudinal path from the divergence-driven `executor_scale` (z-score) group; both are recipe-level.
+   *
+   * The input is already filtered to changed decisions by the AutoTuner; entries are deduped by recipe per cluster.
+   */
+  private[auto] def trendBoostGroup(trendScaledRecipes: Seq[(String, Seq[TrendScaleDecision])]): String = {
+    def esc(s: String): String = {
+      val sb = new StringBuilder
+      s.foreach {
+        case '"' => sb.append("\\\"")
+        case '\\' => sb.append("\\\\")
+        case '\n' => sb.append("\\n")
+        case '\r' => sb.append("\\r")
+        case '\t' => sb.append("\\t")
+        case c if c < 0x20 => sb.append("\\u%04x".format(c.toInt))
+        case c => sb.append(c)
+      }
+      sb.toString
+    }
+    def q(s: String): String = "\"" + esc(s) + "\""
+
+    val entries: String = trendScaledRecipes
+      .map { case (cluster, decisions) =>
+        val unique = decisions.groupBy(_.recipe).values.map(_.head).toSeq.sortBy(_.recipe)
+        val recipes = unique
+          .map { d =>
+            val recipe = d.recipe.stripPrefix("_").stripSuffix(".json")
+            val propagated = d.state == BoostState.Holding
+            val maxObj =
+              s"${q("spark_dynamic_allocation_max_executors")}:{${q("from")}:${d.originalMax},${q("to")}:${d.newMax}," +
+                s"${q("factor")}:${"%.2f".format(d.appliedFactor)},${q("cumulative_factor")}:${"%.2f".format(d.cumulativeFactor)}}"
+            val minObj =
+              s"${q("spark_dynamic_allocation_min_executors")}:{${q("from")}:${d.originalMin},${q("to")}:${d.newMin}}"
+            s"{${q("recipe")}:${q(recipe)}," +
+              s"${q("recipe_filename")}:${q(d.recipe)}," +
+              s"${q("state")}:${q(d.state.label)}," +
+              s"${q("direction")}:${q(d.direction.label)}," +
+              s"${q("manual")}:${d.isManual}," +
+              s"${q("propagated")}:$propagated," +
+              s"$minObj,$maxObj}"
+          }
+          .mkString(",")
+        s"{${q("cluster")}:${q(cluster)},${q("recipes")}:[$recipes]}"
+      }
+      .mkString(",")
+
+    val flat: Seq[TrendScaleDecision] = trendScaledRecipes.flatMap { case (_, decisions) =>
+      decisions.groupBy(_.recipe).values.map(_.head).toSeq
+    }
+    val total = flat.size
+    val newCount = flat.count(d => d.state == BoostState.New || d.state == BoostState.ReBoost)
+    val holdingCount = flat.count(_.state == BoostState.Holding)
+    val upCount = flat.count(_.direction == ScaleDirection.Up)
+    val downCount = flat.count(_.direction == ScaleDirection.Down)
+    val clusterCount = trendScaledRecipes.map(_._1).distinct.size
+
+    s"{${q("code")}:${q("executor_trend")},${q("title")}:${q("Trend Executor Scaling")},${q("kind")}:${q("recipe")}," +
+      s"${q("count")}:$total,${q("count_new")}:$newCount,${q("count_holding")}:$holdingCount," +
+      s"${q("count_up")}:$upCount,${q("count_down")}:$downCount,${q("cluster_count")}:$clusterCount," +
+      s"${q("source")}:${q("trend")},${q("entries")}:[$entries]}"
   }
 
   /**
@@ -1452,7 +1552,8 @@ object ClusterMachineAndRecipeAutoTuner {
       divergenceCount: Int,
       b14Holding: Seq[(String, String)] = Seq.empty,
       b14StateByCluster: Map[String, String] = Map.empty,
-      executorScaleBoosts: Seq[(String, Seq[ExecutorScaleBoost])] = Seq.empty
+      executorScaleBoosts: Seq[(String, Seq[ExecutorScaleBoost])] = Seq.empty,
+      trendScaledRecipes: Seq[(String, Seq[TrendScaleDecision])] = Seq.empty
   ): Unit = {
     val trendCounts = allTrends.groupBy(_.trend.label).mapValues(_.size)
     val totalRecipes = allTrends.size
@@ -1595,8 +1696,9 @@ object ClusterMachineAndRecipeAutoTuner {
       s"    {${q("code")}:${q("b16")},${q("title")}:${q("OOM Reboosting")},${q("kind")}:${q("recipe")},${q("count")}:$b16TotalRecipesJson,${q("count_new")}:$b16NewCount,${q("count_holding")}:$b16HoldingCount,${q("cluster_count")}:${b16Boosts.size},${q("entries")}:[$b16Json]},\n"
     )
     sb.append(
-      s"    {${q("code")}:${q("executor_scale")},${q("title")}:${q("Z-score Executor SCALE-UP")},${q("kind")}:${q("recipe")},${q("count")}:$esTotalRecipesJson,${q("count_new")}:$esNewCount,${q("count_holding")}:$esHoldingCount,${q("cluster_count")}:${executorScaleBoosts.size},${q("source")}:${q("derived")},${q("entries")}:[$esJson]}\n"
+      s"    {${q("code")}:${q("executor_scale")},${q("title")}:${q("Z-score Executor SCALE-UP")},${q("kind")}:${q("recipe")},${q("count")}:$esTotalRecipesJson,${q("count_new")}:$esNewCount,${q("count_holding")}:$esHoldingCount,${q("cluster_count")}:${executorScaleBoosts.size},${q("source")}:${q("derived")},${q("entries")}:[$esJson]},\n"
     )
+    sb.append("    ").append(trendBoostGroup(trendScaledRecipes)).append("\n")
     sb.append("  ],\n")
     sb.append(
       s"  ${q("statistical_analysis")}:{${q("correlation_pairs")}:$correlationCount,${q("divergences")}:$divergenceCount}\n"
