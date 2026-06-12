@@ -832,6 +832,131 @@ object MockScenarios {
     MultiDateScenario(name = "divergenceShowcase", perDate = Map(refDate -> ref, curDate -> cur))
   }
 
+  // ── durationDrift — the censoring trap: a capped recipe that slows down ────
+  //
+  // Minimal multi-date fixture that exercises the trend-driven executor scaler
+  // (ExecutorTrendScaler / ExecutorTrendVitamin). One cluster, one auto-scale
+  // recipe `_DRIFT_DEMO.json` that:
+  //   * stays pinned at its executor ceiling in BOTH dates
+  //     (`p95_run_max_executors` unchanged, `fraction_reaching_cap` high), and
+  //   * runs ~2× slower in the current date (p95 + avg duration doubled).
+  //
+  // Because the job is censored at the cap, the classic z-score path cannot tell
+  // it needs more parallelism; the longitudinal trend path can, and raises both
+  // min and max proportionally. `fraction_reaching_cap = 0.9` makes the
+  // cap-pressure gate fire regardless of the planned maxExecutors, so the
+  // scenario triggers the UP decision deterministically.
+
+  private def driftRecipe(name: String, p95DurMs: Double, avgDurMs: Double): MockRecipe = MockRecipe(
+    name = name,
+    avgExecutorsPerJob = 3.0,
+    p95RunMaxExecutors = 3.0, // pinned at the cap across both dates (censored)
+    avgJobDurationMs = avgDurMs,
+    p95JobDurationMs = p95DurMs,
+    runs = 20L,
+    secondsAtCap = Some(900L),
+    runsReachingCap = Some(18L),
+    totalRuns = Some(20L),
+    fractionReachingCap = Some(0.9),
+    maxConcurrentJobs = Some(3)
+  )
+
+  def durationDrift(refDate: String, curDate: String, seed: Long = 1234L): MultiDateScenario = {
+    val (s1, e1) = windowFor(refDate)
+    val (s2, e2) = windowFor(curDate)
+
+    val refCluster = MockCluster(
+      name = "mock-cluster-drift",
+      recipes = Seq(driftRecipe("_DRIFT_DEMO.json", p95DurMs = 100000.0, avgDurMs = 90000.0)),
+      incarnations = Seq(
+        MockIncarnation(
+          spanStart = s1.plus(2, ChronoUnit.HOURS),
+          spanEnd = s1.plus(10, ChronoUnit.HOURS)
+        )
+      )
+    )
+    val ref = MockScenario(
+      name = "durationDrift-reference",
+      seed = seed,
+      window = (s1, e1),
+      clusters = Seq(refCluster)
+    )
+
+    val curCluster = MockCluster(
+      name = "mock-cluster-drift",
+      // Same executor ceiling, ~2× slower → the censoring case.
+      recipes = Seq(driftRecipe("_DRIFT_DEMO.json", p95DurMs = 200000.0, avgDurMs = 180000.0)),
+      incarnations = Seq(
+        MockIncarnation(
+          spanStart = s2.plus(2, ChronoUnit.HOURS),
+          spanEnd = s2.plus(10, ChronoUnit.HOURS)
+        )
+      )
+    )
+    val cur = MockScenario(
+      name = "durationDrift-current",
+      seed = seed,
+      window = (s2, e2),
+      clusters = Seq(curCluster)
+    )
+
+    MultiDateScenario(name = "durationDrift", perDate = Map(refDate -> ref, curDate -> cur))
+  }
+
+  // ── capacityPressure — the censoring trap meets a hard capacity ceiling ──────
+  //
+  // One single-tenant cluster (maxConcurrentJobs = 1) with a single cap-saturated,
+  // high-demand recipe `_CAPACITY_HOG.json` that runs ~2× slower in the current date
+  // while pinned at its executor ceiling (`fraction_reaching_cap = 0.9`). The
+  // longitudinal trend scaler reads the slowdown and inflates the recipe's executor
+  // ceiling toward the cluster's full physical capacity; the CapacityGuard FINAL pass
+  // then clamps that inflated ceiling back to 0.90 of the per-node-packed capacity,
+  // stamping `capacityStatus: "clamped"` and the cores/memory utilization %. This is
+  // the end-to-end proof of the guard (and the red heatmap cell): the planner's own
+  // sizing buffer never trips the guard, only post-plan trend/z-score inflation does.
+
+  private def capacityHog(name: String, p95DurMs: Double, avgDurMs: Double): MockRecipe = MockRecipe(
+    name = name,
+    avgExecutorsPerJob = 60.0,
+    p95RunMaxExecutors = 96.0, // pinned at the cap across both dates (censored)
+    avgJobDurationMs = avgDurMs,
+    p95JobDurationMs = p95DurMs,
+    runs = 20L,
+    secondsAtCap = Some(1200L),
+    runsReachingCap = Some(18L),
+    totalRuns = Some(20L),
+    fractionReachingCap = Some(0.9),
+    maxConcurrentJobs = Some(1)
+  )
+
+  def capacityPressure(refDate: String, curDate: String, seed: Long = 1234L): MultiDateScenario = {
+    val (s1, e1) = windowFor(refDate)
+    val (s2, e2) = windowFor(curDate)
+
+    def cluster(start: Instant, p95DurMs: Double, avgDurMs: Double): MockCluster = MockCluster(
+      name = "mock-cluster-capacity",
+      recipes = Seq(capacityHog("_CAPACITY_HOG.json", p95DurMs, avgDurMs)),
+      incarnations = Seq(
+        MockIncarnation(start.plus(2, ChronoUnit.HOURS), start.plus(10, ChronoUnit.HOURS))
+      )
+    )
+
+    // Same executor ceiling, ~2× slower in current → the censoring case the trend scaler resolves.
+    val ref = MockScenario(
+      name = "capacityPressure-reference",
+      clusters = Seq(cluster(s1, p95DurMs = 100000.0, avgDurMs = 90000.0)),
+      window = (s1, e1),
+      seed = seed
+    )
+    val cur = MockScenario(
+      name = "capacityPressure-current",
+      clusters = Seq(cluster(s2, p95DurMs = 200000.0, avgDurMs = 180000.0)),
+      window = (s2, e2),
+      seed = seed
+    )
+    MultiDateScenario(name = "capacityPressure", perDate = Map(refDate -> ref, curDate -> cur))
+  }
+
   // ── CLI lookup ─────────────────────────────────────────────────────────────
 
   /** Single-date scenarios callable by name from the CLI. */
@@ -867,7 +992,9 @@ object MockScenarios {
     "multiDateBaseline" -> (multiDateBaseline _),
     "mixedDropAndDegrade" -> (mixedDropAndDegrade _),
     "multiDateSyntheticSpan" -> (multiDateSyntheticSpan _),
-    "divergenceShowcase" -> (divergenceShowcase _)
+    "divergenceShowcase" -> (divergenceShowcase _),
+    "durationDrift" -> (durationDrift _),
+    "capacityPressure" -> (capacityPressure _)
   )
 
   val multiDateNames: Seq[String] = multiDate.keys.toSeq.sorted

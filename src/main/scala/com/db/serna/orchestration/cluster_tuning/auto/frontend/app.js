@@ -1246,6 +1246,108 @@ function renderClusterDetailBoosts(clusterName) {
   });
 }
 
+// ── Cluster utilization heatmap (cores band over memory band) ───────────────
+// Pure: maps a per-recipe usage % + capacity status to a colour tier class.
+function utilTier(pct, status) {
+  if (status === 'infeasible') return 'util-infeasible';
+  if (status === 'clamped' || status === 'tight') return 'util-clamped';
+  if (pct >= 90) return 'util-red';
+  if (pct >= 80) return 'util-orange';
+  if (pct >= 60) return 'util-amber';
+  return 'util-green';
+}
+
+// Cell pixel size, persisted in the URL like the divSort/divDir state.
+function getHeatZoom() {
+  const p = new URLSearchParams(window.location.search);
+  const z = parseInt(p.get('heatZoom'), 10);
+  return (z >= 6 && z <= 28) ? z : 12;
+}
+function setHeatZoom(px) {
+  const p = new URLSearchParams(window.location.search);
+  p.set('heatZoom', String(px));
+  history.replaceState(null, '', '?' + p.toString());
+  document.querySelectorAll('.util-heatmap').forEach(h => h.style.setProperty('--util-cell', px + 'px'));
+}
+
+// Pure: build the heatmap HTML from a cluster's recipeSparkConf object.
+function renderClusterUtilHeatmap(recipeSparkConf) {
+  const names = Object.keys(recipeSparkConf || {}).sort();
+  const rows = names.map(n => {
+    const r = recipeSparkConf[n] || {};
+    const opts = r.sparkOptsMap || {};
+    const execs = opts['spark.dynamicAllocation.maxExecutors'] || opts['spark.executor.instances'] || '?';
+    return {
+      name: n,
+      core: typeof r.maxCoreUsagePct === 'number' ? r.maxCoreUsagePct : null,
+      mem: typeof r.maxMemoryUsagePct === 'number' ? r.maxMemoryUsagePct : null,
+      status: r.capacityStatus || 'ok',
+      execs: execs
+    };
+  });
+  const haveData = rows.some(r => r.core !== null || r.mem !== null);
+  if (!haveData) {
+    return '<div class="util-heatmap-wrap"><div class="util-empty">No utilization data for this cluster (re-run the tuner to populate cores/memory %).</div></div>';
+  }
+  const cell = (r, kind) => {
+    const pct = kind === 'core' ? r.core : r.mem;
+    const tier = pct === null ? 'util-none' : utilTier(pct, r.status);
+    const short = recipeShortName(r.name);
+    const title = `${short}\ncores ${r.core == null ? '—' : r.core + '%'} · mem ${r.mem == null ? '—' : r.mem + '%'} · ${r.execs} exec` +
+      (r.status !== 'ok' ? ` · ${r.status}` : '');
+    return `<div class="util-cell ${tier}" data-recipe="${escapeAttr(r.name)}" title="${escapeAttr(title)}"></div>`;
+  };
+  const band = (label, kind) =>
+    `<div class="util-band"><div class="util-band-label">${label}</div>` +
+    `<div class="util-grid">${rows.map(r => cell(r, kind)).join('')}</div></div>`;
+  const z = getHeatZoom();
+  return (
+    '<div class="util-heatmap-wrap">' +
+    '<div class="util-heatmap-head"><span class="util-title">Cluster utilization (max, single/last job)</span>' +
+    '<span class="util-zoom"><button type="button" data-heatzoom="-1" aria-label="Zoom out">−</button><button type="button" data-heatzoom="1" aria-label="Zoom in">+</button></span></div>' +
+    `<div class="util-heatmap" style="--util-cell:${z}px">` +
+    band('CORES', 'core') + band('MEMORY', 'mem') +
+    '</div>' +
+    '<div class="util-legend"><span class="util-cell util-green"></span>&lt;60%' +
+    '<span class="util-cell util-amber"></span>60–80%' +
+    '<span class="util-cell util-orange"></span>80–90%' +
+    '<span class="util-cell util-red"></span>≥90%' +
+    '<span class="util-cell util-clamped"></span>clamped</div>' +
+    '</div>'
+  );
+}
+
+// Mount the heatmap into #detail-util-heatmap and wire zoom + click-through.
+function mountClusterUtilHeatmap(curJson) {
+  const host = document.getElementById('detail-util-heatmap');
+  if (!host) return;
+  const conf = (curJson && curJson.recipeSparkConf) || null;
+  host.innerHTML = renderClusterUtilHeatmap(conf);
+  host.querySelectorAll('[data-heatzoom]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cur = getHeatZoom();
+      const next = Math.max(6, Math.min(28, cur + (parseInt(btn.dataset.heatzoom, 10) * 2)));
+      setHeatZoom(next);
+    });
+  });
+  host.querySelectorAll('.util-cell[data-recipe]').forEach(c => {
+    c.addEventListener('click', () => {
+      const recipe = c.dataset.recipe;
+      const target = document.querySelector(`.detail-recipe-card[data-recipe="${cssAttrEscape(recipe)}"]`);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.classList.add('flash-highlight');
+        setTimeout(() => target.classList.remove('flash-highlight'), 1200);
+      }
+    });
+  });
+}
+
+// Escape a string for safe use inside a CSS attribute selector value.
+function cssAttrEscape(s) {
+  return String(s).replace(/["\\]/g, '\\$&');
+}
+
 function renderClusterGrid() {
   const search = document.getElementById('cluster-search').value.toLowerCase();
   const trendFilter = document.getElementById('trend-filter').value;
@@ -1432,6 +1534,7 @@ async function showClusterDetailRaw(clusterName) {
     `<div class="empty-msg">Loading cluster configurations…</div>`;
 
   loadClusterJsonsForDates(clusterName).then(({ ref, cur, prevRef, refDate, curDate, prevRefDate }) => {
+    mountClusterUtilHeatmap(cur);
     renderClusterConfComparison(clusterName, ref, cur, refDate, curDate);
     annotateKeptRecipeCards(cur);
     renderDetailClusterCost(clusterName, ref, cur, refDate, curDate, prevRef, prevRefDate);

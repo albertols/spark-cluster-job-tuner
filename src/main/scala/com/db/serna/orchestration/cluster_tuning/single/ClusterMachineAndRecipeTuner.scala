@@ -460,7 +460,8 @@ object ClusterMachineAndRecipeTuner {
       inputDir: File,
       outputDir: File,
       defaultMaster: MachineType,
-      defaultWorker: MachineType
+      defaultWorker: MachineType,
+      maxClusterUtilRatio: Double = CapacityGuard.DefaultRatio
   )
 
   object Config {
@@ -1386,7 +1387,8 @@ object ClusterMachineAndRecipeTuner {
       plans: Seq[RecipePlanManual],
       tunerVersion: String,
       driverOverride: Option[DriverResourceOverride],
-      costTimeline: Option[String] = None
+      costTimeline: Option[String] = None,
+      maxClusterUtilRatio: Double = CapacityGuard.DefaultRatio
   ): String = {
     import Json._
     // When a YARN eviction override is present, use the promoted master machine type.
@@ -1399,8 +1401,15 @@ object ClusterMachineAndRecipeTuner {
     val accumMemGb: Int = plans.map(p => p.sparkExecutorInstances * p.sparkExecutorMemoryGb).sum
     val totalJobs: Int = plans.size
 
+    val minWorkers = AutoscalingPolicyConfig.minWorkersForCluster(cluster.workers)
+    val maxWorkers = AutoscalingPolicyConfig.maxWorkersForCluster(cluster.workers)
+    val (scaledMaxCores, scaledMaxMemGb) =
+      CapacityGuard.scaledMax(cluster.workerMachineType.cores, cluster.workerMachineType.memoryGb, maxWorkers)
+
     val baseFields: Seq[(String, String)] = Seq(
       "num_workers" -> num(cluster.workers),
+      "min_workers" -> num(minWorkers),
+      "max_workers" -> num(maxWorkers),
       "master_machine_type" -> str(effectiveMaster.name),
       "worker_machine_type" -> str(cluster.workerMachineType.name),
       "autoscaling_policy" -> str(autoscalingPolicy),
@@ -1408,6 +1417,8 @@ object ClusterMachineAndRecipeTuner {
       "total_no_of_jobs" -> num(totalJobs),
       "cluster_max_total_memory_gb" -> num(clusterMaxMemGb),
       "cluster_max_total_cores" -> num(clusterMaxCores),
+      "cluster_scaled_max_cores" -> num(scaledMaxCores),
+      "cluster_scaled_max_memory_gb" -> num(scaledMaxMemGb),
       "accumulated_max_total_memory_per_jobs_gb" -> num(accumMemGb)
     )
 
@@ -1421,19 +1432,30 @@ object ClusterMachineAndRecipeTuner {
     val clusterConf: String = obj(cluster.clusterName -> obj((baseFields ++ driverFields): _*))
 
     val recipes: Seq[(String, String)] = plans.map { p =>
-      val minTotalMemGb = p.sparkExecutorInstances * p.sparkExecutorMemoryGb
-      val maxTotalMemGb = minTotalMemGb
+      val r = CapacityGuard.guard(
+        isManual = true, p.sparkExecutorInstances, p.sparkExecutorInstances, p.sparkExecutorInstances,
+        p.sparkExecutorCores, p.sparkExecutorMemoryGb,
+        cluster.workerMachineType.cores, cluster.workerMachineType.memoryGb, maxWorkers, maxClusterUtilRatio
+      )
+      val totalMemGb = r.newMax * p.sparkExecutorMemoryGb
+      val capacityField: Seq[(String, String)] =
+        if (r.status == CapacityStatus.Ok) Nil else Seq("capacityStatus" -> str(r.status.label))
       p.recipe -> obj(
-        "parallelizationFactor" -> num(5),
-        "sparkOptsMap" -> obj(
-          "spark.serializer" -> str("org.apache.spark.serializer.KryoSerializer"),
-          "spark.closure.serializer" -> str("org.apache.spark.serializer.KryoSerializer"),
-          "spark.executor.instances" -> str(s"${p.sparkExecutorInstances}"),
-          "spark.executor.cores" -> str(s"${p.sparkExecutorCores}"),
-          "spark.executor.memory" -> str(s"${p.sparkExecutorMemoryGb}g")
-        ),
-        "total_executor_minimum_allocated_memory_gb" -> num(minTotalMemGb),
-        "total_executor_maximum_allocated_memory_gb" -> num(maxTotalMemGb)
+        (Seq(
+          "parallelizationFactor" -> num(5),
+          "maxCoreUsagePct" -> num(r.maxCoreUsagePct),
+          "maxMemoryUsagePct" -> num(r.maxMemoryUsagePct)
+        ) ++ capacityField ++ Seq(
+          "sparkOptsMap" -> obj(
+            "spark.serializer" -> str("org.apache.spark.serializer.KryoSerializer"),
+            "spark.closure.serializer" -> str("org.apache.spark.serializer.KryoSerializer"),
+            "spark.executor.instances" -> str(s"${r.newMax}"),
+            "spark.executor.cores" -> str(s"${p.sparkExecutorCores}"),
+            "spark.executor.memory" -> str(s"${p.sparkExecutorMemoryGb}g")
+          ),
+          "total_executor_minimum_allocated_memory_gb" -> num(totalMemGb),
+          "total_executor_maximum_allocated_memory_gb" -> num(totalMemGb)
+        )): _*
       )
     }
 
@@ -1452,7 +1474,8 @@ object ClusterMachineAndRecipeTuner {
       plans: Seq[RecipePlanDA],
       tunerVersion: String,
       driverOverride: Option[DriverResourceOverride],
-      costTimeline: Option[String] = None
+      costTimeline: Option[String] = None,
+      maxClusterUtilRatio: Double = CapacityGuard.DefaultRatio
   ): String = {
     import Json._
     val effectiveMaster: MachineType =
@@ -1464,8 +1487,15 @@ object ClusterMachineAndRecipeTuner {
     val accumMemGb: Int = plans.map(p => p.maxExecutors * p.sparkExecutorMemoryGb).sum
     val totalJobs: Int = plans.size
 
+    val minWorkers = AutoscalingPolicyConfig.minWorkersForCluster(cluster.workers)
+    val maxWorkers = AutoscalingPolicyConfig.maxWorkersForCluster(cluster.workers)
+    val (scaledMaxCores, scaledMaxMemGb) =
+      CapacityGuard.scaledMax(cluster.workerMachineType.cores, cluster.workerMachineType.memoryGb, maxWorkers)
+
     val baseFields: Seq[(String, String)] = Seq(
       "num_workers" -> num(cluster.workers),
+      "min_workers" -> num(minWorkers),
+      "max_workers" -> num(maxWorkers),
       "master_machine_type" -> str(effectiveMaster.name),
       "worker_machine_type" -> str(cluster.workerMachineType.name),
       "autoscaling_policy" -> str(autoscalingPolicy),
@@ -1473,6 +1503,8 @@ object ClusterMachineAndRecipeTuner {
       "total_no_of_jobs" -> num(totalJobs),
       "cluster_max_total_memory_gb" -> num(clusterMaxMemGb),
       "cluster_max_total_cores" -> num(clusterMaxCores),
+      "cluster_scaled_max_cores" -> num(scaledMaxCores),
+      "cluster_scaled_max_memory_gb" -> num(scaledMaxMemGb),
       "accumulated_max_total_memory_per_jobs_gb" -> num(accumMemGb)
     )
 
@@ -1486,22 +1518,34 @@ object ClusterMachineAndRecipeTuner {
     val clusterConf: String = obj(cluster.clusterName -> obj((baseFields ++ driverFields): _*))
 
     val recipes: Seq[(String, String)] = plans.map { p =>
-      val minTotalMemGb = p.minExecutors * p.sparkExecutorMemoryGb
-      val maxTotalMemGb = p.maxExecutors * p.sparkExecutorMemoryGb
+      val r = CapacityGuard.guard(
+        isManual = false, p.minExecutors, p.initialExecutors, p.maxExecutors,
+        p.sparkExecutorCores, p.sparkExecutorMemoryGb,
+        cluster.workerMachineType.cores, cluster.workerMachineType.memoryGb, maxWorkers, maxClusterUtilRatio
+      )
+      val minTotalMemGb = r.newMin * p.sparkExecutorMemoryGb
+      val maxTotalMemGb = r.newMax * p.sparkExecutorMemoryGb
+      val capacityField: Seq[(String, String)] =
+        if (r.status == CapacityStatus.Ok) Nil else Seq("capacityStatus" -> str(r.status.label))
       p.recipe -> obj(
-        "parallelizationFactor" -> num(5),
-        "sparkOptsMap" -> obj(
-          "spark.serializer" -> str("org.apache.spark.serializer.KryoSerializer"),
-          "spark.closure.serializer" -> str("org.apache.spark.serializer.KryoSerializer"),
-          "spark.dynamicAllocation.enabled" -> str("true"),
-          "spark.dynamicAllocation.minExecutors" -> str(s"${p.minExecutors}"),
-          "spark.dynamicAllocation.maxExecutors" -> str(s"${p.maxExecutors}"),
-          "spark.dynamicAllocation.initialExecutors" -> str(s"${p.initialExecutors}"),
-          "spark.executor.cores" -> str(s"${p.sparkExecutorCores}"),
-          "spark.executor.memory" -> str(s"${p.sparkExecutorMemoryGb}g")
-        ),
-        "total_executor_minimum_allocated_memory_gb" -> num(minTotalMemGb),
-        "total_executor_maximum_allocated_memory_gb" -> num(maxTotalMemGb)
+        (Seq(
+          "parallelizationFactor" -> num(5),
+          "maxCoreUsagePct" -> num(r.maxCoreUsagePct),
+          "maxMemoryUsagePct" -> num(r.maxMemoryUsagePct)
+        ) ++ capacityField ++ Seq(
+          "sparkOptsMap" -> obj(
+            "spark.serializer" -> str("org.apache.spark.serializer.KryoSerializer"),
+            "spark.closure.serializer" -> str("org.apache.spark.serializer.KryoSerializer"),
+            "spark.dynamicAllocation.enabled" -> str("true"),
+            "spark.dynamicAllocation.minExecutors" -> str(s"${r.newMin}"),
+            "spark.dynamicAllocation.maxExecutors" -> str(s"${r.newMax}"),
+            "spark.dynamicAllocation.initialExecutors" -> str(s"${r.newInitial}"),
+            "spark.executor.cores" -> str(s"${p.sparkExecutorCores}"),
+            "spark.executor.memory" -> str(s"${p.sparkExecutorMemoryGb}g")
+          ),
+          "total_executor_minimum_allocated_memory_gb" -> num(minTotalMemGb),
+          "total_executor_maximum_allocated_memory_gb" -> num(maxTotalMemGb)
+        )): _*
       )
     }
 
@@ -1740,8 +1784,9 @@ object ClusterMachineAndRecipeTuner {
       )
 
       val manualJsonStr: String =
-        manualJson(clusterPlan, manualPlans, tunerVersion, driverOverride, breakdown.costTimelineJson)
-      val daJsonStr: String = daJson(clusterPlan, daPlans, tunerVersion, driverOverride, breakdown.costTimelineJson)
+        manualJson(clusterPlan, manualPlans, tunerVersion, driverOverride, breakdown.costTimelineJson, cfg.maxClusterUtilRatio)
+      val daJsonStr: String =
+        daJson(clusterPlan, daPlans, tunerVersion, driverOverride, breakdown.costTimelineJson, cfg.maxClusterUtilRatio)
 
       writeFile(cfg.outputDir, s"$clusterName-manually-tuned.json", manualJsonStr)
       writeFile(cfg.outputDir, s"$clusterName-auto-scale-tuned.json", daJsonStr)
@@ -1839,8 +1884,15 @@ object ClusterMachineAndRecipeTuner {
       case None => baseStrategy
     }
 
+    // Optional hard ceiling on a recipe's executors as a fraction of the cluster's per-node-packed scaled-max.
+    val maxClusterUtilRatio: Double = args
+      .find(_.startsWith("--max-cluster-util-ratio="))
+      .map(_.stripPrefix("--max-cluster-util-ratio=").toDouble)
+      .filter(r => r > 0.0 && r <= 1.0)
+      .getOrElse(CapacityGuard.DefaultRatio)
+
     val date = dateArg.get
-    val cfg = Config(useFlattened = useFlattened, date = date)
+    val cfg = Config(useFlattened = useFlattened, date = date).copy(maxClusterUtilRatio = maxClusterUtilRatio)
 
     logger.info(s"Starting ClusterMachineAndRecipeTuner with Config: $cfg, strategy=${strategy.name}")
     run(cfg, strategy)
@@ -1869,5 +1921,8 @@ object ClusterMachineAndRecipeTuner {
         case n => n
       }
     }
+
+    /** Always-on primary worker count = the autoscaling floor. (A single seam to swap in real policy min later.) */
+    def minWorkersForCluster(numWorkers: Int): Int = numWorkers
   }
 }

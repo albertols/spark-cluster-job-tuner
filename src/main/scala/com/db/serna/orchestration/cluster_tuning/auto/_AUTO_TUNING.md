@@ -243,6 +243,32 @@ Lifecycle is identical to b16: a recipe scaled in a prior run that no longer tri
 
 Disable with `--executor-scale-factor=1.0`.
 
+### Trend-driven executor scaling (`ExecutorTrendVitamin`)
+
+Runs **before** the z-score pass and feeds off the same `pairs` the AutoTuner already computes — the per-recipe reference→current `RecipeMetrics`. Where the z-score path keys off *cross-recipe* duration outliers (and only lifts `max`), the trend path keys off the *same recipe's longitudinal* slowdown and resizes the **whole** allocation, closing the censoring trap where a job pinned at its `maxExecutors` cannot signal that it needs more parallelism. The full decision logic and gates are documented in [`_REFINEMENT.md` → Trend-driven executor scaling](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/_REFINEMENT.md#trend-driven-executor-scaling).
+
+**Effect:**
+
+- `spark.dynamicAllocation.{min,initial,max}Executors` move proportionally to the blended duration ratio (`min` rises more conservatively than `max` via `minGain < gain`), clamped to cluster capacity and `min ≤ max − 1`. Manual recipes scale `spark.executor.instances` as a single count.
+- Conservative scale-**DOWN** when a job speeds up with cap headroom — never below observed peak/steady demand + margin, never below 2. Disable with `--no-trend-downscale`.
+- `appliedTrendScaleFactor` stamped per recipe — **distinct** from `appliedExecutorScaleFactor` so the trend baseline and the z-score extra-boost compose without lifecycle cross-talk (combined effect = product of the two fields).
+- `BoostMetadataCarrier.carryTrendMetadata` carries the prior boosted `min`/`initial`/`max` and the factor into a freshly re-planned cluster JSON (same rationale as the b16 carry) so `Holding` / `ReBoost` survive a from-scratch re-plan.
+
+Lifecycle (`New` / `ReBoost` / `Holding`) is identical to b16/z-score. Gains derive from the active bias preset; override per gain with the `--trend-*` flags below.
+
+### Capacity guard (final pass) (`CapacityGuardVitamin`)
+
+Runs **after** trend + z-score scaling, at both evolution call sites, via `applyCapacityGuard`. It reads each output JSON's `clusterConf` scaled-max fields (deriving `nodeCores = cluster_scaled_max_cores / max_workers`, `nodeMemGb = cluster_scaled_max_memory_gb / max_workers`) and runs the pure `CapacityGuard` per recipe. This is the safety net that closes the loop on the censoring trap: the trend/z-score passes can inflate a recipe's executor ceiling past what the cluster can physically schedule, and the guard clamps it back to `--max-cluster-util-ratio` (default 0.90) of the **per-node-packed** capacity — so a job can never linger forever on YARN waiting for containers that never arrive.
+
+**Effect:**
+
+- Clamps `spark.dynamicAllocation.{min,initial,max}Executors` (or `spark.executor.instances`) to `capExecutors = max_workers × min(floor(ratio·nodeCores/ec), floor(ratio·nodeMemGb/em))`. `min`/`initial` are pulled down with `max` when needed.
+- (Re)stamps `maxCoreUsagePct` / `maxMemoryUsagePct` (computed from the **post-clamp** count) and, when non-Ok, `capacityStatus` (`clamped` / `tight` / `infeasible`).
+- **Idempotent** — re-running on already-guarded JSON is a no-op, so it is safe after every scale pass and across re-plans. No boost lifecycle. Rewrites a file only when it clamps something or the `%` fields are missing (parity with the trend/z-score `cost_timeline` behavior).
+- Full math + the per-node-packing rationale: [`_REFINEMENT.md` → `CapacityGuardVitamin`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/_REFINEMENT.md) and [`_CLUSTER_TUNING.md` → Cluster utilization & capacity guard](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/_CLUSTER_TUNING.md).
+
+The dashboard renders these `%` as a stacked **cores-over-memory heatmap** in the cluster detail pane (colour tiers green→amber→orange→red, `capacityStatus` cells rendered red/hatched; zoom via `?heatZoom=`, hover tooltip, click-through to the recipe).
+
 ### KeepAsIs / PreserveHistorical
 
 Reference output JSONs are read via `SimpleJsonParser` and re-emitted verbatim. This ensures exact config preservation with no floating-point drift from re-computation. After re-emission, b16 reboosting is applied if OOM signals are present in either date.
@@ -348,6 +374,13 @@ main(Array("--reference-date=2025_12_20", "--current-date=2026_04_15",
 | `--executor-scale-factor` | 1.5 | Z-score-driven executor scale-up factor for `spark.dynamicAllocation.maxExecutors`. Pass `1.0` to disable. |
 | `--scale-z-threshold` | 3.0 | Min positive z-score on `avg/p95_job_duration_ms` that triggers an executor scale-up (separate, stricter than `--divergence-z-threshold`) |
 | `--scale-cap-touch-ratio` | 0.5 | Cap-touching gate: scale-up only fires when `p95_run_max_executors / current maxExecutors ≥ this`. Permissive by default; raise to `0.85` for near-saturation only. |
+| `--trend-scale-gain` | bias preset | Override the up-scale gain on `maxExecutors`. Higher = more aggressive trend scale-up. Range `[0.0, 2.0]`. |
+| `--trend-min-gain` | bias preset | Override the up-scale gain on `minExecutors` (normally `< --trend-scale-gain` so the floor rises more conservatively). Range `[0.0, 2.0]`. |
+| `--trend-scale-deadband` | 0.10 | Fractional duration increase required to trigger trend scale-up (the UP hysteresis band). |
+| `--trend-scale-max-step` | bias preset | Per-run multiplicative clamp on trend scale-up. Range `[1.0, 5.0]`. |
+| `--trend-scale-min-runs` | 5 | Minimum runs on each side for a usable duration ratio (confidence floor). |
+| `--trend-downscale` / `--no-trend-downscale` | on | Enable / disable conservative trend-driven scale-DOWN when jobs speed up with cap headroom. |
+| `--max-cluster-util-ratio` | 0.90 | Hard ceiling on a recipe's executors as a fraction of the cluster's per-node-packed scaled-max capacity (cores AND memory). The `CapacityGuard` final pass clamps any recipe above it. Validated `0 < r ≤ 1`. |
 
 ---
 
@@ -366,7 +399,7 @@ All outputs are written to `outputs/<current_date>/` (the same dir the single tu
 | `_generation_summary.json` | Quota tracking and strategy metadata |
 | `_generation_summary.csv` | Same as above in CSV format |
 | `_generation_summary_auto_tuner.txt` | Human-readable summary report (b14 / b16 / z-score executor scale-up boosts, evolution stats) |
-| `_generation_summary_auto_tuner.json` | Structured sibling consumed by the dashboard. Contains `boost_groups` array — one entry per code (`b14`, `b16`, `executor_scale`, future bNN) with `kind`, `count`, `count_new`, `count_holding`, `cluster_count`, `entries`, and `source: "derived"` for divergence-driven groups. |
+| `_generation_summary_auto_tuner.json` | Structured sibling consumed by the dashboard. Contains `boost_groups` array — one entry per code (`b14`, `b16`, `executor_scale`, `executor_trend`, future bNN) with `kind`, `count`, `count_new`, `count_holding`, `cluster_count`, `entries`, and `source` (`derived` for the z-score group, `trend` for `executor_trend`). The `executor_trend` group additionally carries `count_up` / `count_down`. |
 | `_clusters-summary.csv` | All clusters sorted by workers desc, jobs desc |
 | `_clusters-summary-only-clusters-wf.csv` | Filtered to `clusters-wf-` prefix |
 | `_clusters-summary_top_jobs.csv` | Sorted by job count |
@@ -591,6 +624,7 @@ Frontend:
 ### Recently Implemented
 
 - **Z-score-driven executor scale-up** (`ExecutorScaleVitamin`) — feeds off `divergences_current_snapshot`; bumps `spark.dynamicAllocation.maxExecutors`. CLI: `--executor-scale-factor`, `--scale-z-threshold`, `--scale-cap-touch-ratio`.
+- **Trend-driven executor scaling** (`ExecutorTrendVitamin`) — feeds off the per-recipe reference→current duration trend; resizes `min`/`initial`/`max` (or manual `instances`) proportionally, closing the cap-pressure censoring trap. Runs before the z-score pass and stamps `appliedTrendScaleFactor`. CLI: `--trend-scale-gain`, `--trend-min-gain`, `--trend-scale-deadband`, `--trend-scale-max-step`, `--trend-scale-min-runs`, `--trend-downscale`/`--no-trend-downscale`. Emits the `executor_trend` boost group.
 - **B16 boost compounding across re-plans** (`BoostMetadataCarrier`) — prior boost factor + boosted memory + totals carried from REF output into freshly replanned CUR output, so `applyB16Reboosting` can correctly route to `Holding` / `ReBoost`.
 - **Sortable divergences table** — click-to-sort per column with asc/desc toggle, persisted via `?divSort=…&divDir=…`.
 - **Generic `boost_groups` rendering** — frontend iterates the array; b14 / b16 / executor_scale chips, panels, and badges are produced uniformly.

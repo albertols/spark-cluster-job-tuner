@@ -17,6 +17,8 @@ class ScenarioSpec extends AnyFunSuite with Matchers {
   private val curDate = "2099_01_02"
 
   private val showcase = MockScenarios.divergenceShowcase(refDate, curDate)
+  private val drift = MockScenarios.durationDrift(refDate, curDate)
+  private val cap = MockScenarios.capacityPressure(refDate, curDate)
   private val scenarios: Seq[(String, MockScenario)] = Seq(
     "minimal" -> MockScenarios.minimal(testDate),
     "baseline" -> MockScenarios.baseline(testDate),
@@ -24,7 +26,11 @@ class ScenarioSpec extends AnyFunSuite with Matchers {
     "autoscaling" -> MockScenarios.autoscaling(testDate),
     "syntheticSpan" -> MockScenarios.syntheticSpan(testDate),
     "divergenceShowcase-reference" -> showcase.perDate(refDate),
-    "divergenceShowcase-current" -> showcase.perDate(curDate)
+    "divergenceShowcase-current" -> showcase.perDate(curDate),
+    "durationDrift-reference" -> drift.perDate(refDate),
+    "durationDrift-current" -> drift.perDate(curDate),
+    "capacityPressure-reference" -> cap.perDate(refDate),
+    "capacityPressure-current" -> cap.perDate(curDate)
   )
 
   // ── Per-scenario invariants ───────────────────────────────────────────────

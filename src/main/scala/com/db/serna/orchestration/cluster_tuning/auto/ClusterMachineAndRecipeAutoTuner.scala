@@ -2,6 +2,8 @@ package com.db.serna.orchestration.cluster_tuning.auto
 
 import com.db.serna.orchestration.cluster_tuning.single.ClusterMachineAndRecipeTuner.AutoscalingPolicyConfig
 import com.db.serna.orchestration.cluster_tuning.single.{
+  CapacityGuard,
+  CapacityStatus,
   ClusterDiagnosticsProcessor,
   ClusterMachineAndRecipeTuner,
   ClusterSummary,
@@ -12,6 +14,7 @@ import com.db.serna.orchestration.cluster_tuning.single.{
   GenerationSummary,
   GenerationSummaryEntry,
   GenerationSummaryWriter,
+  GuardResult,
   MachineCatalog,
   PerformanceBiasedStrategy,
   QuotaTracker,
@@ -21,14 +24,23 @@ import com.db.serna.orchestration.cluster_tuning.single.{
 }
 import com.db.serna.orchestration.cluster_tuning.single.refinement.{
   BoostState,
+  CapacityGuardBoost,
+  CapacityGuardSignal,
+  CapacityGuardVitamin,
   ExecutorScaleBoost,
   ExecutorScaleSignal,
   ExecutorScaleVitamin,
+  ExecutorTrendVitamin,
   MemoryHeapBoost,
   MemoryHeapBoostVitamin,
   RefinementPipeline,
   RefinementVitamin,
+  ScaleDirection,
+  ScaleGains,
   SimpleJsonParser,
+  TrendScaleBoost,
+  TrendScaleDecision,
+  TrendScaleSignal,
   TunedClusterConfig
 }
 import org.rogach.scallop._
@@ -125,6 +137,47 @@ class AutoTunerConf(arguments: Seq[String]) extends ScallopConf(arguments) {
     validate = r => r > 0.0 && r <= 1.0
   )
 
+  val maxClusterUtilRatio: ScallopOption[Double] = opt[Double](
+    default = Some(0.90),
+    descr = "Hard ceiling on a recipe's executors as a fraction of the cluster's per-node-packed scaled-max capacity " +
+      "(cores AND memory). Prevents un-schedulable over-allocation (default: 0.90).",
+    validate = r => r > 0.0 && r <= 1.0
+  )
+
+  // ── Trend-driven proportional executor scaling (longitudinal reference→current duration trend) ──
+  // These tune the new ExecutorTrendScaler. Defaults come from the active bias preset (ScaleGains.fromBias);
+  // any flag set here overrides that preset. All are back-compatible (omit them to keep the bias defaults).
+  val trendScaleGain: ScallopOption[Double] = opt[Double](
+    default = None,
+    descr = "Override the up-scale gain on maxExecutors (default: bias preset). Higher = more aggressive scale-up.",
+    validate = g => g >= 0.0 && g <= 2.0
+  )
+  val trendMinGain: ScallopOption[Double] = opt[Double](
+    default = None,
+    descr = "Override the up-scale gain on minExecutors (default: bias preset, normally < trend-scale-gain).",
+    validate = g => g >= 0.0 && g <= 2.0
+  )
+  val trendScaleDeadband: ScallopOption[Double] = opt[Double](
+    default = None,
+    descr = "Fractional duration increase required to trigger trend scale-up (default: 0.10).",
+    validate = d => d >= 0.0 && d < 1.0
+  )
+  val trendScaleMaxStep: ScallopOption[Double] = opt[Double](
+    default = None,
+    descr = "Per-run multiplicative clamp on trend scale-up (default: bias preset).",
+    validate = s => s >= 1.0 && s <= 5.0
+  )
+  val trendScaleMinRuns: ScallopOption[Long] = opt[Long](
+    default = None,
+    descr = "Minimum runs on each side for a usable duration ratio (default: 5).",
+    validate = r => r >= 0L
+  )
+  val trendDownscaleEnabled: ScallopOption[Boolean] = toggle(
+    default = Some(true),
+    descrYes = "Enable conservative trend-driven scale-DOWN when jobs speed up (default: on).",
+    descrNo = "Disable trend-driven scale-down (up-only)."
+  )
+
   verify()
 }
 
@@ -159,6 +212,7 @@ object ClusterMachineAndRecipeAutoTuner {
     val executorScaleFactor = conf.executorScaleFactor()
     val scaleZThreshold = conf.scaleZThreshold()
     val scaleCapTouchRatio = conf.scaleCapTouchRatio()
+    val maxClusterUtilRatio = conf.maxClusterUtilRatio()
 
     logger.info(
       s"AutoTuner starting: reference=$refDate current=$curDate strategy=$strategyName " +
@@ -293,6 +347,24 @@ object ClusterMachineAndRecipeAutoTuner {
     val policy = tuningStrategy.toTuningPolicy(defaultMachine)
     val quotaTracker = new QuotaTracker(tuningStrategy.quotas)
 
+    // Trend-scale gains derived from the active bias, with optional CLI overrides. Drives the new
+    // longitudinal ExecutorTrendScaler (reference→current duration trend → executor min/max/instances).
+    val trendGains: ScaleGains = ScaleGains.fromBias(
+      tuningStrategy.biasMode,
+      gainOverride = conf.trendScaleGain.toOption,
+      minGainOverride = conf.trendMinGain.toOption,
+      maxStepOverride = conf.trendScaleMaxStep.toOption,
+      deadbandUpOverride = conf.trendScaleDeadband.toOption,
+      minRunsOverride = conf.trendScaleMinRuns.toOption,
+      downscaleEnabledOverride = conf.trendDownscaleEnabled.toOption
+    )
+    // One trend signal per paired (reference, current) recipe. clusterMaxTotalCores is filled in at apply
+    // time from the cluster's emitted JSON (clusterConf.cluster_max_total_cores); 0 here means "derive then".
+    val trendSignalsByCluster: Map[String, Seq[TrendScaleSignal]] =
+      pairs
+        .map(p => TrendScaleSignal(p.cluster, p.recipe, p.reference, p.current, clusterMaxTotalCores = 0))
+        .groupBy(_.clusterName)
+
     // 8. Generate outputs
     // Outputs share the same per-date dir as the single tuner so that subsequent
     // AutoTuner runs can read the previous run's output via loadReferenceConfigs
@@ -320,6 +392,8 @@ object ClusterMachineAndRecipeAutoTuner {
     val b14StateByCluster = scala.collection.mutable.Map.empty[String, String]
     val b16BoostedRecipes = ArrayBuffer.empty[(String, Seq[MemoryHeapBoost])] // (cluster, boosts)
     val executorScaleBoostedRecipes = ArrayBuffer.empty[(String, Seq[ExecutorScaleBoost])] // (cluster, boosts)
+    // (cluster, decisions) — only recipes the trend scaler actually changed. Consumed by the summary boost group.
+    val trendScaledRecipes = ArrayBuffer.empty[(String, Seq[TrendScaleDecision])]
     var keptClusters = 0
     var boostedClusters = 0
     var freshClusters = 0
@@ -405,6 +479,15 @@ object ClusterMachineAndRecipeAutoTuner {
             }
           }
 
+          // Trend-driven scaling runs first; the z-score pass below adds an extra boost for outliers.
+          // On the kept path the prior trend factor is already present in the copied reference JSON,
+          // so the scaler Holds/ReBoosts/relaxes from it without a separate carry step.
+          val keptTrendSignals = trendSignalsByCluster.getOrElse(clusterName, Seq.empty)
+          val keptTrendDecisions = applyTrendScaling(clusterName, curOutputDir, keptTrendSignals, trendGains)
+          if (keptTrendDecisions.exists(_.changed)) {
+            trendScaledRecipes += ((clusterName, keptTrendDecisions.filter(_.changed)))
+          }
+
           // Apply divergence-driven executor scale-up after b16 (b16 sets memory;
           // scale-up sets the autoscaling ceiling — order is independent, but
           // running scale-up second keeps both passes deterministic).
@@ -416,6 +499,9 @@ object ClusterMachineAndRecipeAutoTuner {
               executorScaleBoostedRecipes += ((clusterName, boosts))
             }
           }
+
+          // Final safety pass: never let a recipe out-request the cluster's schedulable capacity.
+          applyCapacityGuard(clusterName, curOutputDir, maxClusterUtilRatio)
 
         case BoostResources | GenerateFresh =>
           if (primaryAction == GenerateFresh) freshClusters += 1 else boostedClusters += 1
@@ -579,6 +665,12 @@ object ClusterMachineAndRecipeAutoTuner {
             // first run after the b16 CSV stops reporting the recipe.
             carryPriorBoostMetadata(clusterName, refOutputDir, curOutputDir)
 
+            // Carry forward prior trend-scaling metadata (boosted min/initial/max or instances +
+            // appliedTrendScaleFactor) into the freshly emitted JSON, for the same reason as the b16
+            // carry above — otherwise a re-plan resets the recipe to baseline counts and the prior
+            // trend boost is lost before applyTrendScaling can Hold/ReBoost from it.
+            carryPriorTrendMetadata(clusterName, refOutputDir, curOutputDir)
+
             // Apply b16 reboosting: check both reference and current input dirs.
             // OOM signals from either date must persist to prevent regression.
             if (b16Factor > 1.0) {
@@ -592,6 +684,13 @@ object ClusterMachineAndRecipeAutoTuner {
               }
             }
 
+            // Trend-driven scaling runs before the z-score pass (which adds an extra outlier boost on top).
+            val freshTrendSignals = trendSignalsByCluster.getOrElse(clusterName, Seq.empty)
+            val freshTrendDecisions = applyTrendScaling(clusterName, curOutputDir, freshTrendSignals, trendGains)
+            if (freshTrendDecisions.exists(_.changed)) {
+              trendScaledRecipes += ((clusterName, freshTrendDecisions.filter(_.changed)))
+            }
+
             // Apply divergence-driven executor scale-up.
             if (executorScaleFactor > 1.0) {
               val signals = scaleSignalsByCluster.getOrElse(clusterName, Seq.empty)
@@ -601,6 +700,9 @@ object ClusterMachineAndRecipeAutoTuner {
                 executorScaleBoostedRecipes += ((clusterName, boosts))
               }
             }
+
+            // Final safety pass: never let a recipe out-request the cluster's schedulable capacity.
+            applyCapacityGuard(clusterName, curOutputDir, maxClusterUtilRatio)
 
             // Use the same interval-based wall-clock minutes + interval cost +
             // time-weighted worker stats already computed above (breakdown).
@@ -715,7 +817,8 @@ object ClusterMachineAndRecipeAutoTuner {
       divergences.size,
       b14HoldingClusters.toSeq,
       b14StateByCluster.toMap,
-      executorScaleBoostedRecipes.toSeq
+      executorScaleBoostedRecipes.toSeq,
+      trendScaledRecipes.toSeq
     )
 
     logger.info(s"AutoTuner finished. Output: ${curOutputDir.getPath}")
@@ -975,6 +1078,140 @@ object ClusterMachineAndRecipeAutoTuner {
     }
   }
 
+  /** Parallel to [[carryPriorBoostMetadata]] but for trend-scaling metadata (executor counts + factor). */
+  private def carryPriorTrendMetadata(clusterName: String, refOutputDir: File, curOutputDir: File): Unit = {
+    Seq("-auto-scale-tuned.json", "-manually-tuned.json").foreach { suffix =>
+      val refFile = new File(refOutputDir, s"$clusterName$suffix")
+      val curFile = new File(curOutputDir, s"$clusterName$suffix")
+      if (refFile.exists() && curFile.exists()) {
+        try {
+          val refContent = scala.io.Source.fromFile(refFile).mkString
+          val curContent = scala.io.Source.fromFile(curFile).mkString
+          val refConfig = SimpleJsonParser.parse(refContent)
+          val recipesWithPriorTrend: Set[String] = refConfig.recipes.collect {
+            case (name, rc) if rc.extraFields.contains("appliedTrendScaleFactor") => name
+          }.toSet
+          if (recipesWithPriorTrend.nonEmpty) {
+            val updated = BoostMetadataCarrier.injectPriorTrendScaling(curContent, refContent, recipesWithPriorTrend)
+            if (updated ne curContent) {
+              ClusterMachineAndRecipeTuner.writeFile(curOutputDir, curFile.getName, updated)
+              logger.info(
+                s"  Carried prior trend metadata for ${recipesWithPriorTrend.size} recipe(s) into $clusterName$suffix"
+              )
+            }
+          }
+        } catch {
+          case e: Exception =>
+            logger.warn(s"Failed to carry prior trend metadata into $clusterName$suffix: ${e.getMessage}")
+        }
+      }
+    }
+  }
+
+  /**
+   * Apply longitudinal trend-driven scaling to a cluster's tuned JSONs (auto-scale and manual). Runs BEFORE the z-score
+   * [[ExecutorScaleVitamin]] so the z-score path adds an extra boost on top of the trend baseline. Capacity is read from
+   * each file's `clusterConf.cluster_max_total_cores` divided by the recipe's `spark.executor.cores`. Returns the
+   * decisions that were emitted (the vitamin only emits for recipes it touches — changed or carrying a prior factor).
+   */
+  private def applyTrendScaling(
+      clusterName: String,
+      outputDir: File,
+      signals: Seq[TrendScaleSignal],
+      gains: ScaleGains
+  ): Seq[TrendScaleDecision] = {
+    if (signals.isEmpty) return Seq.empty
+    val fileNames = Seq(s"$clusterName-auto-scale-tuned.json", s"$clusterName-manually-tuned.json")
+    val allDecisions = ArrayBuffer.empty[TrendScaleDecision]
+    fileNames.foreach { fileName =>
+      val file = new File(outputDir, fileName)
+      if (file.exists()) {
+        try {
+          val config = SimpleJsonParser.parseFile(file)
+          val clusterCores = config.clusterConfFields
+            .find(_._1 == "cluster_max_total_cores")
+            .flatMap { case (_, v) => scala.util.Try(v.toInt).toOption }
+            .getOrElse(0)
+          val enriched = signals.map(_.copy(clusterMaxTotalCores = clusterCores))
+          val lookup: String => Seq[TrendScaleSignal] = c => if (c == clusterName) enriched else Seq.empty
+          val vitamins: Seq[RefinementVitamin] = Seq(new ExecutorTrendVitamin(gains, lookup))
+          val result = RefinementPipeline.refine(config, vitamins, Seq(outputDir))
+          val decisions = result.appliedBoosts.collect { case b: TrendScaleBoost => b.decision }
+          // Rewrite only when an executor count actually moved. A pure Holding decision leaves the file as-is;
+          // its carried `appliedTrendScaleFactor` is already present (copied reference JSON on the kept path, or
+          // injected by carryPriorTrendMetadata on the re-plan path), so there is nothing to re-stamp.
+          if (decisions.exists(_.changed)) {
+            ClusterMachineAndRecipeTuner.writeFile(outputDir, fileName, RefinementPipeline.toRefinedJson(result))
+          }
+          allDecisions ++= decisions
+          val up = decisions.count(_.direction == ScaleDirection.Up)
+          val down = decisions.count(_.direction == ScaleDirection.Down)
+          val hold = decisions.count(_.direction == ScaleDirection.Hold)
+          if (decisions.nonEmpty) {
+            logger.info(s"  trend scaling on $fileName: $up up, $down down, $hold hold")
+          }
+        } catch {
+          case e: Exception =>
+            logger.warn(s"Failed trend scaling for $clusterName/$fileName: ${e.getMessage}")
+        }
+      }
+    }
+    allDecisions.toSeq
+  }
+
+  /**
+   * Final safety pass: clamp every recipe so it can never request more executors than the cluster can schedule, and
+   * (re)stamp `maxCoreUsagePct` / `maxMemoryUsagePct`. Runs AFTER trend + z-score scaling. Capacity is read from the
+   * clusterConf scaled-max fields written by the single tuner (`nodeCores = cluster_scaled_max_cores / max_workers`).
+   *
+   * Rewrites a file only when the guard clamps something OR the file is missing the `%` fields (which happens after a
+   * trend/z-score rewrite dropped them). This preserves parity with the existing passes around `cost_timeline`: a
+   * cluster untouched by any scaling keeps its single-tuner-emitted `%` (and `cost_timeline`); a scaled cluster — which
+   * already lost `cost_timeline` to the trend/z-score rewrite — is re-stamped with fresh `%`.
+   */
+  private def applyCapacityGuard(clusterName: String, outputDir: File, ratio: Double): Seq[GuardResult] = {
+    val fileNames = Seq(s"$clusterName-auto-scale-tuned.json", s"$clusterName-manually-tuned.json")
+    val all = ArrayBuffer.empty[GuardResult]
+    fileNames.foreach { fileName =>
+      val file = new File(outputDir, fileName)
+      if (file.exists()) {
+        try {
+          val config = SimpleJsonParser.parseFile(file)
+          def confInt(k: String): Option[Int] =
+            config.clusterConfFields.find(_._1 == k).flatMap { case (_, v) => scala.util.Try(v.toInt).toOption }
+          val maxWorkers = confInt("max_workers").getOrElse(0)
+          val scaledCores = confInt("cluster_scaled_max_cores").getOrElse(0)
+          val scaledMem = confInt("cluster_scaled_max_memory_gb").getOrElse(0)
+          if (maxWorkers <= 0 || scaledCores <= 0 || scaledMem <= 0) {
+            logger.warn(s"capacity guard skipped for $clusterName/$fileName: missing scaled-max clusterConf fields")
+          } else {
+            val nodeCores = scaledCores / maxWorkers
+            val nodeMem = scaledMem / maxWorkers
+            val sigs =
+              config.recipeOrder.map(r => CapacityGuardSignal(clusterName, r, nodeCores, nodeMem, maxWorkers, ratio))
+            val lookup: String => Seq[CapacityGuardSignal] = c => if (c == clusterName) sigs else Seq.empty
+            val result = RefinementPipeline.refine(config, Seq(new CapacityGuardVitamin(lookup)), Seq(outputDir))
+            val decisions = result.appliedBoosts.collect { case b: CapacityGuardBoost => b.result }
+            val clampedAny = decisions.exists(_.status != CapacityStatus.Ok)
+            val pctMissing = {
+              val have = config.rawJson.split("maxCoreUsagePct", -1).length - 1
+              have < config.recipeOrder.size
+            }
+            if (clampedAny || pctMissing) {
+              ClusterMachineAndRecipeTuner.writeFile(outputDir, fileName, RefinementPipeline.toRefinedJson(result))
+            }
+            all ++= decisions
+            val clamped = decisions.count(_.status != CapacityStatus.Ok)
+            if (clamped > 0) logger.info(s"  capacity guard on $fileName: $clamped recipe(s) clamped/tight/infeasible")
+          }
+        } catch {
+          case e: Exception => logger.warn(s"Failed capacity guard for $clusterName/$fileName: ${e.getMessage}")
+        }
+      }
+    }
+    all.toSeq
+  }
+
   /**
    * Apply b16 memory heap OOM reboosting to a cluster's output JSONs.
    *
@@ -1123,7 +1360,8 @@ object ClusterMachineAndRecipeAutoTuner {
       divergenceCount: Int,
       b14Holding: Seq[(String, String)] = Seq.empty,
       b14StateByCluster: Map[String, String] = Map.empty,
-      executorScaleBoosts: Seq[(String, Seq[ExecutorScaleBoost])] = Seq.empty
+      executorScaleBoosts: Seq[(String, Seq[ExecutorScaleBoost])] = Seq.empty,
+      trendScaledRecipes: Seq[(String, Seq[TrendScaleDecision])] = Seq.empty
   ): Unit = {
     val trendCounts = allTrends.groupBy(_.trend.label).mapValues(_.size)
     val totalRecipes = allTrends.size
@@ -1235,6 +1473,39 @@ object ClusterMachineAndRecipeAutoTuner {
     }
     sb.append("\n")
 
+    val trTotalClusters = trendScaledRecipes.size
+    val trTotalRecipes = trendScaledRecipes.flatMap { case (_, ds) => ds.map(_.recipe) }.distinct.size
+    sb.append("-" * 72).append("\n")
+    sb.append(s"  TREND EXECUTOR SCALING  ($trTotalRecipes recipe(s) across $trTotalClusters cluster(s))\n")
+    sb.append("-" * 72).append("\n")
+    if (trendScaledRecipes.isEmpty) {
+      sb.append("  (none)\n")
+    } else {
+      trendScaledRecipes.foreach { case (cluster, decisions) =>
+        val unique = decisions.groupBy(_.recipe).values.map(_.head).toSeq.sortBy(_.recipe)
+        sb.append(s"  $cluster  (${unique.size} recipe(s))\n")
+        unique.foreach { d =>
+          val recipe = d.recipe.stripPrefix("_").stripSuffix(".json")
+          val tag = d.state match {
+            case BoostState.New => ""
+            case BoostState.ReBoost => f"  [re-boost · cumulative x${d.cumulativeFactor}%.2f]"
+            case BoostState.Holding => "  [holding]"
+          }
+          if (d.isManual)
+            sb.append(
+              ("    %-52s  [%s] spark.executor.instances: %d -> %d%s\n")
+                .format(recipe, d.direction.label, d.originalMax, d.newMax, tag)
+            )
+          else
+            sb.append(
+              ("    %-52s  [%s] min/max: %d/%d -> %d/%d%s\n")
+                .format(recipe, d.direction.label, d.originalMin, d.originalMax, d.newMin, d.newMax, tag)
+            )
+        }
+      }
+    }
+    sb.append("\n")
+
     sb.append("-" * 72).append("\n")
     sb.append("  STATISTICAL ANALYSIS\n")
     sb.append("-" * 72).append("\n")
@@ -1264,8 +1535,73 @@ object ClusterMachineAndRecipeAutoTuner {
       divergenceCount,
       b14Holding,
       b14StateByCluster,
-      executorScaleBoosts
+      executorScaleBoosts,
+      trendScaledRecipes
     )
+  }
+
+  /**
+   * Build the `executor_trend` entry for the structured summary's `boost_groups` array. Self-contained (own quoting)
+   * so it can be unit-tested in isolation. `source: "trend"` and the `count_up`/`count_down` fields distinguish this
+   * longitudinal path from the divergence-driven `executor_scale` (z-score) group; both are recipe-level.
+   *
+   * The input is already filtered to changed decisions by the AutoTuner; entries are deduped by recipe per cluster.
+   */
+  private[auto] def trendBoostGroup(trendScaledRecipes: Seq[(String, Seq[TrendScaleDecision])]): String = {
+    def esc(s: String): String = {
+      val sb = new StringBuilder
+      s.foreach {
+        case '"' => sb.append("\\\"")
+        case '\\' => sb.append("\\\\")
+        case '\n' => sb.append("\\n")
+        case '\r' => sb.append("\\r")
+        case '\t' => sb.append("\\t")
+        case c if c < 0x20 => sb.append("\\u%04x".format(c.toInt))
+        case c => sb.append(c)
+      }
+      sb.toString
+    }
+    def q(s: String): String = "\"" + esc(s) + "\""
+
+    val entries: String = trendScaledRecipes
+      .map { case (cluster, decisions) =>
+        val unique = decisions.groupBy(_.recipe).values.map(_.head).toSeq.sortBy(_.recipe)
+        val recipes = unique
+          .map { d =>
+            val recipe = d.recipe.stripPrefix("_").stripSuffix(".json")
+            val propagated = d.state == BoostState.Holding
+            val maxObj =
+              s"${q("spark_dynamic_allocation_max_executors")}:{${q("from")}:${d.originalMax},${q("to")}:${d.newMax}," +
+                s"${q("factor")}:${"%.2f".format(d.appliedFactor)},${q("cumulative_factor")}:${"%.2f".format(d.cumulativeFactor)}}"
+            val minObj =
+              s"${q("spark_dynamic_allocation_min_executors")}:{${q("from")}:${d.originalMin},${q("to")}:${d.newMin}}"
+            s"{${q("recipe")}:${q(recipe)}," +
+              s"${q("recipe_filename")}:${q(d.recipe)}," +
+              s"${q("state")}:${q(d.state.label)}," +
+              s"${q("direction")}:${q(d.direction.label)}," +
+              s"${q("manual")}:${d.isManual}," +
+              s"${q("propagated")}:$propagated," +
+              s"$minObj,$maxObj}"
+          }
+          .mkString(",")
+        s"{${q("cluster")}:${q(cluster)},${q("recipes")}:[$recipes]}"
+      }
+      .mkString(",")
+
+    val flat: Seq[TrendScaleDecision] = trendScaledRecipes.flatMap { case (_, decisions) =>
+      decisions.groupBy(_.recipe).values.map(_.head).toSeq
+    }
+    val total = flat.size
+    val newCount = flat.count(d => d.state == BoostState.New || d.state == BoostState.ReBoost)
+    val holdingCount = flat.count(_.state == BoostState.Holding)
+    val upCount = flat.count(_.direction == ScaleDirection.Up)
+    val downCount = flat.count(_.direction == ScaleDirection.Down)
+    val clusterCount = trendScaledRecipes.map(_._1).distinct.size
+
+    s"{${q("code")}:${q("executor_trend")},${q("title")}:${q("Trend Executor Scaling")},${q("kind")}:${q("recipe")}," +
+      s"${q("count")}:$total,${q("count_new")}:$newCount,${q("count_holding")}:$holdingCount," +
+      s"${q("count_up")}:$upCount,${q("count_down")}:$downCount,${q("cluster_count")}:$clusterCount," +
+      s"${q("source")}:${q("trend")},${q("entries")}:[$entries]}"
   }
 
   /**
@@ -1289,7 +1625,8 @@ object ClusterMachineAndRecipeAutoTuner {
       divergenceCount: Int,
       b14Holding: Seq[(String, String)] = Seq.empty,
       b14StateByCluster: Map[String, String] = Map.empty,
-      executorScaleBoosts: Seq[(String, Seq[ExecutorScaleBoost])] = Seq.empty
+      executorScaleBoosts: Seq[(String, Seq[ExecutorScaleBoost])] = Seq.empty,
+      trendScaledRecipes: Seq[(String, Seq[TrendScaleDecision])] = Seq.empty
   ): Unit = {
     val trendCounts = allTrends.groupBy(_.trend.label).mapValues(_.size)
     val totalRecipes = allTrends.size
@@ -1432,8 +1769,9 @@ object ClusterMachineAndRecipeAutoTuner {
       s"    {${q("code")}:${q("b16")},${q("title")}:${q("OOM Reboosting")},${q("kind")}:${q("recipe")},${q("count")}:$b16TotalRecipesJson,${q("count_new")}:$b16NewCount,${q("count_holding")}:$b16HoldingCount,${q("cluster_count")}:${b16Boosts.size},${q("entries")}:[$b16Json]},\n"
     )
     sb.append(
-      s"    {${q("code")}:${q("executor_scale")},${q("title")}:${q("Z-score Executor SCALE-UP")},${q("kind")}:${q("recipe")},${q("count")}:$esTotalRecipesJson,${q("count_new")}:$esNewCount,${q("count_holding")}:$esHoldingCount,${q("cluster_count")}:${executorScaleBoosts.size},${q("source")}:${q("derived")},${q("entries")}:[$esJson]}\n"
+      s"    {${q("code")}:${q("executor_scale")},${q("title")}:${q("Z-score Executor SCALE-UP")},${q("kind")}:${q("recipe")},${q("count")}:$esTotalRecipesJson,${q("count_new")}:$esNewCount,${q("count_holding")}:$esHoldingCount,${q("cluster_count")}:${executorScaleBoosts.size},${q("source")}:${q("derived")},${q("entries")}:[$esJson]},\n"
     )
+    sb.append("    ").append(trendBoostGroup(trendScaledRecipes)).append("\n")
     sb.append("  ],\n")
     sb.append(
       s"  ${q("statistical_analysis")}:{${q("correlation_pairs")}:$correlationCount,${q("divergences")}:$divergenceCount}\n"

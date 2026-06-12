@@ -1,0 +1,2 @@
+cluster_name,recipe_filename,executors_added,executors_removed
+mock-cluster-capacity,_CAPACITY_HOG.json,1200,1200

@@ -65,9 +65,11 @@ object SimpleJsonParser {
         // detect already-boosted recipes and avoid double-boosting on re-runs.
         val boostFactor = extractDoubleField(block, "appliedMemoryHeapBoostFactor")
         val scaleFactor = extractDoubleField(block, "appliedExecutorScaleFactor")
+        val trendFactor = extractDoubleField(block, "appliedTrendScaleFactor")
         val extraFields: Map[String, String] =
           boostFactor.map("appliedMemoryHeapBoostFactor" -> _.toString).toMap ++
-            scaleFactor.map("appliedExecutorScaleFactor" -> _.toString).toMap
+            scaleFactor.map("appliedExecutorScaleFactor" -> _.toString).toMap ++
+            trendFactor.map("appliedTrendScaleFactor" -> _.toString).toMap
         key -> RecipeConfig(pf, sparkOpts, minMem, maxMem, extraFields)
       }.toOption
     }

@@ -1,0 +1,2 @@
+cluster_name,recipe_filename,avg_executors_per_job,p95_run_max_executors,avg_job_duration_ms,p95_job_duration_ms,runs,seconds_at_cap,runs_reaching_cap,total_runs,fraction_reaching_cap,max_concurrent_jobs
+mock-cluster-capacity,_CAPACITY_HOG.json,60,96,90000,100000,20,1200,18,20,0.900000,1

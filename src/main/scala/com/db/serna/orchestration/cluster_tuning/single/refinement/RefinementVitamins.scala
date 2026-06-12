@@ -1,6 +1,8 @@
 package com.db.serna.orchestration.cluster_tuning.single.refinement
 
 import com.db.serna.orchestration.cluster_tuning.single.Csv
+import com.db.serna.orchestration.cluster_tuning.single.RecipeMetrics
+import com.db.serna.orchestration.cluster_tuning.single.{CapacityGuard, CapacityStatus, GuardResult}
 
 import java.io.File
 import scala.collection.mutable
@@ -553,6 +555,251 @@ class ExecutorScaleVitamin(
     } else {
       val instances = opts.get("spark.executor.instances").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(1)
       (instances, instances)
+    }
+  }
+}
+
+// ── Trend-driven executor scaling ────────────────────────────────────────────
+
+/**
+ * Longitudinal signal — built in-memory by the AutoTuner from a paired (reference, current) recipe. Unlike the
+ * z-score [[ExecutorScaleSignal]], this carries both metric snapshots so the pure [[ExecutorTrendScaler]] can compute
+ * the duration trend directly. `clusterMaxTotalCores` lets the vitamin derive an executor capacity per recipe.
+ */
+final case class TrendScaleSignal(
+    clusterName: String,
+    recipeFilename: String,
+    reference: RecipeMetrics,
+    current: RecipeMetrics,
+    clusterMaxTotalCores: Int
+) extends VitaminSignal {
+  val jobId: String = ""
+  val description: String = s"trend signal for $recipeFilename"
+}
+
+/** A trend-driven executor change (up, down, or carried hold). */
+final case class TrendScaleBoost(
+    recipeFilename: String,
+    decision: TrendScaleDecision
+) extends VitaminBoost {
+  val description: String =
+    s"trend ${decision.direction.label} [${decision.state.label}]: ${decision.reason}"
+}
+
+/**
+ * Adapter that runs [[ExecutorTrendScaler]] inside the [[RefinementPipeline]], reusing the JSON read/write/order and
+ * dedupe machinery. Stamps `appliedTrendScaleFactor` — a field distinct from the z-score path's
+ * `appliedExecutorScaleFactor` so the two mechanisms compose without lifecycle cross-talk.
+ *
+ * Capacity is derived per recipe from the signal's `clusterMaxTotalCores` divided by that recipe's
+ * `spark.executor.cores`.
+ */
+class ExecutorTrendVitamin(
+    val gains: ScaleGains,
+    val signalsForCluster: String => Seq[TrendScaleSignal] = _ => Seq.empty
+) extends RefinementVitamin {
+  val name = "executor_trend_scale"
+  val csvFileName = "(trend-driven, no CSV)"
+  val counterKey = "trendScaledJobCount"
+  val listKey = "trendScaledJobList"
+  val boostFieldKey = "appliedTrendScaleFactor"
+
+  def loadSignals(inputDir: File, clusterName: String): Seq[VitaminSignal] =
+    signalsForCluster(clusterName)
+
+  def computeBoosts(signals: Seq[VitaminSignal], recipes: Map[String, RecipeConfig]): Seq[VitaminBoost] = {
+    val trendSignals = signals.collect { case s: TrendScaleSignal => s }
+    trendSignals.flatMap { sig =>
+      recipes.get(sig.recipeFilename).flatMap { rc =>
+        val (isManual, min, initial, max) = extractAllocation(rc)
+        val execCores =
+          rc.sparkOptsMap.get("spark.executor.cores").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(8)
+        val capacity =
+          if (sig.clusterMaxTotalCores > 0 && execCores > 0) Some(sig.clusterMaxTotalCores / execCores) else None
+        val prior = rc.extraFields.get(boostFieldKey).flatMap(s => scala.util.Try(s.toDouble).toOption)
+        val decision =
+          ExecutorTrendScaler.decide(
+            sig.recipeFilename,
+            isManual,
+            min,
+            initial,
+            max,
+            sig.reference,
+            sig.current,
+            gains,
+            capacity,
+            prior
+          )
+        // Emit only when there is something to record: a real config change, or a carried prior factor we
+        // must keep stamping (Holding). Stable recipes with no prior tag produce nothing — this keeps the
+        // pipeline's per-vitamin counter/list (trendScaledJobCount/List) meaningful rather than listing the
+        // whole fleet.
+        if (decision.changed || prior.isDefined) Some(TrendScaleBoost(sig.recipeFilename, decision)) else None
+      }
+    }
+  }
+
+  /** Trend decisions are self-contained (state computed by `decide`), so the date-aware path delegates. */
+  override def computeBoosts(
+      signals: Seq[VitaminSignal],
+      recipes: Map[String, RecipeConfig],
+      currentSignals: Seq[VitaminSignal]
+  ): Seq[VitaminBoost] = computeBoosts(signals, recipes)
+
+  def applyBoosts(boosts: Seq[VitaminBoost], recipes: Map[String, RecipeConfig]): Map[String, RecipeConfig] = {
+    boosts.foldLeft(recipes) {
+      case (cfg, TrendScaleBoost(recipe, d)) =>
+        cfg.get(recipe) match {
+          case Some(rc) =>
+            val updatedExtra = rc.extraFields + (boostFieldKey -> d.cumulativeFactor.toString)
+            if (!d.changed) {
+              cfg.updated(recipe, rc.copy(extraFields = updatedExtra))
+            } else {
+              val memGb = SimpleJsonParser.parseMemoryGb(rc.sparkOptsMap.getOrElse("spark.executor.memory", "8g"))
+              val updatedOpts =
+                if (d.isManual) rc.sparkOptsMap.updated("spark.executor.instances", d.newMax.toString)
+                else
+                  rc.sparkOptsMap
+                    .updated("spark.dynamicAllocation.minExecutors", d.newMin.toString)
+                    .updated("spark.dynamicAllocation.maxExecutors", d.newMax.toString)
+                    .updated("spark.dynamicAllocation.initialExecutors", d.newInitial.toString)
+              cfg.updated(
+                recipe,
+                rc.copy(
+                  sparkOptsMap = updatedOpts,
+                  totalExecutorMinAllocatedMemoryGb = d.newMin * memGb,
+                  totalExecutorMaxAllocatedMemoryGb = d.newMax * memGb,
+                  extraFields = updatedExtra
+                )
+              )
+            }
+          case None => cfg
+        }
+      case (cfg, _) => cfg
+    }
+  }
+
+  private def extractAllocation(rc: RecipeConfig): (Boolean, Int, Int, Int) = {
+    val opts = rc.sparkOptsMap
+    val isDynamic = opts.get("spark.dynamicAllocation.enabled").contains("true")
+    def asInt(k: String, dflt: Int) = opts.get(k).flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(dflt)
+    if (isDynamic) {
+      val min = asInt("spark.dynamicAllocation.minExecutors", 2)
+      val max = asInt("spark.dynamicAllocation.maxExecutors", min)
+      val initial = asInt("spark.dynamicAllocation.initialExecutors", min)
+      (false, min, initial, max)
+    } else {
+      val instances = asInt("spark.executor.instances", 2)
+      (true, instances, instances, instances)
+    }
+  }
+}
+
+// ── Capacity guard signal, boost & vitamin ──────────────────────────────────
+
+/**
+ * Derived signal carrying the cluster's per-node capacity (read from clusterConf's scaled-max fields by the AutoTuner,
+ * or supplied directly by the single tuner). NOT loaded from any CSV.
+ */
+final case class CapacityGuardSignal(
+    clusterName: String,
+    recipeFilename: String,
+    nodeCores: Int,
+    nodeMemGb: Int,
+    maxWorkers: Int,
+    ratio: Double
+) extends VitaminSignal {
+  val jobId: String = ""
+  val description: String = s"capacity guard for $recipeFilename"
+}
+
+final case class CapacityGuardBoost(recipeFilename: String, result: GuardResult) extends VitaminBoost {
+  val description: String =
+    s"capacity ${result.status.label}: cores ${result.maxCoreUsagePct}% mem ${result.maxMemoryUsagePct}%"
+}
+
+/**
+ * Final-pass adapter that runs [[CapacityGuard]] inside the [[RefinementPipeline]]. Stamps `maxCoreUsagePct`,
+ * `maxMemoryUsagePct` (numeric) and, when non-Ok, `capacityStatus` (string) on each recipe, and clamps executor
+ * settings so a recipe can never request more executors than the cluster can physically schedule. Has NO boost
+ * lifecycle (the guard is a physical ceiling, not a cumulative boost), so the date-aware overload delegates to the
+ * 2-arg form. A boost is emitted for EVERY guarded recipe (the `%` are refreshed every pass), so `counterKey` counts
+ * all guarded recipes rather than only clamped ones.
+ */
+class CapacityGuardVitamin(
+    val signalsForCluster: String => Seq[CapacityGuardSignal] = _ => Seq.empty
+) extends RefinementVitamin {
+  val name = "capacity_guard"
+  val csvFileName = "(derived, no CSV)"
+  val counterKey = "capacityGuardedJobCount"
+  val listKey = "capacityGuardedJobList"
+  val boostFieldKey = "maxCoreUsagePct"
+
+  def loadSignals(inputDir: File, clusterName: String): Seq[VitaminSignal] = signalsForCluster(clusterName)
+
+  def computeBoosts(signals: Seq[VitaminSignal], recipes: Map[String, RecipeConfig]): Seq[VitaminBoost] =
+    signals.collect { case s: CapacityGuardSignal => s }.flatMap { sig =>
+      recipes.get(sig.recipeFilename).map { rc =>
+        val (isManual, min, initial, max) = extractAllocation(rc)
+        val ec = rc.sparkOptsMap.get("spark.executor.cores").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(8)
+        val em = SimpleJsonParser.parseMemoryGb(rc.sparkOptsMap.getOrElse("spark.executor.memory", "8g"))
+        val r = CapacityGuard.guard(
+          isManual, min, initial, max, ec, em, sig.nodeCores, sig.nodeMemGb, sig.maxWorkers, sig.ratio)
+        CapacityGuardBoost(sig.recipeFilename, r)
+      }
+    }
+
+  override def computeBoosts(
+      signals: Seq[VitaminSignal],
+      recipes: Map[String, RecipeConfig],
+      currentSignals: Seq[VitaminSignal]
+  ): Seq[VitaminBoost] = computeBoosts(signals, recipes)
+
+  def applyBoosts(boosts: Seq[VitaminBoost], recipes: Map[String, RecipeConfig]): Map[String, RecipeConfig] =
+    boosts.foldLeft(recipes) {
+      case (cfg, CapacityGuardBoost(recipe, r)) =>
+        cfg.get(recipe) match {
+          case Some(rc) =>
+            val em = SimpleJsonParser.parseMemoryGb(rc.sparkOptsMap.getOrElse("spark.executor.memory", "8g"))
+            val updatedOpts =
+              if (r.isManual) rc.sparkOptsMap.updated("spark.executor.instances", r.newMax.toString)
+              else
+                rc.sparkOptsMap
+                  .updated("spark.dynamicAllocation.minExecutors", r.newMin.toString)
+                  .updated("spark.dynamicAllocation.maxExecutors", r.newMax.toString)
+                  .updated("spark.dynamicAllocation.initialExecutors", r.newInitial.toString)
+            val baseExtra = rc.extraFields +
+              ("maxCoreUsagePct" -> r.maxCoreUsagePct.toString) +
+              ("maxMemoryUsagePct" -> r.maxMemoryUsagePct.toString)
+            val updatedExtra =
+              if (r.status == CapacityStatus.Ok) baseExtra - "capacityStatus"
+              else baseExtra + ("capacityStatus" -> r.status.label)
+            cfg.updated(
+              recipe,
+              rc.copy(
+                sparkOptsMap = updatedOpts,
+                totalExecutorMinAllocatedMemoryGb = (if (r.isManual) r.newMax else r.newMin) * em,
+                totalExecutorMaxAllocatedMemoryGb = r.newMax * em,
+                extraFields = updatedExtra
+              )
+            )
+          case None => cfg
+        }
+      case (cfg, _) => cfg
+    }
+
+  private def extractAllocation(rc: RecipeConfig): (Boolean, Int, Int, Int) = {
+    val opts = rc.sparkOptsMap
+    val isDynamic = opts.get("spark.dynamicAllocation.enabled").contains("true")
+    def asInt(k: String, dflt: Int) = opts.get(k).flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(dflt)
+    if (isDynamic) {
+      val min = asInt("spark.dynamicAllocation.minExecutors", 2)
+      val max = asInt("spark.dynamicAllocation.maxExecutors", min)
+      val initial = asInt("spark.dynamicAllocation.initialExecutors", min)
+      (false, min, initial, max)
+    } else {
+      val instances = asInt("spark.executor.instances", 2)
+      (true, instances, instances, instances)
     }
   }
 }
