@@ -460,7 +460,8 @@ object ClusterMachineAndRecipeTuner {
       inputDir: File,
       outputDir: File,
       defaultMaster: MachineType,
-      defaultWorker: MachineType
+      defaultWorker: MachineType,
+      maxClusterUtilRatio: Double = CapacityGuard.DefaultRatio
   )
 
   object Config {
@@ -1839,8 +1840,15 @@ object ClusterMachineAndRecipeTuner {
       case None => baseStrategy
     }
 
+    // Optional hard ceiling on a recipe's executors as a fraction of the cluster's per-node-packed scaled-max.
+    val maxClusterUtilRatio: Double = args
+      .find(_.startsWith("--max-cluster-util-ratio="))
+      .map(_.stripPrefix("--max-cluster-util-ratio=").toDouble)
+      .filter(r => r > 0.0 && r <= 1.0)
+      .getOrElse(CapacityGuard.DefaultRatio)
+
     val date = dateArg.get
-    val cfg = Config(useFlattened = useFlattened, date = date)
+    val cfg = Config(useFlattened = useFlattened, date = date).copy(maxClusterUtilRatio = maxClusterUtilRatio)
 
     logger.info(s"Starting ClusterMachineAndRecipeTuner with Config: $cfg, strategy=${strategy.name}")
     run(cfg, strategy)
