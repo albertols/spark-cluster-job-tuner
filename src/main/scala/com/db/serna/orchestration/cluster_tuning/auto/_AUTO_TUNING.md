@@ -256,6 +256,19 @@ Runs **before** the z-score pass and feeds off the same `pairs` the AutoTuner al
 
 Lifecycle (`New` / `ReBoost` / `Holding`) is identical to b16/z-score. Gains derive from the active bias preset; override per gain with the `--trend-*` flags below.
 
+### Capacity guard (final pass) (`CapacityGuardVitamin`)
+
+Runs **after** trend + z-score scaling, at both evolution call sites, via `applyCapacityGuard`. It reads each output JSON's `clusterConf` scaled-max fields (deriving `nodeCores = cluster_scaled_max_cores / max_workers`, `nodeMemGb = cluster_scaled_max_memory_gb / max_workers`) and runs the pure `CapacityGuard` per recipe. This is the safety net that closes the loop on the censoring trap: the trend/z-score passes can inflate a recipe's executor ceiling past what the cluster can physically schedule, and the guard clamps it back to `--max-cluster-util-ratio` (default 0.90) of the **per-node-packed** capacity — so a job can never linger forever on YARN waiting for containers that never arrive.
+
+**Effect:**
+
+- Clamps `spark.dynamicAllocation.{min,initial,max}Executors` (or `spark.executor.instances`) to `capExecutors = max_workers × min(floor(ratio·nodeCores/ec), floor(ratio·nodeMemGb/em))`. `min`/`initial` are pulled down with `max` when needed.
+- (Re)stamps `maxCoreUsagePct` / `maxMemoryUsagePct` (computed from the **post-clamp** count) and, when non-Ok, `capacityStatus` (`clamped` / `tight` / `infeasible`).
+- **Idempotent** — re-running on already-guarded JSON is a no-op, so it is safe after every scale pass and across re-plans. No boost lifecycle. Rewrites a file only when it clamps something or the `%` fields are missing (parity with the trend/z-score `cost_timeline` behavior).
+- Full math + the per-node-packing rationale: [`_REFINEMENT.md` → `CapacityGuardVitamin`](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/refinement/_REFINEMENT.md) and [`_CLUSTER_TUNING.md` → Cluster utilization & capacity guard](/src/main/scala/com/db/serna/orchestration/cluster_tuning/single/_CLUSTER_TUNING.md).
+
+The dashboard renders these `%` as a stacked **cores-over-memory heatmap** in the cluster detail pane (colour tiers green→amber→orange→red, `capacityStatus` cells rendered red/hatched; zoom via `?heatZoom=`, hover tooltip, click-through to the recipe).
+
 ### KeepAsIs / PreserveHistorical
 
 Reference output JSONs are read via `SimpleJsonParser` and re-emitted verbatim. This ensures exact config preservation with no floating-point drift from re-computation. After re-emission, b16 reboosting is applied if OOM signals are present in either date.
@@ -367,6 +380,7 @@ main(Array("--reference-date=2025_12_20", "--current-date=2026_04_15",
 | `--trend-scale-max-step` | bias preset | Per-run multiplicative clamp on trend scale-up. Range `[1.0, 5.0]`. |
 | `--trend-scale-min-runs` | 5 | Minimum runs on each side for a usable duration ratio (confidence floor). |
 | `--trend-downscale` / `--no-trend-downscale` | on | Enable / disable conservative trend-driven scale-DOWN when jobs speed up with cap headroom. |
+| `--max-cluster-util-ratio` | 0.90 | Hard ceiling on a recipe's executors as a fraction of the cluster's per-node-packed scaled-max capacity (cores AND memory). The `CapacityGuard` final pass clamps any recipe above it. Validated `0 < r ≤ 1`. |
 
 ---
 

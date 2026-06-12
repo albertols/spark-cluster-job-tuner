@@ -231,6 +231,25 @@ manual: sum over recipes spark.executor.instances × spark.executor.memoryGb
 DA: sum over recipes maxExecutors × spark.executor.memoryGb
 These are indicative capacity envelopes for planning and dashboards.
 
+### Cluster utilization & capacity guard
+
+Every tuned recipe also carries its **max footprint as a share of the fully-autoscaled cluster**, and is hard-clamped so it can never request more executors than the cluster can physically schedule.
+
+New `clusterConf` fields (additive; existing `cluster_max_total_*` are untouched):
+
+- `min_workers` / `max_workers` — the autoscaling-policy node range (derived from `AutoscalingPolicyConfig`).
+- `cluster_scaled_max_cores` / `cluster_scaled_max_memory_gb` = `max_workers × per-node` cores / memory — the **denominator** for the percentages.
+
+New per-recipe fields:
+
+- `maxCoreUsagePct` = `100 × units × execCores / cluster_scaled_max_cores` (round-1), where `units` is the **post-clamp** maxExecutors (or instances).
+- `maxMemoryUsagePct` = `100 × units × execMemGb / cluster_scaled_max_memory_gb`.
+- `capacityStatus` — present only when the guard did something: `clamped` (reduced executors), `tight` (a single executor exceeds `ratio × node` but still fits the raw node → 1/node), or `infeasible` (a single executor is bigger than a whole node).
+
+**Per-node bin-packing clamp** (not aggregate): `execsPerNode = min(floor(ratio·nodeCores/ec), floor(ratio·nodeMemGb/em))`, `capExecutors = max_workers × execsPerNode`. The aggregate `min(ratio·scaledCores/ec, ratio·scaledMem/em)` is **not** used — it overestimates when an executor is memory-heavier than the node's mem/core ratio (e.g. a 4c/18GB executor on a 48c/192GB node fits 9/node = 54 cluster-wide, but the aggregate says 57; the extra 3 would linger forever on YARN waiting for containers).
+
+`--max-cluster-util-ratio` (default **0.90**, validated `0 < r ≤ 1`) sets the ceiling; the 10% margin reserves headroom for `spark.executor.memoryOverhead`, the NodeManager/OS, and the driver/AM. The same flag exists on the AutoTuner, which re-runs the guard as its final pass (see [`_REFINEMENT.md`](refinement/_REFINEMENT.md) → `CapacityGuardVitamin`). The guard is **idempotent** — re-running on already-guarded JSON is a no-op.
+
 ---
 
 ## Auto-Tuner (Multi-Date Evolution)
