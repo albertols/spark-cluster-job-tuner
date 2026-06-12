@@ -3388,10 +3388,6 @@ function deltaValue(recipe, metric, field) {
   return recipeMetricValue(recipe, metric, field);
 }
 
-function recipeShortName(recipe) {
-  return recipe.replace(/^_/, '').replace(/\.json$/, '');
-}
-
 function chartOpts({ horizontal, tooltipNames, valueFormatter, onBarClick, tooltipExtraLines }) {
   const opts = {
     responsive: true,
