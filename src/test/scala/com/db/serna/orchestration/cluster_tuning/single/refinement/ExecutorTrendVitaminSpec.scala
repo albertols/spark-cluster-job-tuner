@@ -26,8 +26,9 @@ class ExecutorTrendVitaminSpec extends AnyFunSuite with Matchers {
     )
 
   test("computeBoosts emits an up TrendScaleBoost for a censored degraded recipe and applyBoosts rewrites min/max") {
-    val ref = metrics(p95Dur = 100, p95Max = 3, runs = 20)
-    val cur = metrics(p95Dur = 200, p95Max = 3, runs = 20)
+    // minute-scale: v2 severity needs >=3 min absolute delta (here 10m -> 25m blended, Severe)
+    val ref = metrics(p95Dur = 600000, p95Max = 3, runs = 20)
+    val cur = metrics(p95Dur = 1500000, p95Max = 3, runs = 20)
     val signal = TrendScaleSignal("c1", "_r.json", ref, cur, clusterMaxTotalCores = 96)
     val gains = ScaleGains.fromBias(CostPerformanceBalance)
     val vitamin = new ExecutorTrendVitamin(gains, _ => Seq(signal))
@@ -44,8 +45,8 @@ class ExecutorTrendVitaminSpec extends AnyFunSuite with Matchers {
   }
 
   test("Hold decision produces no executor change but still stamps the carried factor when prior exists") {
-    val ref = metrics(p95Dur = 100, p95Max = 3, runs = 20)
-    val cur = metrics(p95Dur = 101, p95Max = 3, runs = 20) // inside deadband
+    val ref = metrics(p95Dur = 600000, p95Max = 3, runs = 20) // minute-scale: v2 severity needs >=3 min absolute delta
+    val cur = metrics(p95Dur = 606000, p95Max = 3, runs = 20) // inside deadband
     val signal = TrendScaleSignal("c1", "_r.json", ref, cur, clusterMaxTotalCores = 96)
     val vitamin = new ExecutorTrendVitamin(ScaleGains.fromBias(CostPerformanceBalance), _ => Seq(signal))
     val recipes = Map("_r.json" -> daRecipe(2, 6).copy(extraFields = Map("appliedTrendScaleFactor" -> "1.5")))
@@ -56,8 +57,9 @@ class ExecutorTrendVitaminSpec extends AnyFunSuite with Matchers {
   }
 
   test("manual recipe up-change writes spark.executor.instances and leaves dynamicAllocation keys absent") {
-    val ref = metrics(p95Dur = 100, p95Max = 4, runs = 20)
-    val cur = metrics(p95Dur = 200, p95Max = 4, runs = 20)
+    // minute-scale: v2 severity needs >=3 min absolute delta
+    val ref = metrics(p95Dur = 600000, p95Max = 4, runs = 20)
+    val cur = metrics(p95Dur = 1500000, p95Max = 4, runs = 20)
     val signal = TrendScaleSignal("c1", "_r.json", ref, cur, clusterMaxTotalCores = 160)
     val vitamin = new ExecutorTrendVitamin(ScaleGains.fromBias(CostPerformanceBalance), _ => Seq(signal))
     val manual = RecipeConfig(

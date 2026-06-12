@@ -22,9 +22,9 @@ import com.db.serna.orchestration.cluster_tuning.single.{
  *   - `downGain` / `downSafetyMargin` / `downConfidenceFloor` : DOWN aggressiveness, demand headroom kept when
  *     shrinking, and the minimum confidence required to shrink at all.
  *   - `minRunsForConfidence` : minimum runs on each side for a duration ratio to be considered usable.
- *   - `minDeltaMinutes` : absolute blended-duration change in minutes that gates the UP severity classification
- *     (a huge ratio on a seconds-long job is noise, not a signal); the DOWN-side floor arrives with the v2 decide
- *     rewrite.
+ *   - `minDeltaMinutes` : absolute blended-duration change in minutes that gates BOTH the UP severity classification
+ *     (a huge ratio on a seconds-long job is noise, not a signal) and, symmetrically, the DOWN trigger (a saving
+ *     smaller than this is not worth shrinking for).
  *   - `upPoolRatio` : fraction of cluster cores forming the per-run scale-UP budget used to prioritize grants
  *     across a cluster's recipes.
  */
@@ -118,6 +118,9 @@ object ScaleSeverity {
  *
  * For manual recipes `newMin == newInitial == newMax` and all three carry the new `spark.executor.instances`.
  * `cumulativeFactor` is the value stamped as `appliedTrendScaleFactor` (compounds UP, reduces DOWN, carries on HOLD).
+ * `severity` is the classified UP-tier label (negligible/moderate/severe/critical, "n/a" when unclassified).
+ * `impactMinutes` = max(0, blended delta minutes) x current runs — total wall-clock minutes lost per window.
+ * `priorityRank` is set later by cluster-wide prioritization (Task 3); `decide` always leaves it None.
  */
 final case class TrendScaleDecision(
     recipe: String,
@@ -132,7 +135,10 @@ final case class TrendScaleDecision(
     cumulativeFactor: Double,
     direction: ScaleDirection,
     state: BoostState,
-    reason: String
+    reason: String,
+    severity: String = "n/a",
+    impactMinutes: Double = 0.0,
+    priorityRank: Option[Int] = None
 ) {
   def changed: Boolean = newMin != originalMin || newInitial != originalInitial || newMax != originalMax
 }
@@ -195,37 +201,28 @@ object ExecutorTrendScaler {
   private def clampD(v: Double, lo: Double, hi: Double): Double = math.max(lo, math.min(hi, v))
   private def clampI(v: Int, lo: Int, hi: Int): Int = math.max(lo, math.min(hi, v))
 
-  /** cur/ref, or 1.0 (no usable signal) when either side is non-positive or under the min-runs confidence floor. */
-  private[refinement] def guardedRatio(cur: Double, ref: Double, refRuns: Long, curRuns: Long, minRuns: Long): Double =
-    if (ref <= 0.0 || cur <= 0.0) 1.0
-    else if (math.min(refRuns, curRuns) < minRuns) 1.0
-    else cur / ref
-
-  /** Blended duration driver: 0.7 * p95Ratio + 0.3 * avgRatio (each guarded). */
-  private[refinement] def blendedDurationRatio(ref: RecipeMetrics, cur: RecipeMetrics, minRuns: Long): Double = {
-    val p95 = guardedRatio(cur.p95JobDurationMs, ref.p95JobDurationMs, ref.runs, cur.runs, minRuns)
-    val avg = guardedRatio(cur.avgJobDurationMs, ref.avgJobDurationMs, ref.runs, cur.runs, minRuns)
-    DurationP95Weight * p95 + DurationAvgWeight * avg
-  }
-
   /** max(p95RunMax / currentMax, fraction_reaching_cap). 1.0 means fully pinned at the ceiling. */
   private[refinement] def capPressure(cur: RecipeMetrics, currentMax: Int): Double = {
     val fromExec = if (currentMax > 0) cur.p95RunMaxExecutors / currentMax.toDouble else 0.0
     math.max(fromExec, cur.fractionReachingCap.getOrElse(0.0))
   }
 
-  /** min(refRuns, curRuns)/ConfidenceFullyRampedRuns capped at 1.0 — mirrors TrendDetector.computeConfidence. */
-  private[refinement] def confidence(ref: RecipeMetrics, cur: RecipeMetrics): Double =
-    math.min(1.0, math.min(ref.runs, cur.runs).toDouble / ConfidenceFullyRampedRuns)
-
   /**
-   * Decide how to evolve one recipe's executor allocation from the reference→current duration trend.
+   * Decide how to evolve one recipe's executor allocation from the reference→current duration trend (v2,
+   * magnitude-aware).
    *
-   * Returns a HOLD (config unchanged, appliedFactor 1.0) when the blended duration ratio sits inside the deadband, or
-   * when an UP signal is not cap-pressured / a DOWN signal still has cap-pressure. UP scales `max` toward the blended
-   * duration trend, never shrinking below `currentMax` even when
-   * `capacity` is tight. DOWN shrinks toward observed demand with a safety margin, never below the observed peak or a
-   * floor of 2, and stamps the carried factor unchanged when the demand floor blocks any move.
+   * UP is gated by severity tiers: [[classifySeverity]] requires BOTH the relative blended-duration ratio and the
+   * absolute minutes lost (`minDeltaMinutes`), and [[admittedStepCap]] applies graduated evidence — large effects
+   * (Severe/Critical) are admitted on fewer runs, but with a demoted (or `SingleRunStepCap`) per-run step cap.
+   * An admitted UP also still requires cap-pressure >= `capTouchRatio`. `min` creeps at most +1 per run, and only
+   * when the tier is Severe+ AND pressure >= `MinCreepPressure`; `initial` follows within [min, initial+1].
+   *
+   * DOWN requires the blended saving to be at least `minDeltaMinutes` (symmetric absolute floor) on top of the
+   * fractional deadband, plus low cap-pressure and ramped confidence. `max` shrinks toward observed demand with a
+   * safety margin (never below peak demand or floor 2); `min` shrinks at most 1 per run, never below steady demand.
+   *
+   * HOLD keeps the config unchanged (appliedFactor 1.0) and carries any prior cumulative factor (Holding lifecycle).
+   * UP never shrinks the ceiling below `currentMax`, even under a tight `capacity` clamp.
    */
   def decide(
       recipe: String,
@@ -240,134 +237,117 @@ object ExecutorTrendScaler {
       priorCumulativeFactor: Option[Double]
   ): TrendScaleDecision = {
 
-    val durRatio = blendedDurationRatio(ref, cur, gains.minRunsForConfidence)
+    val blendRef = DurationP95Weight * ref.p95JobDurationMs + DurationAvgWeight * ref.avgJobDurationMs
+    val blendCur = DurationP95Weight * cur.p95JobDurationMs + DurationAvgWeight * cur.avgJobDurationMs
+    val hasDur = blendRef > 0.0 && blendCur > 0.0
+    val durRatio = if (hasDur) blendCur / blendRef else 1.0
+    val deltaMin = if (hasDur) (blendCur - blendRef) / 60000.0 else 0.0
+    val impactMin = math.max(0.0, deltaMin) * cur.runs
+    val evidenceRuns = math.min(ref.runs, cur.runs)
+    val tier =
+      if (hasDur) classifySeverity(durRatio, deltaMin, gains.deadbandUp, gains.minDeltaMinutes)
+      else ScaleSeverity.Negligible
+    val stepCapOpt = admittedStepCap(tier, evidenceRuns, gains)
     val pressure = capPressure(cur, currentMax)
-    val conf = confidence(ref, cur)
+    val rampConf = math.min(1.0, evidenceRuns.toDouble / ConfidenceFullyRampedRuns)
     val prior = priorCumulativeFactor.getOrElse(1.0)
     val hasPrior = priorCumulativeFactor.isDefined
 
-    val upTriggered = durRatio >= 1.0 + gains.deadbandUp && pressure >= gains.capTouchRatio
+    val upTriggered = stepCapOpt.isDefined && pressure >= gains.capTouchRatio
     val downTriggered =
-      gains.downscaleEnabled &&
+      gains.downscaleEnabled && hasDur &&
         durRatio <= 1.0 - gains.deadbandDown &&
+        deltaMin <= -gains.minDeltaMinutes &&
         pressure < gains.capTouchRatio &&
-        conf >= gains.downConfidenceFloor
+        rampConf >= gains.downConfidenceFloor
+
+    def diag: String =
+      f"sev=${tier.label} durRatio=$durRatio%.2f dMin=$deltaMin%.1f impact=$impactMin%.0f " +
+        f"pressure=$pressure%.2f runs=$evidenceRuns"
 
     def hold(reason: String): TrendScaleDecision =
       TrendScaleDecision(
-        recipe,
-        isManual,
-        currentMin,
-        currentInitial,
-        currentMax,
-        currentMin,
-        currentInitial,
-        currentMax,
-        1.0,
-        prior,
-        ScaleDirection.Hold,
+        recipe, isManual,
+        currentMin, currentInitial, currentMax,
+        currentMin, currentInitial, currentMax,
+        1.0, prior, ScaleDirection.Hold,
         if (hasPrior) BoostState.Holding else BoostState.New,
-        reason
+        reason, tier.label, impactMin, None
       )
 
     if (upTriggered) {
-      val maxFactor = clampD(1.0 + gains.gain * (durRatio - 1.0) * conf, 1.0, gains.maxStep)
+      val stepCap = stepCapOpt.get
+      val conf = math.max(ConfidenceFloor, rampConf)
+      val maxFactor = clampD(1.0 + gains.gain * (durRatio - 1.0) * conf, 1.0, stepCap)
       val rawMax = math.max(currentMax + 1, math.ceil(currentMax * maxFactor).toInt)
-      // A tight capacity may cap rawMax, but an UP signal must never SHRINK below the current ceiling —
-      // floor at currentMax so a constrained cluster holds (and we still raise min within the ceiling).
+      // A tight capacity may cap rawMax, but an UP signal must never SHRINK below the current ceiling.
       val newMax = capacity.map(c => math.max(currentMax, math.min(rawMax, c))).getOrElse(rawMax)
 
       if (isManual) {
         val newInst = math.max(2, newMax)
         TrendScaleDecision(
-          recipe,
-          isManual = true,
-          currentMin,
-          currentInitial,
-          currentMax,
-          newInst,
-          newInst,
-          newInst,
-          maxFactor,
-          prior * maxFactor,
-          ScaleDirection.Up,
+          recipe, isManual = true,
+          currentMin, currentInitial, currentMax,
+          newInst, newInst, newInst,
+          maxFactor, prior * maxFactor, ScaleDirection.Up,
           if (hasPrior) BoostState.ReBoost else BoostState.New,
-          f"manual instances $currentMax->$newInst (durRatio=$durRatio%.2f, pressure=$pressure%.2f, conf=$conf%.2f)"
+          s"manual instances $currentMax->$newInst ($diag)", tier.label, impactMin, None
         )
       } else {
-        val minFactor = 1.0 // v2 (Task 2) reworks min-creep; minGain removed from ScaleGains
-        val rawMin = math.ceil(currentMin * minFactor).toInt
-        val newMin = clampI(rawMin, 2, math.max(2, newMax - 1))
-        val newInitial = clampI(math.max(newMin, currentInitial), newMin, newMax)
+        // Gentle creep: the always-on floor rises at most +1 per run, and only when the
+        // degradation is Severe+ and the job is essentially pinned at its ceiling.
+        val newMin =
+          if (tier.rank >= ScaleSeverity.Severe.rank && pressure >= MinCreepPressure)
+            math.max(currentMin, math.min(currentMin + 1, math.max(2, newMax - 1)))
+          else currentMin
+        val newInitial = clampI(math.max(newMin, currentInitial), newMin, math.max(newMin, math.min(currentInitial + 1, newMax)))
         TrendScaleDecision(
-          recipe,
-          isManual = false,
-          currentMin,
-          currentInitial,
-          currentMax,
-          newMin,
-          newInitial,
-          newMax,
-          maxFactor,
-          prior * maxFactor,
-          ScaleDirection.Up,
+          recipe, isManual = false,
+          currentMin, currentInitial, currentMax,
+          newMin, newInitial, newMax,
+          maxFactor, prior * maxFactor, ScaleDirection.Up,
           if (hasPrior) BoostState.ReBoost else BoostState.New,
-          f"min $currentMin->$newMin max $currentMax->$newMax (durRatio=$durRatio%.2f, pressure=$pressure%.2f, conf=$conf%.2f)"
+          s"min $currentMin->$newMin max $currentMax->$newMax ($diag)", tier.label, impactMin, None
         )
       }
     } else if (downTriggered) {
-      val downFactor = clampD(1.0 - gains.downGain * (1.0 - durRatio) * conf, gains.minStep, 1.0)
+      val downFactor = clampD(1.0 - gains.downGain * (1.0 - durRatio) * rampConf, gains.minStep, 1.0)
       val peakDemand = math.ceil(cur.p95RunMaxExecutors * (1.0 + gains.downSafetyMargin)).toInt
       val steadyDemand = math.ceil(cur.avgExecutorsPerJob * (1.0 + gains.downSafetyMargin)).toInt
       val rawMax = math.ceil(currentMax * downFactor).toInt
       val newMax = math.max(2, math.max(peakDemand, rawMax))
-      val rawMin = math.ceil(currentMin * downFactor).toInt
-      val newMin = clampI(math.max(steadyDemand, rawMin), 2, math.max(2, newMax - 1))
-      val newInitial = clampI(math.max(newMin, math.min(currentInitial, newMax)), newMin, newMax)
 
-      // `state` tracks the touch-lifecycle (New = first trend touch, ReBoost = subsequent, Holding = no-op with a
-      // prior tag); `direction` carries up/down. They are independent: a shrink of an already-tagged recipe is a
-      // ReBoost in lifecycle terms but a Down in direction terms. The demand floors above can block any shrink — when
-      // nothing changed we must stamp the carried factor unchanged (appliedFactor 1.0, cumulative = prior), otherwise
-      // the cumulative factor would drift downward on every re-run that produced no actual change.
       if (isManual) {
         val newInst = math.max(2, math.max(peakDemand, rawMax))
         val noChange = newInst == currentMax
         TrendScaleDecision(
-          recipe,
-          isManual = true,
-          currentMin,
-          currentInitial,
-          currentMax,
-          newInst,
-          newInst,
-          newInst,
+          recipe, isManual = true,
+          currentMin, currentInitial, currentMax,
+          newInst, newInst, newInst,
           if (noChange) 1.0 else downFactor,
           if (noChange) prior else prior * downFactor,
           if (noChange) ScaleDirection.Hold else ScaleDirection.Down,
           if (noChange && hasPrior) BoostState.Holding else if (hasPrior) BoostState.ReBoost else BoostState.New,
-          f"manual instances $currentMax->$newInst (durRatio=$durRatio%.2f, pressure=$pressure%.2f, conf=$conf%.2f)"
+          s"manual instances $currentMax->$newInst ($diag)", tier.label, impactMin, None
         )
       } else {
+        // min shrinks at most 1 per run, never below steady demand or floor 2.
+        val newMin = clampI(math.max(steadyDemand, currentMin - 1), 2, math.max(2, newMax - 1))
+        val newInitial = clampI(math.max(newMin, math.min(currentInitial, newMax)), newMin, newMax)
         val noChange = newMax == currentMax && newMin == currentMin && newInitial == currentInitial
         TrendScaleDecision(
-          recipe,
-          isManual = false,
-          currentMin,
-          currentInitial,
-          currentMax,
-          newMin,
-          newInitial,
-          newMax,
+          recipe, isManual = false,
+          currentMin, currentInitial, currentMax,
+          newMin, newInitial, newMax,
           if (noChange) 1.0 else downFactor,
           if (noChange) prior else prior * downFactor,
           if (noChange) ScaleDirection.Hold else ScaleDirection.Down,
           if (noChange && hasPrior) BoostState.Holding else if (hasPrior) BoostState.ReBoost else BoostState.New,
-          f"min $currentMin->$newMin max $currentMax->$newMax (durRatio=$durRatio%.2f, pressure=$pressure%.2f, conf=$conf%.2f)"
+          s"min $currentMin->$newMin max $currentMax->$newMax ($diag)", tier.label, impactMin, None
         )
       }
     } else {
-      hold(f"within deadband or gate not met (durRatio=$durRatio%.2f, pressure=$pressure%.2f, conf=$conf%.2f)")
+      hold(s"within deadband or gate not met ($diag)")
     }
   }
 }
