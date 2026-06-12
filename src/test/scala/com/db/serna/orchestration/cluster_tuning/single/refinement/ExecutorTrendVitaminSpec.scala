@@ -9,6 +9,15 @@ class ExecutorTrendVitaminSpec extends AnyFunSuite with Matchers {
   private def metrics(p95Dur: Double, p95Max: Double, runs: Long): RecipeMetrics =
     RecipeMetrics("c1", "_r.json", 2.0, p95Max, p95Dur * 0.9, p95Dur, runs, None, None, None, None, None)
 
+  private def metricsFull(
+      p95Dur: Double,
+      avgDur: Double,
+      p95Max: Double,
+      runs: Long,
+      fracCap: Option[Double]
+  ): RecipeMetrics =
+    RecipeMetrics("c", "_r.json", 2.0, p95Max, avgDur, p95Dur, runs, None, None, None, fracCap, None)
+
   private def daRecipe(min: Int, max: Int): RecipeConfig =
     RecipeConfig(
       parallelizationFactor = 5,
@@ -77,5 +86,33 @@ class ExecutorTrendVitaminSpec extends AnyFunSuite with Matchers {
     applied.sparkOptsMap("spark.executor.instances").toInt should be > 4
     applied.sparkOptsMap.keys should not contain "spark.dynamicAllocation.maxExecutors"
     applied.totalExecutorMaxAllocatedMemoryGb shouldBe applied.sparkOptsMap("spark.executor.instances").toInt * 8
+  }
+
+  test("computeBoosts prioritizes UP grants across the cluster: pool-exhausted recipe degrades to +1") {
+    // Two dynamic recipes, 8 cores each, cluster has 64 schedulable cores. The per-recipe capacity
+    // clamp (64/8 = 8 executors) bounds BIG's grant to +4 = 32 cores, so with the default pool of
+    // 64 cores nothing would ever exhaust — use upPoolRatio = 0.5 (pool = 32 cores): BIG (higher
+    // impact, Severe) drains it entirely; SMALL (Moderate, wants ceil(4·1.4)=6) must still move +1.
+    val gains = ScaleGains.fromBias(CostPerformanceBalance, upPoolRatioOverride = Some(0.5))
+    val refBig = metricsFull(p95Dur = 600000, avgDur = 540000, p95Max = 4, runs = 20, fracCap = Some(0.9))
+    val curBig = metricsFull(p95Dur = 2400000, avgDur = 2200000, p95Max = 4, runs = 20, fracCap = Some(0.9))
+    val refSmall = metricsFull(p95Dur = 600000, avgDur = 600000, p95Max = 4, runs = 20, fracCap = Some(0.9))
+    val curSmall = metricsFull(p95Dur = 1080000, avgDur = 1080000, p95Max = 4, runs = 20, fracCap = Some(0.9))
+    val signals = Seq(
+      TrendScaleSignal("c", "_BIG.json", refBig, curBig, clusterMaxTotalCores = 64),
+      TrendScaleSignal("c", "_SMALL.json", refSmall, curSmall, clusterMaxTotalCores = 64)
+    )
+    val recipes = Map(
+      "_BIG.json" -> daRecipe(min = 2, max = 4),
+      "_SMALL.json" -> daRecipe(min = 2, max = 4)
+    )
+    val vitamin = new ExecutorTrendVitamin(gains, _ => signals)
+    val boosts = vitamin.computeBoosts(signals, recipes).collect { case b: TrendScaleBoost => b }
+    val big = boosts.find(_.recipeFilename == "_BIG.json").get.decision
+    val small = boosts.find(_.recipeFilename == "_SMALL.json").get.decision
+    big.priorityRank shouldBe Some(1)
+    big.newMax shouldBe 8 // capacity-clamped full grant: +4 executors × 8 cores = the whole 32-core pool
+    small.newMax shouldBe 5 // degraded to +1, not zero
+    small.reason should include("pool-exhausted")
   }
 }

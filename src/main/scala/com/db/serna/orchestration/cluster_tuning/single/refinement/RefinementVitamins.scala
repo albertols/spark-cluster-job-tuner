@@ -593,6 +593,10 @@ final case class TrendScaleBoost(
  *
  * Capacity is derived per recipe from the signal's `clusterMaxTotalCores` divided by that recipe's
  * `spark.executor.cores`.
+ *
+ * Compute is two-phase: phase 1 runs [[ExecutorTrendScaler.decide]] independently per recipe; phase 2 runs
+ * [[ExecutorTrendScaler.prioritize]] cluster-wide over ALL decisions, budgeting UP grants in impact order from a
+ * pool of `upPoolRatio × clusterMaxTotalCores` cores (pool-exhausted candidates degrade to +1, never zero).
  */
 class ExecutorTrendVitamin(
     val gains: ScaleGains,
@@ -609,8 +613,10 @@ class ExecutorTrendVitamin(
 
   def computeBoosts(signals: Seq[VitaminSignal], recipes: Map[String, RecipeConfig]): Seq[VitaminBoost] = {
     val trendSignals = signals.collect { case s: TrendScaleSignal => s }
-    trendSignals.flatMap { sig =>
-      recipes.get(sig.recipeFilename).flatMap { rc =>
+
+    // Phase 1: independent per-recipe decisions.
+    val perRecipe: Seq[(TrendScaleSignal, RecipeConfig, TrendScaleDecision, Int)] = trendSignals.flatMap { sig =>
+      recipes.get(sig.recipeFilename).map { rc =>
         val (isManual, min, initial, max) = extractAllocation(rc)
         val execCores =
           rc.sparkOptsMap.get("spark.executor.cores").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(8)
@@ -618,24 +624,27 @@ class ExecutorTrendVitamin(
           if (sig.clusterMaxTotalCores > 0 && execCores > 0) Some(sig.clusterMaxTotalCores / execCores) else None
         val prior = rc.extraFields.get(boostFieldKey).flatMap(s => scala.util.Try(s.toDouble).toOption)
         val decision =
-          ExecutorTrendScaler.decide(
-            sig.recipeFilename,
-            isManual,
-            min,
-            initial,
-            max,
-            sig.reference,
-            sig.current,
-            gains,
-            capacity,
-            prior
-          )
-        // Emit only when there is something to record: a real config change, or a carried prior factor we
-        // must keep stamping (Holding). Stable recipes with no prior tag produce nothing — this keeps the
-        // pipeline's per-vitamin counter/list (trendScaledJobCount/List) meaningful rather than listing the
-        // whole fleet.
-        if (decision.changed || prior.isDefined) Some(TrendScaleBoost(sig.recipeFilename, decision)) else None
+          ExecutorTrendScaler.decide(sig.recipeFilename, isManual, min, initial, max, sig.reference, sig.current,
+            gains, capacity, prior)
+        (sig, rc, decision, execCores)
       }
+    }
+
+    // Phase 2: cluster-wide capacity-budgeted prioritization of the UP grants.
+    val clusterCores = trendSignals.headOption.map(_.clusterMaxTotalCores).getOrElse(0)
+    val prioritized = ExecutorTrendScaler.prioritize(
+      perRecipe.map { case (_, _, d, ec) => ExecutorTrendScaler.RecipeCores(d, ec) },
+      clusterCores,
+      gains.upPoolRatio
+    )
+
+    // Emit only when there is something to record: a real config change, or a carried prior factor we
+    // must keep stamping (Holding). Stable recipes with no prior tag produce nothing — this keeps the
+    // pipeline's per-vitamin counter/list (trendScaledJobCount/List) meaningful rather than listing the
+    // whole fleet.
+    perRecipe.zip(prioritized).flatMap { case ((sig, rc, _, _), d) =>
+      val prior = rc.extraFields.get(boostFieldKey).flatMap(s => scala.util.Try(s.toDouble).toOption)
+      if (d.changed || prior.isDefined) Some(TrendScaleBoost(sig.recipeFilename, d)) else None
     }
   }
 
