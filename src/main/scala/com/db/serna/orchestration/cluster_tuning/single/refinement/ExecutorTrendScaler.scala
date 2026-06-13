@@ -14,8 +14,8 @@ import com.db.serna.orchestration.cluster_tuning.single.{
  * Tunable gains for [[ExecutorTrendScaler]]. Derived from the active [[BiasMode]] with optional CLI overrides.
  *
  *   - `gain` : how strongly the allocation tracks the duration trend on scale-UP.
- *   - `maxStep` / `minStep` : per-run multiplicative clamps on UP (>= 1) and DOWN (<= 1) so a single run cannot
- *     explode or collapse an allocation.
+ *   - `maxStep` / `minStep` : per-run multiplicative clamps on UP (>= 1) and DOWN (<= 1) so a single run cannot explode
+ *     or collapse an allocation.
  *   - `deadbandUp` / `deadbandDown` : fractional duration change required to trigger UP / DOWN. The band between them
  *     is the hysteresis no-op zone that prevents flapping.
  *   - `capTouchRatio` : UP only fires when cap-pressure (p95RunMax/max or fraction_reaching_cap) >= this.
@@ -23,11 +23,11 @@ import com.db.serna.orchestration.cluster_tuning.single.{
  *     shrinking, and the minimum confidence required to shrink at all.
  *   - `minRunsForConfidence` : runs (each side) at which a signal has full evidence; below it the graduated-evidence
  *     rules in `admittedStepCap` apply.
- *   - `minDeltaMinutes` : absolute blended-duration change in minutes that gates BOTH the UP severity classification
- *     (a huge ratio on a seconds-long job is noise, not a signal) and, symmetrically, the DOWN trigger (a saving
- *     smaller than this is not worth shrinking for).
- *   - `upPoolRatio` : fraction of cluster cores forming the per-run scale-UP budget used to prioritize grants
- *     across a cluster's recipes.
+ *   - `minDeltaMinutes` : absolute blended-duration change in minutes that gates BOTH the UP severity classification (a
+ *     huge ratio on a seconds-long job is noise, not a signal) and, symmetrically, the DOWN trigger (a saving smaller
+ *     than this is not worth shrinking for).
+ *   - `upPoolRatio` : fraction of cluster cores forming the per-run scale-UP budget used to prioritize grants across a
+ *     cluster's recipes.
  */
 final case class ScaleGains(
     gain: Double,
@@ -59,8 +59,8 @@ object ScaleGains {
 
   /**
    * Per-bias (gain, maxStep, deadbandDown, downGain). `BiasMode` is a sealed trait, so this match is exhaustive over
-   * its three cases by construction — no wildcard fallback, so adding a fourth bias becomes a compile-time warning
-   * here rather than silently inheriting the balanced preset.
+   * its three cases by construction — no wildcard fallback, so adding a fourth bias becomes a compile-time warning here
+   * rather than silently inheriting the balanced preset.
    */
   private def biasTuple(bias: BiasMode): (Double, Double, Double, Double) = bias match {
     case CostBiased => (0.35, 1.5, 0.05, 0.6)
@@ -120,9 +120,9 @@ object ScaleSeverity {
  * For manual recipes `newMin == newInitial == newMax` and all three carry the new `spark.executor.instances`.
  * `cumulativeFactor` is the value stamped as `appliedTrendScaleFactor` (compounds UP, reduces DOWN, carries on HOLD).
  * `severity` is the UP-side severity tier label; improvements and no-signal cases classify as "negligible" (the tier
- * describes degradation only). "n/a" appears only on hand-constructed instances.
- * `impactMinutes` = max(0, blended delta minutes) x current runs — total wall-clock minutes lost per window.
- * `priorityRank` is set later by cluster-wide prioritization (Task 3); `decide` always leaves it None.
+ * describes degradation only). "n/a" appears only on hand-constructed instances. `impactMinutes` = max(0, blended delta
+ * minutes) x current runs — total wall-clock minutes lost per window. `priorityRank` is set later by cluster-wide
+ * prioritization (Task 3); `decide` always leaves it None.
  */
 final case class TrendScaleDecision(
     recipe: String,
@@ -178,10 +178,10 @@ object ExecutorTrendScaler {
     else ScaleSeverity.Moderate
 
   /**
-   * Graduated evidence: large effects need fewer observations. Returns the admitted per-run step cap,
-   * or None when the signal is not admitted (insufficient evidence for its severity, or Negligible).
-   * runs >= minRunsForConfidence: full tier cap; 2 to minRunsForConfidence-1: Severe+ only, cap demoted
-   * one tier; 1 run: Critical only at SingleRunStepCap; otherwise none.
+   * Graduated evidence: large effects need fewer observations. Returns the admitted per-run step cap, or None when the
+   * signal is not admitted (insufficient evidence for its severity, or Negligible). runs >= minRunsForConfidence: full
+   * tier cap; 2 to minRunsForConfidence-1: Severe+ only, cap demoted one tier; 1 run: Critical only at
+   * SingleRunStepCap; otherwise none.
    */
   private[refinement] def admittedStepCap(tier: ScaleSeverity, runs: Long, gains: ScaleGains): Option[Double] = {
     def fullCap(t: ScaleSeverity): Double = t match {
@@ -215,16 +215,16 @@ object ExecutorTrendScaler {
    *
    * UP is gated by severity tiers: [[classifySeverity]] requires BOTH the relative blended-duration ratio and the
    * absolute minutes lost (`minDeltaMinutes`), and [[admittedStepCap]] applies graduated evidence — large effects
-   * (Severe/Critical) are admitted on fewer runs, but with a demoted (or `SingleRunStepCap`) per-run step cap.
-   * An admitted UP also still requires cap-pressure >= `capTouchRatio`. `min` creeps at most +1 per run, and only
-   * when the tier is Severe+ AND pressure >= `MinCreepPressure`; `initial` follows within [min, initial+1].
+   * (Severe/Critical) are admitted on fewer runs, but with a demoted (or `SingleRunStepCap`) per-run step cap. An
+   * admitted UP also still requires cap-pressure >= `capTouchRatio`. `min` creeps at most +1 per run, and only when the
+   * tier is Severe+ AND pressure >= `MinCreepPressure`; `initial` follows within [min, initial+1].
    *
    * DOWN requires the blended saving to be at least `minDeltaMinutes` (symmetric absolute floor) on top of the
    * fractional deadband, plus low cap-pressure and ramped confidence. `max` shrinks toward observed demand with a
    * safety margin (never below peak demand or floor 2); `min` shrinks at most 1 per run, never below steady demand.
    *
-   * HOLD keeps the config unchanged (appliedFactor 1.0) and carries any prior cumulative factor (Holding lifecycle).
-   * UP never shrinks the ceiling below `currentMax`, even under a tight `capacity` clamp.
+   * HOLD keeps the config unchanged (appliedFactor 1.0) and carries any prior cumulative factor (Holding lifecycle). UP
+   * never shrinks the ceiling below `currentMax`, even under a tight `capacity` clamp.
    */
   def decide(
       recipe: String,
@@ -269,12 +269,22 @@ object ExecutorTrendScaler {
 
     def hold(reason: String): TrendScaleDecision =
       TrendScaleDecision(
-        recipe, isManual,
-        currentMin, currentInitial, currentMax,
-        currentMin, currentInitial, currentMax,
-        1.0, prior, ScaleDirection.Hold,
+        recipe,
+        isManual,
+        currentMin,
+        currentInitial,
+        currentMax,
+        currentMin,
+        currentInitial,
+        currentMax,
+        1.0,
+        prior,
+        ScaleDirection.Hold,
         if (hasPrior) BoostState.Holding else BoostState.New,
-        reason, tier.label, impactMin, None
+        reason,
+        tier.label,
+        impactMin,
+        None
       )
 
     if (upTriggered) {
@@ -288,12 +298,22 @@ object ExecutorTrendScaler {
       if (isManual) {
         val newInst = math.max(2, newMax)
         TrendScaleDecision(
-          recipe, isManual = true,
-          currentMin, currentInitial, currentMax,
-          newInst, newInst, newInst,
-          maxFactor, prior * maxFactor, ScaleDirection.Up,
+          recipe,
+          isManual = true,
+          currentMin,
+          currentInitial,
+          currentMax,
+          newInst,
+          newInst,
+          newInst,
+          maxFactor,
+          prior * maxFactor,
+          ScaleDirection.Up,
           if (hasPrior) BoostState.ReBoost else BoostState.New,
-          s"manual instances $currentMax->$newInst ($diag)", tier.label, impactMin, None
+          s"manual instances $currentMax->$newInst ($diag)",
+          tier.label,
+          impactMin,
+          None
         )
       } else {
         // Gentle creep: the always-on floor rises at most +1 per run, and only when the
@@ -305,12 +325,22 @@ object ExecutorTrendScaler {
         val initialCeil = math.max(newMin, math.min(currentInitial + 1, newMax)) // initial follows by at most +1
         val newInitial = clampI(math.max(newMin, currentInitial), newMin, initialCeil)
         TrendScaleDecision(
-          recipe, isManual = false,
-          currentMin, currentInitial, currentMax,
-          newMin, newInitial, newMax,
-          maxFactor, prior * maxFactor, ScaleDirection.Up,
+          recipe,
+          isManual = false,
+          currentMin,
+          currentInitial,
+          currentMax,
+          newMin,
+          newInitial,
+          newMax,
+          maxFactor,
+          prior * maxFactor,
+          ScaleDirection.Up,
           if (hasPrior) BoostState.ReBoost else BoostState.New,
-          s"min $currentMin->$newMin max $currentMax->$newMax ($diag)", tier.label, impactMin, None
+          s"min $currentMin->$newMin max $currentMax->$newMax ($diag)",
+          tier.label,
+          impactMin,
+          None
         )
       }
     } else if (downTriggered) {
@@ -324,14 +354,22 @@ object ExecutorTrendScaler {
         val newInst = newMax
         val noChange = newInst == currentMax
         TrendScaleDecision(
-          recipe, isManual = true,
-          currentMin, currentInitial, currentMax,
-          newInst, newInst, newInst,
+          recipe,
+          isManual = true,
+          currentMin,
+          currentInitial,
+          currentMax,
+          newInst,
+          newInst,
+          newInst,
           if (noChange) 1.0 else downFactor,
           if (noChange) prior else prior * downFactor,
           if (noChange) ScaleDirection.Hold else ScaleDirection.Down,
           if (noChange && hasPrior) BoostState.Holding else if (hasPrior) BoostState.ReBoost else BoostState.New,
-          s"manual instances $currentMax->$newInst ($diag)", tier.label, impactMin, None
+          s"manual instances $currentMax->$newInst ($diag)",
+          tier.label,
+          impactMin,
+          None
         )
       } else {
         // min shrinks at most 1 per run — but is RAISED to steady demand when observed demand exceeds it
@@ -340,14 +378,22 @@ object ExecutorTrendScaler {
         val newInitial = clampI(math.max(newMin, math.min(currentInitial, newMax)), newMin, newMax)
         val noChange = newMax == currentMax && newMin == currentMin && newInitial == currentInitial
         TrendScaleDecision(
-          recipe, isManual = false,
-          currentMin, currentInitial, currentMax,
-          newMin, newInitial, newMax,
+          recipe,
+          isManual = false,
+          currentMin,
+          currentInitial,
+          currentMax,
+          newMin,
+          newInitial,
+          newMax,
           if (noChange) 1.0 else downFactor,
           if (noChange) prior else prior * downFactor,
           if (noChange) ScaleDirection.Hold else ScaleDirection.Down,
           if (noChange && hasPrior) BoostState.Holding else if (hasPrior) BoostState.ReBoost else BoostState.New,
-          s"min $currentMin->$newMin max $currentMax->$newMax ($diag)", tier.label, impactMin, None
+          s"min $currentMin->$newMin max $currentMax->$newMax ($diag)",
+          tier.label,
+          impactMin,
+          None
         )
       }
     } else {
@@ -361,12 +407,11 @@ object ExecutorTrendScaler {
   final case class RecipeCores(decision: TrendScaleDecision, execCores: Int)
 
   /**
-   * Capacity-budgeted prioritization across one cluster's trend decisions. UP grants draw, in
-   * impact order (total minutes lost per window), from a per-run pool of `poolRatio × clusterMaxTotalCores`
-   * cores; each grant consumes (newMax − originalMax) × execCores. When the pool runs dry, remaining
-   * UP candidates are degraded to originalMax + 1 — reduced, never starved (every admitted signal
-   * still moves). Jobs are staggered in time, so this is intentionally a growth-rate bound, not a
-   * concurrency bound; CapacityGuard stays the physical per-recipe clamp afterwards.
+   * Capacity-budgeted prioritization across one cluster's trend decisions. UP grants draw, in impact order (total
+   * minutes lost per window), from a per-run pool of `poolRatio × clusterMaxTotalCores` cores; each grant consumes
+   * (newMax − originalMax) × execCores. When the pool runs dry, remaining UP candidates are degraded to originalMax + 1
+   * — reduced, never starved (every admitted signal still moves). Jobs are staggered in time, so this is intentionally
+   * a growth-rate bound, not a concurrency bound; CapacityGuard stays the physical per-recipe clamp afterwards.
    * Holds/Downs pass through untouched. Input order is preserved.
    */
   def prioritize(inputs: Seq[RecipeCores], clusterMaxTotalCores: Int, poolRatio: Double): Seq[TrendScaleDecision] = {
@@ -385,21 +430,36 @@ object ExecutorTrendScaler {
           pool -= wantCores
           d.copy(priorityRank = Some(idx + 1))
         } else {
-          pool = math.max(0, pool - cores) // a degraded +1 grant still consumes its one executor's worth of cores (floored at 0)
+          pool = math.max(
+            0,
+            pool - cores
+          ) // a degraded +1 grant still consumes its one executor's worth of cores (floored at 0)
           val degradedMax = d.originalMax + 1
           val newFactor = degradedMax.toDouble / math.max(1, d.originalMax)
           val priorCum = d.cumulativeFactor / d.appliedFactor
           val annotated = d.reason + s" [pool-exhausted: granted +1 of +${d.newMax - d.originalMax}]"
           if (d.isManual)
-            d.copy(newMin = degradedMax, newInitial = degradedMax, newMax = degradedMax,
-              appliedFactor = newFactor, cumulativeFactor = priorCum * newFactor,
-              priorityRank = Some(idx + 1), reason = annotated)
+            d.copy(
+              newMin = degradedMax,
+              newInitial = degradedMax,
+              newMax = degradedMax,
+              appliedFactor = newFactor,
+              cumulativeFactor = priorCum * newFactor,
+              priorityRank = Some(idx + 1),
+              reason = annotated
+            )
           else {
             val dMin = math.min(d.newMin, math.max(2, degradedMax - 1))
             val dInit = math.max(dMin, math.min(d.newInitial, degradedMax))
-            d.copy(newMin = dMin, newInitial = dInit, newMax = degradedMax,
-              appliedFactor = newFactor, cumulativeFactor = priorCum * newFactor,
-              priorityRank = Some(idx + 1), reason = annotated)
+            d.copy(
+              newMin = dMin,
+              newInitial = dInit,
+              newMax = degradedMax,
+              appliedFactor = newFactor,
+              cumulativeFactor = priorCum * newFactor,
+              priorityRank = Some(idx + 1),
+              reason = annotated
+            )
           }
         }
       adjusted(d.recipe) = granted

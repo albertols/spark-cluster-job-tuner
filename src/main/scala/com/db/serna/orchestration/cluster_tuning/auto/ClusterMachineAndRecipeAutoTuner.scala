@@ -1121,8 +1121,8 @@ object ClusterMachineAndRecipeAutoTuner {
 
   /**
    * Apply longitudinal trend-driven scaling to a cluster's tuned JSONs (auto-scale and manual). Runs BEFORE the z-score
-   * [[ExecutorScaleVitamin]] so the z-score path adds an extra boost on top of the trend baseline. Capacity is read from
-   * each file's `clusterConf.cluster_max_total_cores` divided by the recipe's `spark.executor.cores`. Returns the
+   * [[ExecutorScaleVitamin]] so the z-score path adds an extra boost on top of the trend baseline. Capacity is read
+   * from each file's `clusterConf.cluster_max_total_cores` divided by the recipe's `spark.executor.cores`. Returns the
    * decisions that were emitted (the vitamin only emits for recipes it touches — changed or carrying a prior factor).
    */
   private def applyTrendScaling(
@@ -1552,8 +1552,8 @@ object ClusterMachineAndRecipeAutoTuner {
   }
 
   /**
-   * Build the `executor_trend` entry for the structured summary's `boost_groups` array. Self-contained (own quoting)
-   * so it can be unit-tested in isolation. `source: "trend"` and the `count_up`/`count_down` fields distinguish this
+   * Build the `executor_trend` entry for the structured summary's `boost_groups` array. Self-contained (own quoting) so
+   * it can be unit-tested in isolation. `source: "trend"` and the `count_up`/`count_down` fields distinguish this
    * longitudinal path from the divergence-driven `executor_scale` (z-score) group; both are recipe-level.
    *
    * The input is already filtered to changed decisions by the AutoTuner; entries are deduped by recipe per cluster.

@@ -1001,8 +1001,14 @@ object MockScenarios {
     val refDur = Seq((600000.0, 540000.0), (240000.0, 220000.0), (20000.0, 18000.0))
     val curDur = Seq((3600000.0, 3300000.0), (540000.0, 500000.0), (120000.0, 110000.0))
 
-    val ref = MockScenario(name = "trendPriority-reference", clusters = Seq(cluster(s1, refDur)), window = (s1, e1), seed = seed)
-    val cur = MockScenario(name = "trendPriority-current", clusters = Seq(cluster(s2, curDur)), window = (s2, e2), seed = seed)
+    val ref = MockScenario(
+      name = "trendPriority-reference",
+      clusters = Seq(cluster(s1, refDur)),
+      window = (s1, e1),
+      seed = seed
+    )
+    val cur =
+      MockScenario(name = "trendPriority-current", clusters = Seq(cluster(s2, curDur)), window = (s2, e2), seed = seed)
     MultiDateScenario(name = "trendPriority", perDate = Map(refDate -> ref, curDate -> cur))
   }
 

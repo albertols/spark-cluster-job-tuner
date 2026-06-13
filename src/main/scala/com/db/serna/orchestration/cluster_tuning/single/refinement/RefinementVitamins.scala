@@ -562,9 +562,9 @@ class ExecutorScaleVitamin(
 // ── Trend-driven executor scaling ────────────────────────────────────────────
 
 /**
- * Longitudinal signal — built in-memory by the AutoTuner from a paired (reference, current) recipe. Unlike the
- * z-score [[ExecutorScaleSignal]], this carries both metric snapshots so the pure [[ExecutorTrendScaler]] can compute
- * the duration trend directly. `clusterMaxTotalCores` lets the vitamin derive an executor capacity per recipe.
+ * Longitudinal signal — built in-memory by the AutoTuner from a paired (reference, current) recipe. Unlike the z-score
+ * [[ExecutorScaleSignal]], this carries both metric snapshots so the pure [[ExecutorTrendScaler]] can compute the
+ * duration trend directly. `clusterMaxTotalCores` lets the vitamin derive an executor capacity per recipe.
  */
 final case class TrendScaleSignal(
     clusterName: String,
@@ -595,8 +595,8 @@ final case class TrendScaleBoost(
  * `spark.executor.cores`.
  *
  * Compute is two-phase: phase 1 runs [[ExecutorTrendScaler.decide]] independently per recipe; phase 2 runs
- * [[ExecutorTrendScaler.prioritize]] cluster-wide over ALL decisions, budgeting UP grants in impact order from a
- * pool of `upPoolRatio × clusterMaxTotalCores` cores (pool-exhausted candidates degrade to +1, never zero).
+ * [[ExecutorTrendScaler.prioritize]] cluster-wide over ALL decisions, budgeting UP grants in impact order from a pool
+ * of `upPoolRatio × clusterMaxTotalCores` cores (pool-exhausted candidates degrade to +1, never zero).
  */
 class ExecutorTrendVitamin(
     val gains: ScaleGains,
@@ -624,8 +624,8 @@ class ExecutorTrendVitamin(
           if (sig.clusterMaxTotalCores > 0 && execCores > 0) Some(sig.clusterMaxTotalCores / execCores) else None
         val prior = rc.extraFields.get(boostFieldKey).flatMap(s => scala.util.Try(s.toDouble).toOption)
         val decision =
-          ExecutorTrendScaler.decide(sig.recipeFilename, isManual, min, initial, max, sig.reference, sig.current,
-            gains, capacity, prior)
+          ExecutorTrendScaler
+            .decide(sig.recipeFilename, isManual, min, initial, max, sig.reference, sig.current, gains, capacity, prior)
         (decision, execCores, prior)
       }
     }
@@ -752,8 +752,8 @@ class CapacityGuardVitamin(
         val (isManual, min, initial, max) = extractAllocation(rc)
         val ec = rc.sparkOptsMap.get("spark.executor.cores").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(8)
         val em = SimpleJsonParser.parseMemoryGb(rc.sparkOptsMap.getOrElse("spark.executor.memory", "8g"))
-        val r = CapacityGuard.guard(
-          isManual, min, initial, max, ec, em, sig.nodeCores, sig.nodeMemGb, sig.maxWorkers, sig.ratio)
+        val r = CapacityGuard
+          .guard(isManual, min, initial, max, ec, em, sig.nodeCores, sig.nodeMemGb, sig.maxWorkers, sig.ratio)
         CapacityGuardBoost(sig.recipeFilename, r)
       }
     }

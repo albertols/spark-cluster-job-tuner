@@ -1433,9 +1433,16 @@ object ClusterMachineAndRecipeTuner {
 
     val recipes: Seq[(String, String)] = plans.map { p =>
       val r = CapacityGuard.guard(
-        isManual = true, p.sparkExecutorInstances, p.sparkExecutorInstances, p.sparkExecutorInstances,
-        p.sparkExecutorCores, p.sparkExecutorMemoryGb,
-        cluster.workerMachineType.cores, cluster.workerMachineType.memoryGb, maxWorkers, maxClusterUtilRatio
+        isManual = true,
+        p.sparkExecutorInstances,
+        p.sparkExecutorInstances,
+        p.sparkExecutorInstances,
+        p.sparkExecutorCores,
+        p.sparkExecutorMemoryGb,
+        cluster.workerMachineType.cores,
+        cluster.workerMachineType.memoryGb,
+        maxWorkers,
+        maxClusterUtilRatio
       )
       val totalMemGb = r.newMax * p.sparkExecutorMemoryGb
       val capacityField: Seq[(String, String)] =
@@ -1519,9 +1526,16 @@ object ClusterMachineAndRecipeTuner {
 
     val recipes: Seq[(String, String)] = plans.map { p =>
       val r = CapacityGuard.guard(
-        isManual = false, p.minExecutors, p.initialExecutors, p.maxExecutors,
-        p.sparkExecutorCores, p.sparkExecutorMemoryGb,
-        cluster.workerMachineType.cores, cluster.workerMachineType.memoryGb, maxWorkers, maxClusterUtilRatio
+        isManual = false,
+        p.minExecutors,
+        p.initialExecutors,
+        p.maxExecutors,
+        p.sparkExecutorCores,
+        p.sparkExecutorMemoryGb,
+        cluster.workerMachineType.cores,
+        cluster.workerMachineType.memoryGb,
+        maxWorkers,
+        maxClusterUtilRatio
       )
       val minTotalMemGb = r.newMin * p.sparkExecutorMemoryGb
       val maxTotalMemGb = r.newMax * p.sparkExecutorMemoryGb
@@ -1784,7 +1798,14 @@ object ClusterMachineAndRecipeTuner {
       )
 
       val manualJsonStr: String =
-        manualJson(clusterPlan, manualPlans, tunerVersion, driverOverride, breakdown.costTimelineJson, cfg.maxClusterUtilRatio)
+        manualJson(
+          clusterPlan,
+          manualPlans,
+          tunerVersion,
+          driverOverride,
+          breakdown.costTimelineJson,
+          cfg.maxClusterUtilRatio
+        )
       val daJsonStr: String =
         daJson(clusterPlan, daPlans, tunerVersion, driverOverride, breakdown.costTimelineJson, cfg.maxClusterUtilRatio)
 

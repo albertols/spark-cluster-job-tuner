@@ -186,10 +186,17 @@ class ExecutorTrendScalerSpec extends AnyFunSuite with Matchers {
 
   test("deadband: small duration noise holds both ways") {
     val ref = m(p95Dur = 600000, avgDur = 600000, p95Max = 3, runs = 20)
-    decide(ref, m(p95Dur = 630000, avgDur = 630000, p95Max = 3, runs = 20), max = 3)
-      .direction shouldBe ScaleDirection.Hold
-    decide(ref, m(p95Dur = 576000, avgDur = 576000, p95Max = 3, runs = 20), min = 4, max = 8)
-      .direction shouldBe ScaleDirection.Hold
+    decide(
+      ref,
+      m(p95Dur = 630000, avgDur = 630000, p95Max = 3, runs = 20),
+      max = 3
+    ).direction shouldBe ScaleDirection.Hold
+    decide(
+      ref,
+      m(p95Dur = 576000, avgDur = 576000, p95Max = 3, runs = 20),
+      min = 4,
+      max = 8
+    ).direction shouldBe ScaleDirection.Hold
   }
 
   test("prior factor carries on hold (Holding) and compounds on UP (ReBoost)") {

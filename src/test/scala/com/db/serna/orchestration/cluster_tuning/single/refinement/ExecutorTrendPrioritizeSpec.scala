@@ -5,17 +5,51 @@ import org.scalatest.matchers.should.Matchers
 
 class ExecutorTrendPrioritizeSpec extends AnyFunSuite with Matchers {
 
-  private def up(recipe: String, origMax: Int, newMax: Int, impact: Double, manual: Boolean = false): TrendScaleDecision =
+  private def up(
+      recipe: String,
+      origMax: Int,
+      newMax: Int,
+      impact: Double,
+      manual: Boolean = false
+  ): TrendScaleDecision =
     TrendScaleDecision(
-      recipe, manual, 2, 2, origMax,
-      if (manual) newMax else 2, if (manual) newMax else 2, newMax,
-      newMax.toDouble / origMax, newMax.toDouble / origMax,
-      ScaleDirection.Up, BoostState.New, "up", "severe", impact, None
+      recipe,
+      manual,
+      2,
+      2,
+      origMax,
+      if (manual) newMax else 2,
+      if (manual) newMax else 2,
+      newMax,
+      newMax.toDouble / origMax,
+      newMax.toDouble / origMax,
+      ScaleDirection.Up,
+      BoostState.New,
+      "up",
+      "severe",
+      impact,
+      None
     )
 
   private def hold(recipe: String): TrendScaleDecision =
-    TrendScaleDecision(recipe, isManual = false, 2, 2, 4, 2, 2, 4, 1.0, 1.0,
-      ScaleDirection.Hold, BoostState.New, "hold", "negligible", 0.0, None)
+    TrendScaleDecision(
+      recipe,
+      isManual = false,
+      2,
+      2,
+      4,
+      2,
+      2,
+      4,
+      1.0,
+      1.0,
+      ScaleDirection.Hold,
+      BoostState.New,
+      "hold",
+      "negligible",
+      0.0,
+      None
+    )
 
   private def rc(d: TrendScaleDecision, cores: Int = 8): ExecutorTrendScaler.RecipeCores =
     ExecutorTrendScaler.RecipeCores(d, cores)
@@ -82,9 +116,10 @@ class ExecutorTrendPrioritizeSpec extends AnyFunSuite with Matchers {
     val a = up("a.json", 4, 12, impact = 600.0)
     val b = up("b.json", 4, 10, impact = 50.0)
     val c = up("c.json", 4, 6, impact = 10.0)
-    val out = ExecutorTrendScaler.prioritize(Seq(rc(a), rc(b), rc(c, cores = 1)), clusterMaxTotalCores = 140, poolRatio = 0.5)
+    val out =
+      ExecutorTrendScaler.prioritize(Seq(rc(a), rc(b), rc(c, cores = 1)), clusterMaxTotalCores = 140, poolRatio = 0.5)
     out.find(_.recipe == "a.json").get.newMax shouldBe 12 // full grant (64 <= 70)
-    out.find(_.recipe == "b.json").get.newMax shouldBe 5  // degraded, consumes 8 -> pool 0
+    out.find(_.recipe == "b.json").get.newMax shouldBe 5 // degraded, consumes 8 -> pool 0
     val dc = out.find(_.recipe == "c.json").get
     dc.newMax shouldBe 5 // would fit the pre-debit leftover (2 <= 6) — only correct if b's degrade consumed
     dc.reason should include("pool-exhausted")
