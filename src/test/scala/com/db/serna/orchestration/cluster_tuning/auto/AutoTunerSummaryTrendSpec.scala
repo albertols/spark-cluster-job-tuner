@@ -8,8 +8,36 @@ class AutoTunerSummaryTrendSpec extends AnyFunSuite with Matchers {
 
   test("trend boost group records code, source=trend, and direction counts") {
     val decisions = Seq(
-      TrendScaleDecision("_a.json", isManual = false, 2, 2, 3, 3, 3, 5, 1.5, 1.5, ScaleDirection.Up, BoostState.New, "up"),
-      TrendScaleDecision("_b.json", isManual = false, 8, 8, 12, 6, 6, 8, 0.7, 0.7, ScaleDirection.Down, BoostState.New, "down")
+      TrendScaleDecision(
+        "_a.json",
+        isManual = false,
+        2,
+        2,
+        3,
+        3,
+        3,
+        5,
+        1.5,
+        1.5,
+        ScaleDirection.Up,
+        BoostState.New,
+        "up"
+      ),
+      TrendScaleDecision(
+        "_b.json",
+        isManual = false,
+        8,
+        8,
+        12,
+        6,
+        6,
+        8,
+        0.7,
+        0.7,
+        ScaleDirection.Down,
+        BoostState.New,
+        "down"
+      )
     )
     val group = ClusterMachineAndRecipeAutoTuner.trendBoostGroup(Seq(("c1", decisions)))
     group should include("\"code\":\"executor_trend\"")
@@ -17,6 +45,31 @@ class AutoTunerSummaryTrendSpec extends AnyFunSuite with Matchers {
     group should include("\"count_up\":1")
     group should include("\"count_down\":1")
     group should include("\"cluster_count\":1")
+  }
+
+  test("trendBoostGroup carries severity, impact_minutes and priority_rank per recipe") {
+    val d = TrendScaleDecision(
+      "_X.json",
+      isManual = false,
+      2,
+      2,
+      3,
+      3,
+      3,
+      6,
+      2.0,
+      2.0,
+      ScaleDirection.Up,
+      BoostState.New,
+      "up",
+      "severe",
+      123.4,
+      Some(1)
+    )
+    val json = ClusterMachineAndRecipeAutoTuner.trendBoostGroup(Seq(("c1", Seq(d))))
+    json should include(""""severity":"severe"""")
+    json should include(""""impact_minutes":123.4""")
+    json should include(""""priority_rank":1""")
   }
 
   test("empty trend input still produces a well-formed zero-count group") {

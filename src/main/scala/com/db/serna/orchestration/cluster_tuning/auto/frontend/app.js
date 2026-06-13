@@ -154,6 +154,10 @@ const METRIC_DOCS = {
     title: "Fraction reaching cap",
     body: "Share of runs that hit the executor cap. High values indicate sustained capacity pressure and a likely bottleneck."
   },
+  capacity_guard: {
+    title: "Capacity guard",
+    body: "A final safety pass that clamps every recipe's executor request to what the cluster can physically schedule. Capacity is bin-packed per node: capExecutors = max_workers × min(floor(ratio·nodeCores/executorCores), floor(ratio·nodeMemGb/executorMemGb)) with ratio = --max-cluster-util-ratio (default 0.90). The count shows how many recipes were checked this run; clamped recipes carry capacityStatus and ~100% core/memory usage in the utilization heatmap above."
+  },
   confidence: {
     title: "Confidence",
     body: "How trustworthy the trend assessment is, based on the minimum run count between reference and current dates. 1+ runs = 0.1, 5 = 0.5, 10+ = 1.0."
@@ -511,6 +515,7 @@ function parseRoute() {
     summary: p.get('summary') || null,
     divSort: p.get('divSort') || null,
     divDir: p.get('divDir') || null,
+    durMetric: p.get('durMetric') || null,
   };
 }
 
@@ -523,6 +528,7 @@ function buildUrl(route) {
   if (route.summary) p.set('summary', route.summary);
   if (route.divSort) p.set('divSort', route.divSort);
   if (route.divDir) p.set('divDir', route.divDir);
+  if (route.durMetric) p.set('durMetric', route.durMetric);
   const s = p.toString();
   return s ? `?${s}` : window.location.pathname;
 }
@@ -602,7 +608,18 @@ function wireGlobalHandlers() {
     tab.addEventListener('click', () => navigate({ tab: tab.dataset.tab, cluster: null, recipe: null }));
   });
 
-  document.getElementById('cluster-search').addEventListener('input', renderClusterGrid);
+  const searchEl = document.getElementById('cluster-search');
+  searchEl.addEventListener('input', () => { renderClusterGrid(); renderRecipeSearchResults(); });
+  searchEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hideRecipeSearchResults();
+    if (e.key === 'Enter') {
+      const first = document.querySelector('#recipe-search-results .recipe-search-row');
+      if (first) first.click();
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#search-wrap')) hideRecipeSearchResults();
+  });
   document.getElementById('trend-filter').addEventListener('change', renderClusterGrid);
   document.getElementById('z-min').addEventListener('input', () => renderDivergenceTable());
 
@@ -1348,6 +1365,46 @@ function cssAttrEscape(s) {
   return String(s).replace(/["\\]/g, '\\$&');
 }
 
+// Strip leading underscore and .json extension from a recipe filename.
+function recipeShortName(recipe) {
+  return String(recipe).replace(/^_/, '').replace(/\.json$/, '');
+}
+
+// ── Recipe typeahead (fleet search) ─────────────────────────────────────────
+
+function hideRecipeSearchResults() {
+  const box = document.getElementById('recipe-search-results');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+}
+
+function renderRecipeSearchResults() {
+  const box = document.getElementById('recipe-search-results');
+  const q = document.getElementById('cluster-search').value.trim().toLowerCase();
+  if (!box) return;
+  if (!data || q.length < 2) { hideRecipeSearchResults(); return; }
+  const matches = [];
+  (data.cluster_trends || []).forEach(c => {
+    c.recipes.forEach(r => {
+      if (r.recipe.toLowerCase().includes(q)) matches.push({ cluster: c.cluster, recipe: r.recipe, trend: r.trend });
+    });
+  });
+  if (!matches.length) { hideRecipeSearchResults(); return; }
+  box.innerHTML = matches.slice(0, 20).map(m =>
+    `<div class="recipe-search-row" data-cluster="${escapeAttr(m.cluster)}" data-recipe="${escapeAttr(m.recipe)}">
+       <span class="pill ${escapeAttr(m.trend)}">${escapeHtml(m.trend)}</span>
+       <span class="rsr-recipe" title="${escapeAttr(m.recipe)}">${escapeHtml(recipeShortName(m.recipe))}</span>
+       <span class="rsr-cluster">${escapeHtml(m.cluster)}</span>
+     </div>`).join('') +
+    (matches.length > 20 ? `<div class="rsr-more">+${matches.length - 20} more — keep typing</div>` : '');
+  box.style.display = 'block';
+  box.querySelectorAll('.recipe-search-row').forEach(row => {
+    row.addEventListener('click', () => {
+      hideRecipeSearchResults();
+      navigate({ cluster: row.dataset.cluster, recipe: row.dataset.recipe });
+    });
+  });
+}
+
 function renderClusterGrid() {
   const search = document.getElementById('cluster-search').value.toLowerCase();
   const trendFilter = document.getElementById('trend-filter').value;
@@ -1532,11 +1589,14 @@ async function showClusterDetailRaw(clusterName) {
   document.getElementById('detail-cluster-conf').innerHTML =
     `<h3>Cluster Configuration <span class="info-icon" data-doc-key="trend" title="Compares reference vs current date config">ⓘ</span></h3>` +
     `<div class="empty-msg">Loading cluster configurations…</div>`;
+  document.getElementById('detail-cluster-trend-summary').innerHTML = '';
 
   loadClusterJsonsForDates(clusterName).then(({ ref, cur, prevRef, refDate, curDate, prevRefDate }) => {
     mountClusterUtilHeatmap(cur);
+    renderClusterTrendSummary(clusterName, ref, cur, refDate, curDate);
     renderClusterConfComparison(clusterName, ref, cur, refDate, curDate);
     annotateKeptRecipeCards(cur);
+    annotateConfChangeIcons(ref, cur);
     renderDetailClusterCost(clusterName, ref, cur, refDate, curDate, prevRef, prevRefDate);
   });
 
@@ -1615,6 +1675,61 @@ function annotateKeptRecipeCards(curJson) {
     } else {
       heading.appendChild(pill);
     }
+  });
+}
+
+// Parse "8g" / "512m" → GB number (null when unparseable).
+function parseMemGbStr(s) {
+  const m = /^(\d+(?:\.\d+)?)\s*([gGmM])/.exec(String(s || ''));
+  if (!m) return null;
+  const v = parseFloat(m[1]);
+  return m[2].toLowerCase() === 'g' ? v : v / 1024;
+}
+
+// Append compact ▲/▼ chips after each recipe name showing what the new config
+// changed vs the reference date: executors (min/max or instances) and memory.
+function annotateConfChangeIcons(refJson, curJson) {
+  if (!refJson || !refJson.recipeSparkConf || !curJson || !curJson.recipeSparkConf) return;
+  const refConf = refJson.recipeSparkConf, curConf = curJson.recipeSparkConf;
+  document.querySelectorAll('.detail-recipe-card').forEach(card => {
+    const recipe = card.dataset.recipe;
+    const rc = refConf[recipe], cc = curConf[recipe];
+    if (!rc || !cc || !rc.sparkOptsMap || !cc.sparkOptsMap) return;
+    const heading = card.querySelector('h4');
+    if (!heading || heading.querySelector('.conf-delta-icons')) return; // idempotent
+
+    const icons = [];
+    const intDelta = (key, glyph, label) => {
+      const a = parseInt(rc.sparkOptsMap[key], 10), b = parseInt(cc.sparkOptsMap[key], 10);
+      if (Number.isFinite(a) && Number.isFinite(b) && a !== b) {
+        icons.push({ dir: b > a ? 'up' : 'down', glyph, title: `${label}: ${a} → ${b}` });
+      }
+    };
+    intDelta('spark.dynamicAllocation.maxExecutors', 'E', 'maxExecutors');
+    intDelta('spark.dynamicAllocation.minExecutors', 'm', 'minExecutors');
+    intDelta('spark.executor.instances', 'E', 'executor instances');
+    const memA = parseMemGbStr(rc.sparkOptsMap['spark.executor.memory']);
+    const memB = parseMemGbStr(cc.sparkOptsMap['spark.executor.memory']);
+    if (memA !== null && memB !== null && memA !== memB) {
+      icons.push({
+        dir: memB > memA ? 'up' : 'down', glyph: 'M',
+        title: `executor memory: ${rc.sparkOptsMap['spark.executor.memory']} → ${cc.sparkOptsMap['spark.executor.memory']}`
+      });
+    }
+    if (!icons.length) return;
+
+    const wrap = document.createElement('span');
+    wrap.className = 'conf-delta-icons';
+    icons.forEach(ic => {
+      const s = document.createElement('span');
+      s.className = `conf-delta-icon ${ic.dir}`;
+      s.textContent = `${ic.glyph}${ic.dir === 'up' ? '▲' : '▼'}`;
+      s.title = ic.title;
+      wrap.appendChild(s);
+    });
+    const nameSpan = heading.querySelector('.recipe-name-text');
+    if (nameSpan && nameSpan.parentNode) nameSpan.parentNode.insertBefore(wrap, nameSpan.nextSibling);
+    else heading.appendChild(wrap);
   });
 }
 
@@ -2188,6 +2303,75 @@ function renderDetailClusterCost(clusterName, refJson, curJson, refDate, curDate
   _dccApplyTrioLayout();
 }
 
+// Aggregate executor/cores/memory allocation per side from recipeSparkConf.
+function aggregateRecipeAlloc(json) {
+  const conf = (json && json.recipeSparkConf) || {};
+  const per = {};
+  Object.keys(conf).forEach(name => {
+    const so = conf[name].sparkOptsMap || {};
+    const dyn = so['spark.dynamicAllocation.enabled'] === 'true';
+    const max = parseInt(dyn ? so['spark.dynamicAllocation.maxExecutors'] : so['spark.executor.instances'], 10);
+    const min = parseInt(dyn ? so['spark.dynamicAllocation.minExecutors'] : so['spark.executor.instances'], 10);
+    const cores = parseInt(so['spark.executor.cores'], 10) || 0;
+    const memGb = parseMemGbStr(so['spark.executor.memory']) || 0;
+    if (!Number.isFinite(max) || !Number.isFinite(min)) return;
+    per[name] = { min, max, cores: max * cores, memGb: max * memGb };
+  });
+  return per;
+}
+
+function renderClusterTrendSummary(clusterName, refJson, curJson, refDate, curDate) {
+  const target = document.getElementById('detail-cluster-trend-summary');
+  if (!target) return;
+  const refAlloc = aggregateRecipeAlloc(refJson);
+  const curAlloc = aggregateRecipeAlloc(curJson);
+  const refNames = Object.keys(refAlloc), curNames = Object.keys(curAlloc);
+  if (!refNames.length && !curNames.length) { target.innerHTML = ''; return; }
+
+  const paired = curNames.filter(n => refAlloc[n]);
+  const newOnly = curNames.filter(n => !refAlloc[n]).length;
+  const droppedOnly = refNames.filter(n => !curAlloc[n]).length;
+
+  // Δ sums over PAIRED recipes only (new/dropped would skew the comparison).
+  const sum = (names, alloc, k) => names.reduce((s, n) => s + alloc[n][k], 0);
+  const tiles = [
+    { label: 'Σ min executors', k: 'min', fmt: formatNum },
+    { label: 'Σ max executors', k: 'max', fmt: formatNum },
+    { label: 'Σ cores @ max', k: 'cores', fmt: formatNum },
+    { label: 'Σ memory @ max (GB)', k: 'memGb', fmt: (v) => formatNum(Math.round(v)) },
+  ].map(t => {
+    const a = sum(paired, refAlloc, t.k), b = sum(paired, curAlloc, t.k);
+    const d = b - a;
+    const cls = d > 0 ? 'up' : d < 0 ? 'down' : 'flat';
+    const arrow = d > 0 ? '▲' : d < 0 ? '▼' : '＝';
+    return `<div class="trend-kpi">
+      <div class="trend-kpi-label">${t.label}</div>
+      <div class="trend-kpi-value">${t.fmt(a)} → ${t.fmt(b)}
+        <span class="trend-kpi-delta ${cls}">${arrow} ${d > 0 ? '+' : ''}${t.fmt(d)}</span></div>
+    </div>`;
+  }).join('');
+
+  let up = 0, down = 0, same = 0;
+  paired.forEach(n => {
+    const d = curAlloc[n].max - refAlloc[n].max;
+    if (d > 0) up++; else if (d < 0) down++; else same++;
+  });
+  const pct = (n) => paired.length ? ` (${Math.round(100 * n / paired.length)}%)` : '';
+  const counts =
+    `<div class="trend-kpi-counts">` +
+    `<span class="up">▲ ${up} scaled up${pct(up)}</span> · ` +
+    `<span class="down">▼ ${down} scaled down${pct(down)}</span> · ` +
+    `<span class="flat">＝ ${same} unchanged${pct(same)}</span>` +
+    (newOnly ? ` · <span class="new">🆕 ${newOnly} new</span>` : '') +
+    (droppedOnly ? ` · <span class="dropped">${droppedOnly} dropped</span>` : '') +
+    `</div>`;
+
+  target.innerHTML =
+    `<h3>Cluster Trend Summary <span class="info-icon" data-doc-key="trend" title="Aggregated executor allocation across all recipes, reference vs current">ⓘ</span></h3>` +
+    `<div class="trend-kpi-strip">${tiles}</div>${counts}` +
+    `<div class="trend-kpi-note">Sums over the ${paired.length} recipes present on both dates (${escapeHtml(formatDate(refDate))} → ${escapeHtml(formatDate(curDate))}).</div>`;
+}
+
 function renderClusterConfComparison(clusterName, refJson, curJson, refDate, curDate) {
   const refConf = extractClusterConf(refJson, clusterName);
   const curConf = extractClusterConf(curJson, clusterName);
@@ -2206,6 +2390,8 @@ function renderClusterConfComparison(clusterName, refJson, curJson, refDate, cur
     ...(curConf ? Object.keys(curConf) : []),
   ]);
   const orderedKeys = orderConfKeys(Array.from(allKeys));
+  // capacityGuardedJobList is operational noise in the GUI — the count + the ⓘ doc cover it.
+  const visibleKeys = orderedKeys.filter(k => k !== 'capacityGuardedJobList');
 
   // Render value cells. Arrays (e.g. boostedMemoryHeapJobList) and
   // comma-joined string lists become a wrapped chip stack so a long list
@@ -2220,12 +2406,15 @@ function renderClusterConfComparison(clusterName, refJson, curJson, refDate, cur
     return escapeHtml(String(v));
   }
 
-  const rows = orderedKeys.map(k => {
+  const rows = visibleKeys.map(k => {
     const rv = refConf ? refConf[k] : undefined;
     const cv = curConf ? curConf[k] : undefined;
     const changed = rv !== undefined && cv !== undefined && JSON.stringify(rv) !== JSON.stringify(cv);
+    const keyHtml = k === 'capacityGuardedJobCount'
+      ? `${escapeHtml(k)} <span class="info-icon" data-doc-key="capacity_guard">ⓘ</span>`
+      : escapeHtml(k);
     return `<tr>
-      <td class="key">${escapeHtml(k)}</td>
+      <td class="key">${keyHtml}</td>
       <td>${renderConfValue(rv)}</td>
       <td class="${changed ? 'changed' : ''}">${renderConfValue(cv)}</td>
     </tr>`;
@@ -2995,9 +3184,11 @@ function _ipcWireToggle() {
 
 function orderConfKeys(keys) {
   const preferred = [
-    'num_workers', 'worker_machine_type', 'master_machine_type',
+    'num_workers', 'min_workers', 'max_workers',
+    'worker_machine_type', 'master_machine_type',
     'autoscaling_policy', 'tuner_version', 'total_no_of_jobs',
     'cluster_max_total_memory_gb', 'cluster_max_total_cores',
+    'cluster_scaled_max_cores', 'cluster_scaled_max_memory_gb',
     'accumulated_max_total_memory_per_jobs_gb',
     'driver_memory_gb', 'driver_cores', 'driver_memory_overhead_gb',
     'diagnostic_reason'
@@ -3013,7 +3204,15 @@ function orderConfKeys(keys) {
 
 function renderDetailCharts(cluster, clusterName) {
   const chartsDiv = document.getElementById('detail-charts');
+  // Destroy any Chart.js instances attached to the canvases we're about to
+  // replace (the toggle re-renders this section in place).
+  chartsDiv.querySelectorAll('canvas').forEach(c => {
+    if (c._chartInstance) { try { c._chartInstance.destroy(); } catch (e) {} }
+  });
   chartsDiv.innerHTML = '';
+
+  const durMetricKey = parseRoute().durMetric === 'avg' ? 'avg_job_duration_ms' : 'p95_job_duration_ms';
+  const durMetricLabel = durMetricKey === 'avg_job_duration_ms' ? 'Avg' : 'P95';
 
   // Include all recipes — new entries (no deltas) are rendered as a single
   // "New (current only)" bar; kept recipes (present only on the reference date,
@@ -3035,7 +3234,12 @@ function renderDetailCharts(cluster, clusterName) {
   // Duration chart
   const durContainer = document.createElement('div');
   durContainer.className = 'chart-container';
-  durContainer.innerHTML = `<h4>P95 Job Duration by Recipe <span class="info-icon" data-doc-key="p95">ⓘ</span></h4>
+  durContainer.innerHTML = `<h4>${durMetricLabel} Job Duration by Recipe
+      <span class="info-icon" data-doc-key="${durMetricLabel === 'Avg' ? 'avg' : 'p95'}">ⓘ</span>
+      <span class="seg-toggle dur-metric-toggle" role="tablist">
+        <button class="seg ${durMetricLabel === 'P95' ? 'active' : ''}" data-metric="p95" role="tab" aria-selected="${durMetricLabel === 'P95' ? 'true' : 'false'}">P95</button>
+        <button class="seg ${durMetricLabel === 'Avg' ? 'active' : ''}" data-metric="avg" role="tab" aria-selected="${durMetricLabel === 'Avg' ? 'true' : 'false'}">Avg</button>
+      </span></h4>
     <div class="chart-scroll"><canvas id="dur-chart"></canvas></div>`;
   chartsDiv.appendChild(durContainer);
   const durCanvas = durContainer.querySelector('#dur-chart');
@@ -3059,8 +3263,8 @@ function renderDetailCharts(cluster, clusterName) {
   });
   const tooltipFullNames = recipes.map(r => r.recipe);
 
-  const durRefRaw = recipes.map(r => recipeMetricValue(r, 'p95_job_duration_ms', 'reference'));
-  const durCurRaw = recipes.map(r => recipeMetricValue(r, 'p95_job_duration_ms', 'current'));
+  const durRefRaw = recipes.map(r => recipeMetricValue(r, durMetricKey, 'reference'));
+  const durCurRaw = recipes.map(r => recipeMetricValue(r, durMetricKey, 'current'));
   const execRefRaw = recipes.map(r => recipeMetricValue(r, 'p95_run_max_executors', 'reference'));
   const execCurRaw = recipes.map(r => recipeMetricValue(r, 'p95_run_max_executors', 'current'));
 
@@ -3096,7 +3300,14 @@ function renderDetailCharts(cluster, clusterName) {
     if (recipe) navigate({ recipe: recipe.recipe });
   };
 
-  new Chart(durCanvas, {
+  // Both duration flavours in the tooltip regardless of the toggled metric.
+  const fmtDur = (v) => Number.isFinite(v) && v > 0 ? formatDuration(v) : '—';
+  const tooltipExtraLines = recipes.map(r => [
+    `P95  ref ${fmtDur(recipeMetricValue(r, 'p95_job_duration_ms', 'reference'))} · cur ${fmtDur(recipeMetricValue(r, 'p95_job_duration_ms', 'current'))}`,
+    `Avg  ref ${fmtDur(recipeMetricValue(r, 'avg_job_duration_ms', 'reference'))} · cur ${fmtDur(recipeMetricValue(r, 'avg_job_duration_ms', 'current'))}`
+  ]);
+
+  durCanvas._chartInstance = new Chart(durCanvas, {
     type: 'bar',
     data: {
       labels: fullLabels,
@@ -3112,10 +3323,11 @@ function renderDetailCharts(cluster, clusterName) {
       tooltipNames: tooltipFullNames,
       valueFormatter: (v) => formatDuration(v),
       onBarClick: onClickBar,
+      tooltipExtraLines,
     })
   });
 
-  new Chart(execCanvas, {
+  execCanvas._chartInstance = new Chart(execCanvas, {
     type: 'bar',
     data: {
       labels: fullLabels,
@@ -3132,6 +3344,15 @@ function renderDetailCharts(cluster, clusterName) {
       valueFormatter: (v) => formatNum(v),
       onBarClick: onClickBar,
     })
+  });
+
+  durContainer.querySelectorAll('.dur-metric-toggle .seg').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const route = Object.assign({}, parseRoute());
+      if (btn.dataset.metric === 'avg') route.durMetric = 'avg'; else delete route.durMetric;
+      history.replaceState(route, '', buildUrl(route));
+      renderDetailCharts(cluster, clusterName);
+    });
   });
 }
 
@@ -3167,11 +3388,7 @@ function deltaValue(recipe, metric, field) {
   return recipeMetricValue(recipe, metric, field);
 }
 
-function recipeShortName(recipe) {
-  return recipe.replace(/^_/, '').replace(/\.json$/, '');
-}
-
-function chartOpts({ horizontal, tooltipNames, valueFormatter, onBarClick }) {
+function chartOpts({ horizontal, tooltipNames, valueFormatter, onBarClick, tooltipExtraLines }) {
   const opts = {
     responsive: true,
     maintainAspectRatio: false,
@@ -3193,7 +3410,10 @@ function chartOpts({ horizontal, tooltipNames, valueFormatter, onBarClick }) {
         callbacks: {
           title: (items) => items[0] ? tooltipNames[items[0].dataIndex] : '',
           label: (item) => `${item.dataset.label}: ${valueFormatter(item.parsed[horizontal ? 'x' : 'y'])}`,
-          afterBody: () => '\nClick to view recipe spark conf →',
+          afterBody: (items) => {
+            const extra = (tooltipExtraLines && items[0]) ? tooltipExtraLines[items[0].dataIndex] : [];
+            return [...extra, '', 'Click to view recipe spark conf →'];
+          },
         }
       }
     },
@@ -4554,7 +4774,7 @@ async function renderClusterSummaryGraphs() {
 
   renderCsKpis(history, currentEntryHist);
   wireCsExpandButtons();
-  renderCsLineCharts(history, currentDate);
+  renderCsLineCharts(history);
   renderCsAreaChart(history, currentDate);
   renderCsScatters(history, currentDate);
   renderCsDistribution(history, currentDate);
@@ -4689,34 +4909,50 @@ function renderCsKpis(history, currentEntry) {
   ].join('');
 }
 
+// Stable per-cluster hue (same color across charts and runs).
+function clusterHue(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = ((h * 31) + name.charCodeAt(i)) >>> 0;
+  return h % 360;
+}
+
 // Build a multi-series line chart: one line per cluster, dates on the x-axis.
-// The current-date cluster lines render gold + thicker so users can spot them.
-function renderCsLineChart(canvasId, history, currentDate, valueKey, label, formatter) {
+// The top-8 clusters by latest value get full-color emphasis + legend chips;
+// the rest render dimmed so the chart stays readable.
+function renderCsLineChart(canvasId, history, valueKey, label, formatter) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
 
   const dates = history.map(h => h.date);
   const allClusters = Array.from(new Set(history.flatMap(h => h.rows.map(r => r.cluster_name)))).sort();
-  const currentEntry = history.find(h => h.date === currentDate);
-  const currentClusters = new Set((currentEntry ? currentEntry.rows : []).map(r => r.cluster_name));
 
-  // Assign each cluster a stable hue so colors don't flicker between charts.
-  const datasets = allClusters.map((c, i) => {
+  // Rank by latest non-null value: the biggest movers get full-color emphasis + a legend chip.
+  const latestVal = (c) => {
+    for (let i = history.length - 1; i >= 0; i--) {
+      const row = history[i].rows.find(r => r.cluster_name === c);
+      if (row && row[valueKey] != null) return Number(row[valueKey]) || 0;
+    }
+    return 0;
+  };
+  const TOP_N = 8;
+  const topClusters = new Set(allClusters.slice().sort((a, b) => latestVal(b) - latestVal(a)).slice(0, TOP_N));
+
+  const datasets = allClusters.map((c) => {
     const series = history.map(h => {
       const row = h.rows.find(r => r.cluster_name === c);
       return row ? row[valueKey] : null;
     });
-    const isCurrent = currentClusters.has(c);
-    const hue = (i * 47) % 360;
+    const hue = clusterHue(c);
+    const top = topClusters.has(c);
     return {
       label: c,
       data: series,
-      borderColor: isCurrent ? 'rgba(210,153,34,1)' : `hsla(${hue}, 35%, 60%, 0.55)`,
+      borderColor: `hsla(${hue}, ${top ? 70 : 25}%, ${top ? 60 : 45}%, ${top ? 1 : 0.25})`,
       backgroundColor: 'transparent',
-      borderWidth: isCurrent ? 2.4 : 1.1,
+      borderWidth: top ? 2.2 : 1,
       tension: 0.2,
       spanGaps: true,
-      pointRadius: 2.5,
+      pointRadius: top ? 2.5 : 0,
       pointHoverRadius: 4
     };
   });
@@ -4754,6 +4990,46 @@ function renderCsLineChart(canvasId, history, currentDate, valueKey, label, form
   });
   canvas._chartInstance = chart;
 
+  // Legend chips for the emphasised clusters. Click = isolate/restore; hover = highlight.
+  const host = canvas.parentElement;
+  let legend = host.parentElement.querySelector(`.cs-legend[data-for="${canvasId}"]`);
+  if (legend) legend.remove();
+  legend = document.createElement('div');
+  legend.className = 'cs-legend';
+  legend.dataset.for = canvasId;
+  const topList = allClusters.filter(c => topClusters.has(c))
+    .sort((a, b) => latestVal(b) - latestVal(a));
+  legend.innerHTML = topList.map(c =>
+    `<span class="cs-legend-chip" data-cluster="${escapeAttr(c)}" title="${escapeAttr(c)}">
+       <span class="dot" style="background:hsl(${clusterHue(c)},70%,60%)"></span>${escapeHtml(c)}</span>`
+  ).join('') + (allClusters.length > topList.length
+    ? `<span class="cs-legend-more">+${allClusters.length - topList.length} more (dimmed)</span>` : '');
+  host.parentElement.insertBefore(legend, host);
+
+  let isolated = null;
+  const applyEmphasis = (focus) => {
+    chart.data.datasets.forEach(ds => {
+      const top = topClusters.has(ds.label);
+      const hue = clusterHue(ds.label);
+      const on = focus === null ? top : ds.label === focus;
+      const dimAll = focus !== null;
+      ds.borderColor = `hsla(${hue}, ${on ? 70 : 25}%, ${on ? 60 : 45}%, ${on ? 1 : (dimAll ? 0.08 : 0.25)})`;
+      ds.borderWidth = on ? 2.4 : 1;
+      ds.pointRadius = on ? 2.5 : 0;
+    });
+    chart.update('none');
+  };
+  legend.querySelectorAll('.cs-legend-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      isolated = isolated === chip.dataset.cluster ? null : chip.dataset.cluster;
+      legend.querySelectorAll('.cs-legend-chip').forEach(c2 =>
+        c2.classList.toggle('active', c2.dataset.cluster === isolated));
+      applyEmphasis(isolated);
+    });
+    chip.addEventListener('mouseenter', () => { if (!isolated) applyEmphasis(chip.dataset.cluster); });
+    chip.addEventListener('mouseleave', () => { if (!isolated) applyEmphasis(null); });
+  });
+
   // Middle-click support
   canvas.addEventListener('auxclick', (e) => {
     if (e.button !== 1) return;
@@ -4766,11 +5042,11 @@ function renderCsLineChart(canvasId, history, currentDate, valueKey, label, form
   });
 }
 
-function renderCsLineCharts(history, currentDate) {
-  renderCsLineChart('cs-line-cost', history, currentDate, 'estimated_cost_eur', '€', (v) => `${formatNum(v)} €`);
-  renderCsLineChart('cs-line-workers', history, currentDate, 'num_of_workers', 'workers', (v) => formatNum(v));
-  renderCsLineChart('cs-line-minutes', history, currentDate, 'total_active_minutes', 'min', (v) => formatNum(v));
-  renderCsLineChart('cs-line-jobs', history, currentDate, 'no_of_jobs', 'jobs', (v) => formatNum(v));
+function renderCsLineCharts(history) {
+  renderCsLineChart('cs-line-cost', history, 'estimated_cost_eur', '€', (v) => `${formatNum(v)} €`);
+  renderCsLineChart('cs-line-workers', history, 'num_of_workers', 'workers', (v) => formatNum(v));
+  renderCsLineChart('cs-line-minutes', history, 'total_active_minutes', 'min', (v) => formatNum(v));
+  renderCsLineChart('cs-line-jobs', history, 'no_of_jobs', 'jobs', (v) => formatNum(v));
 }
 
 // Stacked-area chart of cost across all clusters over time.

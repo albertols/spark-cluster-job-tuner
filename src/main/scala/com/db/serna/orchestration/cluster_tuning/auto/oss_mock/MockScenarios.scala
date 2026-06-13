@@ -839,7 +839,8 @@ object MockScenarios {
   // recipe `_DRIFT_DEMO.json` that:
   //   * stays pinned at its executor ceiling in BOTH dates
   //     (`p95_run_max_executors` unchanged, `fraction_reaching_cap` high), and
-  //   * runs ~2× slower in the current date (p95 + avg duration doubled).
+  //   * runs ~2.5× slower with ≥10 min lost per run — Severe under the v2
+  //     severity model (ratio AND absolute magnitude).
   //
   // Because the job is censored at the cap, the classic z-score path cannot tell
   // it needs more parallelism; the longitudinal trend path can, and raises both
@@ -867,7 +868,7 @@ object MockScenarios {
 
     val refCluster = MockCluster(
       name = "mock-cluster-drift",
-      recipes = Seq(driftRecipe("_DRIFT_DEMO.json", p95DurMs = 100000.0, avgDurMs = 90000.0)),
+      recipes = Seq(driftRecipe("_DRIFT_DEMO.json", p95DurMs = 600000.0, avgDurMs = 540000.0)),
       incarnations = Seq(
         MockIncarnation(
           spanStart = s1.plus(2, ChronoUnit.HOURS),
@@ -884,8 +885,8 @@ object MockScenarios {
 
     val curCluster = MockCluster(
       name = "mock-cluster-drift",
-      // Same executor ceiling, ~2× slower → the censoring case.
-      recipes = Seq(driftRecipe("_DRIFT_DEMO.json", p95DurMs = 200000.0, avgDurMs = 180000.0)),
+      // Same executor ceiling, ~2.5× slower with ≥10 min lost → the censoring case (Severe).
+      recipes = Seq(driftRecipe("_DRIFT_DEMO.json", p95DurMs = 1500000.0, avgDurMs = 1350000.0)),
       incarnations = Seq(
         MockIncarnation(
           spanStart = s2.plus(2, ChronoUnit.HOURS),
@@ -906,10 +907,12 @@ object MockScenarios {
   // ── capacityPressure — the censoring trap meets a hard capacity ceiling ──────
   //
   // One single-tenant cluster (maxConcurrentJobs = 1) with a single cap-saturated,
-  // high-demand recipe `_CAPACITY_HOG.json` that runs ~2× slower in the current date
-  // while pinned at its executor ceiling (`fraction_reaching_cap = 0.9`). The
-  // longitudinal trend scaler reads the slowdown and inflates the recipe's executor
-  // ceiling toward the cluster's full physical capacity; the CapacityGuard FINAL pass
+  // high-demand recipe `_CAPACITY_HOG.json` that runs ~2.5× slower with ≥10 min lost
+  // per run in the current date — Severe under the v2 severity model (ratio AND
+  // absolute magnitude) — while pinned at its executor ceiling
+  // (`fraction_reaching_cap = 0.9`). The longitudinal trend scaler reads the slowdown
+  // and inflates the recipe's executor ceiling toward the cluster's full physical
+  // capacity; the CapacityGuard FINAL pass
   // then clamps that inflated ceiling back to 0.90 of the per-node-packed capacity,
   // stamping `capacityStatus: "clamped"` and the cores/memory utilization %. This is
   // the end-to-end proof of the guard (and the red heatmap cell): the planner's own
@@ -941,20 +944,72 @@ object MockScenarios {
       )
     )
 
-    // Same executor ceiling, ~2× slower in current → the censoring case the trend scaler resolves.
+    // Same executor ceiling, ~2.5× slower with ≥10 min lost in current → the censoring case
+    // the trend scaler resolves (Severe under the v2 severity model).
     val ref = MockScenario(
       name = "capacityPressure-reference",
-      clusters = Seq(cluster(s1, p95DurMs = 100000.0, avgDurMs = 90000.0)),
+      clusters = Seq(cluster(s1, p95DurMs = 1200000.0, avgDurMs = 1080000.0)),
       window = (s1, e1),
       seed = seed
     )
     val cur = MockScenario(
       name = "capacityPressure-current",
-      clusters = Seq(cluster(s2, p95DurMs = 200000.0, avgDurMs = 180000.0)),
+      clusters = Seq(cluster(s2, p95DurMs = 3000000.0, avgDurMs = 2700000.0)),
       window = (s2, e2),
       seed = seed
     )
     MultiDateScenario(name = "capacityPressure", perDate = Map(refDate -> ref, curDate -> cur))
+  }
+
+  // ── trendPriority — severity tiers + impact-ranked grants in one cluster ─────
+  //
+  // Three paired recipes on one cluster prove the v2 trend model end-to-end:
+  //   * _PRIORITY_CRITICAL.json — 10m→60m (ratio ~6, ~49 min lost) → Critical, top priority.
+  //   * _PRIORITY_MODERATE.json — 4m→9m  (ratio ~2.3, ~4.9 min lost) → Moderate, scales after.
+  //   * _PRIORITY_NOISE.json    — 20s→2m (ratio 6 but ~1.6 min lost) → Negligible, HOLDS even pinned.
+  // All three are cap-pinned (fraction_reaching_cap = 0.9) so only severity separates them.
+
+  private def priorityRecipe(name: String, p95DurMs: Double, avgDurMs: Double): MockRecipe = MockRecipe(
+    name = name,
+    avgExecutorsPerJob = 3.0,
+    p95RunMaxExecutors = 3.0,
+    avgJobDurationMs = avgDurMs,
+    p95JobDurationMs = p95DurMs,
+    runs = 20L,
+    secondsAtCap = Some(900L),
+    runsReachingCap = Some(18L),
+    totalRuns = Some(20L),
+    fractionReachingCap = Some(0.9),
+    maxConcurrentJobs = Some(3)
+  )
+
+  def trendPriority(refDate: String, curDate: String, seed: Long = 1234L): MultiDateScenario = {
+    val (s1, e1) = windowFor(refDate)
+    val (s2, e2) = windowFor(curDate)
+
+    def cluster(start: Instant, dur: Seq[(Double, Double)]): MockCluster = MockCluster(
+      name = "mock-cluster-priority",
+      recipes = Seq(
+        priorityRecipe("_PRIORITY_CRITICAL.json", dur(0)._1, dur(0)._2),
+        priorityRecipe("_PRIORITY_MODERATE.json", dur(1)._1, dur(1)._2),
+        priorityRecipe("_PRIORITY_NOISE.json", dur(2)._1, dur(2)._2)
+      ),
+      incarnations = Seq(MockIncarnation(start.plus(2, ChronoUnit.HOURS), start.plus(10, ChronoUnit.HOURS)))
+    )
+
+    // (p95DurMs, avgDurMs) per recipe: Critical 10m→60m, Moderate 4m→9m, Noise 20s→2m.
+    val refDur = Seq((600000.0, 540000.0), (240000.0, 220000.0), (20000.0, 18000.0))
+    val curDur = Seq((3600000.0, 3300000.0), (540000.0, 500000.0), (120000.0, 110000.0))
+
+    val ref = MockScenario(
+      name = "trendPriority-reference",
+      clusters = Seq(cluster(s1, refDur)),
+      window = (s1, e1),
+      seed = seed
+    )
+    val cur =
+      MockScenario(name = "trendPriority-current", clusters = Seq(cluster(s2, curDur)), window = (s2, e2), seed = seed)
+    MultiDateScenario(name = "trendPriority", perDate = Map(refDate -> ref, curDate -> cur))
   }
 
   // ── CLI lookup ─────────────────────────────────────────────────────────────
@@ -994,7 +1049,8 @@ object MockScenarios {
     "multiDateSyntheticSpan" -> (multiDateSyntheticSpan _),
     "divergenceShowcase" -> (divergenceShowcase _),
     "durationDrift" -> (durationDrift _),
-    "capacityPressure" -> (capacityPressure _)
+    "capacityPressure" -> (capacityPressure _),
+    "trendPriority" -> (trendPriority _)
   )
 
   val multiDateNames: Seq[String] = multiDate.keys.toSeq.sorted

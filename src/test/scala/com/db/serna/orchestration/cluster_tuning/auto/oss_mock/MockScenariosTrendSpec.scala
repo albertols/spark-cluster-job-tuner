@@ -18,12 +18,18 @@ class MockScenariosTrendSpec extends AnyFunSuite with Matchers {
     val ref = md.perDate(refDate)
     val cur = md.perDate(curDate)
 
-    val refRecipe = ref.clusters.flatMap(_.recipes).find(_.name == "_DRIFT_DEMO.json").getOrElse(
-      fail("reference snapshot is missing _DRIFT_DEMO.json")
-    )
-    val curRecipe = cur.clusters.flatMap(_.recipes).find(_.name == "_DRIFT_DEMO.json").getOrElse(
-      fail("current snapshot is missing _DRIFT_DEMO.json")
-    )
+    val refRecipe = ref.clusters
+      .flatMap(_.recipes)
+      .find(_.name == "_DRIFT_DEMO.json")
+      .getOrElse(
+        fail("reference snapshot is missing _DRIFT_DEMO.json")
+      )
+    val curRecipe = cur.clusters
+      .flatMap(_.recipes)
+      .find(_.name == "_DRIFT_DEMO.json")
+      .getOrElse(
+        fail("current snapshot is missing _DRIFT_DEMO.json")
+      )
 
     // The job slowed down sharply...
     curRecipe.p95JobDurationMs should be > refRecipe.p95JobDurationMs

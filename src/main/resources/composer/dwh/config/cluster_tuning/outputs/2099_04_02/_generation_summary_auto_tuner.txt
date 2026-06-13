@@ -5,7 +5,7 @@
   Reference date:  2099_04_01
   Current date:    2099_04_02
   Strategy:        default
-  Generated at:    2026-06-12T13:34:20.554116Z
+  Generated at:    2026-06-12T19:01:18.228670Z
 
 ------------------------------------------------------------------------
   TREND SUMMARY
@@ -46,7 +46,7 @@
   TREND EXECUTOR SCALING  (1 recipe(s) across 1 cluster(s))
 ------------------------------------------------------------------------
   mock-cluster-capacity  (1 recipe(s))
-    CAPACITY_HOG                                          [up] min/max: 60/96 -> 75/120
+    CAPACITY_HOG                                          [up] min/max: 60/96 -> 61/120
 
 ------------------------------------------------------------------------
   STATISTICAL ANALYSIS

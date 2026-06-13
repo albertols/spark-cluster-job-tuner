@@ -153,6 +153,23 @@ main {
   width: 250px;
 }
 
+#search-wrap { position: relative; display: inline-block; }
+#recipe-search-results {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 60;
+  min-width: 380px; max-width: 560px; max-height: 320px; overflow-y: auto;
+  background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.recipe-search-row {
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px; cursor: pointer;
+  border-bottom: 1px solid #21262d; font-size: 12.5px;
+}
+.recipe-search-row:last-child { border-bottom: none; }
+.recipe-search-row:hover { background: #1c2128; }
+.rsr-recipe { color: #f0f6fc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.rsr-cluster { color: #8b949e; font-size: 11.5px; white-space: nowrap; }
+.rsr-more { color: #8b949e; font-size: 11.5px; padding: 6px 10px; }
+
 #trend-filter {
   background: #0d1117;
   border: 1px solid #30363d;
@@ -469,6 +486,21 @@ main {
   align-items: center;
   gap: 8px;
 }
+
+/* ── Cluster Trend Summary (aggregated ref→cur executor allocation KPIs) ── */
+#detail-cluster-trend-summary { margin: 14px 0; }
+.trend-kpi-strip { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0; }
+.trend-kpi { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 8px 12px; min-width: 170px; }
+.trend-kpi-label { color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+.trend-kpi-value { color: #f0f6fc; font-size: 15px; margin-top: 2px; }
+.trend-kpi-delta { font-size: 12px; margin-left: 6px; }
+.trend-kpi-delta.up, .trend-kpi-counts .up { color: #d29922; }
+.trend-kpi-delta.down, .trend-kpi-counts .down { color: #39c5cf; }
+.trend-kpi-delta.flat, .trend-kpi-counts .flat { color: #8b949e; }
+.trend-kpi-counts { color: #c9d1d9; font-size: 12.5px; margin: 4px 0; }
+.trend-kpi-counts .new { color: #d29922; }
+.trend-kpi-counts .dropped { color: #8b949e; }
+.trend-kpi-note { color: #8b949e; font-size: 11.5px; }
 
 #detail-cluster-conf {
   background: #161b22;
@@ -1503,6 +1535,9 @@ h3.section-heading {
   background: #1f6feb;
   color: #fff;
 }
+/* Compact P95 ⇄ Avg toggle inside the duration chart's <h4> */
+.dur-metric-toggle { margin-left: 8px; vertical-align: middle; }
+.dur-metric-toggle .seg { padding: 2px 8px; font-size: 11px; }
 .cluster-filter { color: #8b949e; font-size: 12px; }
 .cluster-filter select {
   background: #0d1117;
@@ -1640,6 +1675,15 @@ h3.section-heading {
   margin-left: 4px;
   cursor: help;
 }
+
+/* ── Config-change delta icons (▲/▼ chips on recipe card headings) ──────── */
+.conf-delta-icons { display: inline-flex; gap: 3px; margin-left: 6px; vertical-align: middle; }
+.conf-delta-icon {
+  font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 8px;
+  cursor: help; letter-spacing: 0.3px;
+}
+.conf-delta-icon.up { color: #d29922; background: rgba(210, 153, 34, 0.15); border: 1px solid rgba(210, 153, 34, 0.45); }
+.conf-delta-icon.down { color: #39c5cf; background: rgba(57, 197, 207, 0.12); border: 1px solid rgba(57, 197, 207, 0.4); }
 
 /* ── Z-score strip plot ──────────────────────────────────────────────────── */
 #z-strip-plot { margin: 12px 0 16px; }
@@ -1789,6 +1833,19 @@ h3.section-heading {
   grid-column: 1 / -1;
 }
 .cs-chart-cell.cs-chart-expanded .cs-chart-canvas { height: 440px; }
+
+/* Line-chart legend chips (top-8 emphasised clusters) */
+.cs-legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
+.cs-legend-chip {
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  font-size: 11px; color: #c9d1d9; background: #161b22; border: 1px solid #30363d;
+  border-radius: 10px; padding: 2px 8px; max-width: 220px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cs-legend-chip:hover { border-color: #8b949e; }
+.cs-legend-chip.active { border-color: #d29922; color: #f0f6fc; }
+.cs-legend-chip .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.cs-legend-more { font-size: 11px; color: #8b949e; align-self: center; }
 
 
 /* Distribution chart zoom hint */

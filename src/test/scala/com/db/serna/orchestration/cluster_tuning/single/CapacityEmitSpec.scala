@@ -20,8 +20,15 @@ class CapacityEmitSpec extends AnyFunSuite with Matchers {
   test("daJson writes scaled-max clusterConf fields, min/max workers, and per-recipe % + clamp") {
     // Request 100 max execs of 4c/18GB -> per-node packing caps at 9*6 = 54.
     val da = Seq(
-      RecipePlanDA("_r.json", minExecutors = 2, maxExecutors = 100, initialExecutors = 2,
-        sparkExecutorCores = 4, sparkExecutorMemoryGb = 18))
+      RecipePlanDA(
+        "_r.json",
+        minExecutors = 2,
+        maxExecutors = 100,
+        initialExecutors = 2,
+        sparkExecutorCores = 4,
+        sparkExecutorMemoryGb = 18
+      )
+    )
     val json = daJson(plan("c1"), da, "tv", None, None, maxClusterUtilRatio = 0.90)
 
     json should include("\"min_workers\": 5")
@@ -29,13 +36,13 @@ class CapacityEmitSpec extends AnyFunSuite with Matchers {
     json should include("\"cluster_scaled_max_cores\": 288")
     json should include("\"cluster_scaled_max_memory_gb\": 1152")
     json should include("\"spark.dynamicAllocation.maxExecutors\": \"54\"") // clamped
-    json should include("\"maxMemoryUsagePct\":")                            // memory binds (~84%)
+    json should include("\"maxMemoryUsagePct\":") // memory binds (~84%)
     json should include("\"capacityStatus\": \"clamped\"")
   }
 
   test("manualJson clamps instances and stamps %") {
-    val m = Seq(
-      RecipePlanManual("_m.json", sparkExecutorInstances = 100, sparkExecutorCores = 8, sparkExecutorMemoryGb = 4))
+    val m =
+      Seq(RecipePlanManual("_m.json", sparkExecutorInstances = 100, sparkExecutorCores = 8, sparkExecutorMemoryGb = 4))
     val json = manualJson(plan("c2"), m, "tv", None, None, maxClusterUtilRatio = 0.90)
     json should include("\"spark.executor.instances\": \"30\"") // floor(.9*48/8)=5 -> 30
     json should include("\"maxCoreUsagePct\":")

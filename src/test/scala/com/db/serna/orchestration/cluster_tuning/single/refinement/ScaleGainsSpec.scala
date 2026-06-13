@@ -28,18 +28,22 @@ class ScaleGainsSpec extends AnyFunSuite with Matchers {
     g.downscaleEnabled shouldBe true
   }
 
+  test("defaults carry minDeltaMinutes=3.0 and upPoolRatio=1.0") {
+    val g = ScaleGains.fromBias(CostPerformanceBalance)
+    g.minDeltaMinutes shouldBe 3.0
+    g.upPoolRatio shouldBe 1.0
+  }
+
   test("CLI overrides take precedence over bias presets") {
     val g = ScaleGains.fromBias(
       CostPerformanceBalance,
       gainOverride = Some(0.9),
-      minGainOverride = Some(0.8),
       deadbandUpOverride = Some(0.2),
       maxStepOverride = Some(3.0),
       minRunsOverride = Some(7L),
       downscaleEnabledOverride = Some(false)
     )
     g.gain shouldBe 0.9
-    g.minGain shouldBe 0.8
     g.deadbandUp shouldBe 0.2
     g.maxStep shouldBe 3.0
     g.minRunsForConfidence shouldBe 7L

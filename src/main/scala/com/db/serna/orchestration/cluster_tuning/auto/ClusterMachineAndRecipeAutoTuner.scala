@@ -152,11 +152,6 @@ class AutoTunerConf(arguments: Seq[String]) extends ScallopConf(arguments) {
     descr = "Override the up-scale gain on maxExecutors (default: bias preset). Higher = more aggressive scale-up.",
     validate = g => g >= 0.0 && g <= 2.0
   )
-  val trendMinGain: ScallopOption[Double] = opt[Double](
-    default = None,
-    descr = "Override the up-scale gain on minExecutors (default: bias preset, normally < trend-scale-gain).",
-    validate = g => g >= 0.0 && g <= 2.0
-  )
   val trendScaleDeadband: ScallopOption[Double] = opt[Double](
     default = None,
     descr = "Fractional duration increase required to trigger trend scale-up (default: 0.10).",
@@ -169,13 +164,26 @@ class AutoTunerConf(arguments: Seq[String]) extends ScallopConf(arguments) {
   )
   val trendScaleMinRuns: ScallopOption[Long] = opt[Long](
     default = None,
-    descr = "Minimum runs on each side for a usable duration ratio (default: 5).",
+    descr = "Runs (each side) at which a trend signal has full evidence (default: 5). Below it the " +
+      "graduated-evidence rules apply: 2-4 runs admit Severe+ only (cap demoted one tier); 1 run admits Critical only.",
     validate = r => r >= 0L
   )
   val trendDownscaleEnabled: ScallopOption[Boolean] = toggle(
     default = Some(true),
     descrYes = "Enable conservative trend-driven scale-DOWN when jobs speed up (default: on).",
     descrNo = "Disable trend-driven scale-down (up-only)."
+  )
+  val trendMinDeltaMinutes: ScallopOption[Double] = opt[Double](
+    default = None,
+    descr = "Absolute blended-duration increase (minutes) below which a degradation is Negligible " +
+      "for trend scaling — seconds-level jitter never scales (default: 3.0).",
+    validate = m => m >= 0.0
+  )
+  val trendUpPoolRatio: ScallopOption[Double] = opt[Double](
+    default = None,
+    descr = "Per-run trend scale-UP pool as a fraction of the cluster's schedulable cores; " +
+      "highest-impact recipes draw first, the rest degrade to +1 executor (default: 1.0).",
+    validate = r => r > 0.0 && r <= 4.0
   )
 
   verify()
@@ -217,7 +225,9 @@ object ClusterMachineAndRecipeAutoTuner {
     logger.info(
       s"AutoTuner starting: reference=$refDate current=$curDate strategy=$strategyName " +
         s"keepHistorical=$keepHistorical b16Factor=$b16Factor executorScaleFactor=$executorScaleFactor " +
-        s"scaleZThreshold=$scaleZThreshold scaleCapTouchRatio=$scaleCapTouchRatio"
+        s"scaleZThreshold=$scaleZThreshold scaleCapTouchRatio=$scaleCapTouchRatio " +
+        s"trendMinDeltaMinutes=${conf.trendMinDeltaMinutes.toOption.getOrElse("default(3.0)")} " +
+        s"trendUpPoolRatio=${conf.trendUpPoolRatio.toOption.getOrElse("default(1.0)")}"
     )
 
     // 1. Load snapshots for both dates
@@ -352,11 +362,12 @@ object ClusterMachineAndRecipeAutoTuner {
     val trendGains: ScaleGains = ScaleGains.fromBias(
       tuningStrategy.biasMode,
       gainOverride = conf.trendScaleGain.toOption,
-      minGainOverride = conf.trendMinGain.toOption,
       maxStepOverride = conf.trendScaleMaxStep.toOption,
       deadbandUpOverride = conf.trendScaleDeadband.toOption,
       minRunsOverride = conf.trendScaleMinRuns.toOption,
-      downscaleEnabledOverride = conf.trendDownscaleEnabled.toOption
+      downscaleEnabledOverride = conf.trendDownscaleEnabled.toOption,
+      minDeltaMinutesOverride = conf.trendMinDeltaMinutes.toOption,
+      upPoolRatioOverride = conf.trendUpPoolRatio.toOption
     )
     // One trend signal per paired (reference, current) recipe. clusterMaxTotalCores is filled in at apply
     // time from the cluster's emitted JSON (clusterConf.cluster_max_total_cores); 0 here means "derive then".
@@ -1110,8 +1121,8 @@ object ClusterMachineAndRecipeAutoTuner {
 
   /**
    * Apply longitudinal trend-driven scaling to a cluster's tuned JSONs (auto-scale and manual). Runs BEFORE the z-score
-   * [[ExecutorScaleVitamin]] so the z-score path adds an extra boost on top of the trend baseline. Capacity is read from
-   * each file's `clusterConf.cluster_max_total_cores` divided by the recipe's `spark.executor.cores`. Returns the
+   * [[ExecutorScaleVitamin]] so the z-score path adds an extra boost on top of the trend baseline. Capacity is read
+   * from each file's `clusterConf.cluster_max_total_cores` divided by the recipe's `spark.executor.cores`. Returns the
    * decisions that were emitted (the vitamin only emits for recipes it touches — changed or carrying a prior factor).
    */
   private def applyTrendScaling(
@@ -1541,8 +1552,8 @@ object ClusterMachineAndRecipeAutoTuner {
   }
 
   /**
-   * Build the `executor_trend` entry for the structured summary's `boost_groups` array. Self-contained (own quoting)
-   * so it can be unit-tested in isolation. `source: "trend"` and the `count_up`/`count_down` fields distinguish this
+   * Build the `executor_trend` entry for the structured summary's `boost_groups` array. Self-contained (own quoting) so
+   * it can be unit-tested in isolation. `source: "trend"` and the `count_up`/`count_down` fields distinguish this
    * longitudinal path from the divergence-driven `executor_scale` (z-score) group; both are recipe-level.
    *
    * The input is already filtered to changed decisions by the AutoTuner; entries are deduped by recipe per cluster.
@@ -1579,6 +1590,9 @@ object ClusterMachineAndRecipeAutoTuner {
               s"${q("recipe_filename")}:${q(d.recipe)}," +
               s"${q("state")}:${q(d.state.label)}," +
               s"${q("direction")}:${q(d.direction.label)}," +
+              s"${q("severity")}:${q(d.severity)}," +
+              s"${q("impact_minutes")}:${"%.1f".format(d.impactMinutes)}," +
+              d.priorityRank.map(r => s"${q("priority_rank")}:$r,").getOrElse("") +
               s"${q("manual")}:${d.isManual}," +
               s"${q("propagated")}:$propagated," +
               s"$minObj,$maxObj}"
