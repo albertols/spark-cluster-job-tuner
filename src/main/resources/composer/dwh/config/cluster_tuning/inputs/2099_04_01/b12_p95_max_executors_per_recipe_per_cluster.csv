@@ -1,0 +1,2 @@
+cluster_name,recipe_filename,p95_run_max_executors,avg_run_max_executors,runs
+mock-cluster-capacity,_CAPACITY_HOG.json,96,60,20

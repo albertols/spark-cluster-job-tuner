@@ -1,0 +1,2 @@
+cluster_name,recipe_filename,runs_reaching_cap,total_runs,fraction_reaching_cap
+mock-cluster-capacity,_CAPACITY_HOG.json,18,20,0.900000

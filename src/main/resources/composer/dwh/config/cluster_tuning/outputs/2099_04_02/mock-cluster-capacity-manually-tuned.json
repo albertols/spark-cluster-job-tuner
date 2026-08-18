@@ -1,0 +1,42 @@
+{
+  "clusterConf": {
+    "mock-cluster-capacity": {
+      "num_workers": 20,
+      "min_workers": 20,
+      "max_workers": 20,
+      "master_machine_type": "n2d-highcpu-48",
+      "worker_machine_type": "n2d-highcpu-48",
+      "autoscaling_policy": "extra-large-workload-autoscaling",
+      "tuner_version": "2099_02_04",
+      "total_no_of_jobs": 1,
+      "cluster_max_total_memory_gb": 1920,
+      "cluster_max_total_cores": 960,
+      "cluster_scaled_max_cores": 960,
+      "cluster_scaled_max_memory_gb": 1920,
+      "accumulated_max_total_memory_per_jobs_gb": 928,
+      "trendScaledJobCount": 1,
+      "capacityGuardedJobCount": 1,
+      "capacityGuardedJobList": [
+        "_CAPACITY_HOG.json"
+      ]
+    }
+  },
+  "recipeSparkConf": {
+    "_CAPACITY_HOG.json": {
+      "parallelizationFactor": 5,
+      "appliedTrendScaleFactor": 1.75,
+      "maxCoreUsagePct": 83.3,
+      "maxMemoryUsagePct": 41.7,
+      "capacityStatus": "clamped",
+      "sparkOptsMap": {
+        "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.closure.serializer": "org.apache.spark.serializer.KryoSerializer",
+        "spark.executor.instances": "100",
+        "spark.executor.cores": "8",
+        "spark.executor.memory": "8g"
+      },
+      "total_executor_minimum_allocated_memory_gb": 800,
+      "total_executor_maximum_allocated_memory_gb": 800
+    }
+  }
+}

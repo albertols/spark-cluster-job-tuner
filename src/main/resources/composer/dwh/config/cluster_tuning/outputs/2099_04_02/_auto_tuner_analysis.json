@@ -1,0 +1,166 @@
+{
+  "metadata": {
+    "generated_at": "2026-06-12T19:01:18.079424Z",
+    "reference_date": "2099_04_01",
+    "current_date": "2099_04_02",
+    "total_clusters": 1,
+    "total_recipes": 1,
+    "strategy": "default"
+  },
+  "trends_summary": {
+    "improved": 0,
+    "degraded": 1,
+    "stable": 0,
+    "new_entries": 0,
+    "dropped_entries": 0
+  },
+  "cluster_trends": [
+    {
+      "cluster": "mock-cluster-capacity",
+      "overall_trend": "degraded",
+      "recipes": [
+        {
+          "recipe": "_CAPACITY_HOG.json",
+          "trend": "degraded",
+          "confidence": 1,
+          "action": "boost_resources",
+          "reason": "Performance degraded: p95_job_duration_ms changed 150.0%. Re-planning with current metrics.",
+          "deltas": [
+            {
+              "metric": "avg_executors_per_job",
+              "reference": 60,
+              "current": 60,
+              "pct_change": 0
+            },
+            {
+              "metric": "p95_run_max_executors",
+              "reference": 96,
+              "current": 96,
+              "pct_change": 0
+            },
+            {
+              "metric": "avg_job_duration_ms",
+              "reference": 1080000,
+              "current": 2700000,
+              "pct_change": 150
+            },
+            {
+              "metric": "p95_job_duration_ms",
+              "reference": 1200000,
+              "current": 3000000,
+              "pct_change": 150
+            },
+            {
+              "metric": "fraction_reaching_cap",
+              "reference": 0.9000,
+              "current": 0.9000,
+              "pct_change": 0
+            },
+            {
+              "metric": "runs",
+              "reference": 20,
+              "current": 20,
+              "pct_change": 0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "correlations": [
+    
+  ],
+  "correlations_current_snapshot": [
+    
+  ],
+  "correlations_per_cluster": {
+    
+  },
+  "divergences": [
+    
+  ],
+  "divergences_current_snapshot": [
+    
+  ],
+  "divergences_per_cluster": {
+    
+  },
+  "scatter_data": {
+    "delta": {
+      "delta_avg_executors_per_job__delta_avg_job_duration_ms": [
+        {
+          "cluster": "mock-cluster-capacity",
+          "recipe": "_CAPACITY_HOG.json",
+          "x": 0,
+          "y": 1620000,
+          "is_new": false
+        }
+      ],
+      "delta_fraction_reaching_cap__delta_p95_job_duration_ms": [
+        {
+          "cluster": "mock-cluster-capacity",
+          "recipe": "_CAPACITY_HOG.json",
+          "x": 0,
+          "y": 1800000,
+          "is_new": false
+        }
+      ],
+      "delta_p95_run_max_executors__delta_p95_job_duration_ms": [
+        {
+          "cluster": "mock-cluster-capacity",
+          "recipe": "_CAPACITY_HOG.json",
+          "x": 0,
+          "y": 1800000,
+          "is_new": false
+        }
+      ],
+      "delta_runs__delta_avg_job_duration_ms": [
+        {
+          "cluster": "mock-cluster-capacity",
+          "recipe": "_CAPACITY_HOG.json",
+          "x": 0,
+          "y": 1620000,
+          "is_new": false
+        }
+      ]
+    },
+    "current_snapshot": {
+      "avg_executors_per_job__avg_job_duration_ms": [
+        {
+          "cluster": "mock-cluster-capacity",
+          "recipe": "_CAPACITY_HOG.json",
+          "x": 60,
+          "y": 2700000,
+          "is_new": false
+        }
+      ],
+      "fraction_reaching_cap__p95_job_duration_ms": [
+        {
+          "cluster": "mock-cluster-capacity",
+          "recipe": "_CAPACITY_HOG.json",
+          "x": 0.9000,
+          "y": 3000000,
+          "is_new": false
+        }
+      ],
+      "p95_run_max_executors__p95_job_duration_ms": [
+        {
+          "cluster": "mock-cluster-capacity",
+          "recipe": "_CAPACITY_HOG.json",
+          "x": 96,
+          "y": 3000000,
+          "is_new": false
+        }
+      ],
+      "runs__avg_job_duration_ms": [
+        {
+          "cluster": "mock-cluster-capacity",
+          "recipe": "_CAPACITY_HOG.json",
+          "x": 20,
+          "y": 2700000,
+          "is_new": false
+        }
+      ]
+    }
+  }
+}

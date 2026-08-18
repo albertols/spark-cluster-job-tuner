@@ -1,0 +1,29 @@
+name: ✨ Feature request
+description: Propose a new feature or non-trivial enhancement
+title: "[Feature] "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What pain motivates this? What can't you do today?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would the feature work? Sketch the UX or API surface.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered (optional)
+      description: Other approaches you ruled out and why.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context (optional)
+      description: Links, screenshots, related Issues.

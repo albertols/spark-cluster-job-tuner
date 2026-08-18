@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Properties>
+        <Property name="CLR">{FATAL=bright red, ERROR=red, WARN=bright yellow, INFO=green, DEBUG=white, TRACE=black}</Property>
+        <Property name="LOG_PATTERN_2">
+            %highlight{%d{yyyy/MM/dd HH:mm:ss.SSS} [%thread] %-5level} %cyan{%logger{36}}: %magenta{'%M'} %msg%n
+        </Property>
+    </Properties>
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="${LOG_PATTERN_2}"/>
+        </Console>
+
+        <!-- Add a RoutingAppender to dynamically generate log file names -->
+        <Routing name="Routing">
+            <Routes pattern="$${date:yyyy-MM-dd-HH}">
+                <!-- Each day will have its own log file -->
+                <Route>
+                    <File name="LogFile" fileName="logs/app-${date:yyyy-MM-dd-HH-mm}.log">
+                        <PatternLayout pattern="${LOG_PATTERN_2}"/>
+                    </File>
+                </Route>
+            </Routes>
+        </Routing>
+    </Appenders>
+    <Loggers>
+        <Logger name="org.apache.kafka.clients.consumer.internals.SubscriptionState" level="WARN"/>
+        <Root level="INFO">
+            <AppenderRef ref="Console"/>
+            <!-- Add the RoutingAppender to the Root Logger -->
+            <AppenderRef ref="Routing"/>
+        </Root>
+        <Logger name="org.apache.spark.metrics.MetricsSystem" level="info" additivity="false">
+            <AppenderRef ref="Console">
+                <Filters>
+                    <RegexFilter regex=".*Metrics already registered.*"
+                                 onMatch="DENY"
+                                 onMismatch="ACCEPT"/>
+                </Filters>
+            </AppenderRef>
+        </Logger>
+
+        <!-- Silence Spark internals -->
+        <Logger name="org.apache.spark" level="WARN" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+        <Logger name="org.apache.spark.executor.Executor" level="ERROR" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+        <Logger name="org.apache.spark.scheduler.TaskSetManager" level="ERROR" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+        <Logger name="org.apache.spark.scheduler.DAGScheduler" level="ERROR" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+        <Logger name="org.apache.spark.storage.BlockManager" level="ERROR" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+        <Logger name="org.apache.spark.storage.BlockManagerInfo" level="ERROR" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+        <Logger name="org.apache.spark.storage.memory.MemoryStore" level="ERROR" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+        <Logger name="org.apache.spark.sql.execution.CacheManager" level="ERROR" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+        <Logger name="org.sparkproject.jetty" level="WARN" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+    </Loggers>
+</Configuration>

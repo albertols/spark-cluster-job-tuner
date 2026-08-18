@@ -1,0 +1,12 @@
+{
+  "metadata":{"reference_date":"2099_04_01","current_date":"2099_04_02","strategy":"default","generated_at":"2026-06-12T19:01:18.247609Z"},
+  "trend_summary":{"total_clusters":1,"total_recipes":1,"improved":0,"degraded":1,"stable":0,"new_entries":0,"dropped_entries":0},
+  "evolution_actions":{"kept":0,"boosted":1,"fresh":0,"preserved":0,"skipped":0},
+  "boost_groups":[
+    {"code":"b14","title":"Driver Boosts","kind":"cluster","count":0,"count_new":0,"count_holding":0,"entries":[]},
+    {"code":"b16","title":"OOM Reboosting","kind":"recipe","count":0,"count_new":0,"count_holding":0,"cluster_count":0,"entries":[]},
+    {"code":"executor_scale","title":"Z-score Executor SCALE-UP","kind":"recipe","count":0,"count_new":0,"count_holding":0,"cluster_count":0,"source":"derived","entries":[]},
+    {"code":"executor_trend","title":"Trend Executor Scaling","kind":"recipe","count":1,"count_new":1,"count_holding":0,"count_up":1,"count_down":0,"cluster_count":1,"source":"trend","entries":[{"cluster":"mock-cluster-capacity","recipes":[{"recipe":"CAPACITY_HOG","recipe_filename":"_CAPACITY_HOG.json","state":"new","direction":"up","severity":"severe","impact_minutes":582.0,"priority_rank":1,"manual":false,"propagated":false,"spark_dynamic_allocation_min_executors":{"from":60,"to":61},"spark_dynamic_allocation_max_executors":{"from":96,"to":120,"factor":1.75,"cumulative_factor":1.75}}]}]}
+  ],
+  "statistical_analysis":{"correlation_pairs":0,"divergences":0}
+}

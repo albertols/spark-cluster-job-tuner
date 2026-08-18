@@ -1,0 +1,2 @@
+cluster_name,max_concurrent_jobs
+mock-cluster-capacity,1

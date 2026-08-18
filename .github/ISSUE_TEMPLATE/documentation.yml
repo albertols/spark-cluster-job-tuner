@@ -1,0 +1,24 @@
+name: 📝 Documentation issue
+description: Report a documentation defect or improvement
+title: "[Docs] "
+labels: ["documentation", "triage"]
+body:
+  - type: textarea
+    id: where
+    attributes:
+      label: Which doc / section
+      description: File path + heading or line, e.g. "README.md §3 How it works" or "_AUTO_TUNING.md > Trends"
+    validations:
+      required: true
+  - type: textarea
+    id: issue
+    attributes:
+      label: What's wrong or missing
+      description: Out-of-date claim, broken link, unclear paragraph, missing playbook, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: Suggested fix or improvement (optional)
+      description: A sentence or a paragraph; or a code block if you have a proposed Markdown patch.

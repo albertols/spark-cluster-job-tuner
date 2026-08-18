@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Question or discussion
+    url: https://github.com/albertols/spark-cluster-job-tuner/discussions
+    about: For questions, ideas, or general discussion. Issues are for bugs and concrete tasks.
+  - name: 🔒 Security vulnerability
+    url: https://github.com/albertols/spark-cluster-job-tuner/blob/main/SECURITY.md
+    about: Please follow the private disclosure path in SECURITY.md.

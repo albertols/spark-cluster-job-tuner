@@ -1,0 +1,7 @@
+cluster_name,incarnation_idx,span_start_ts,span_end_ts,span_minutes,create_event_ts,delete_event_ts,has_explicit_create,has_explicit_delete,total_events
+mock-cluster-show-oom,1,2099-01-02 02:00:00.000000 UTC,2099-01-02 08:00:00.000000 UTC,360,2099-01-02 02:00:00.000000 UTC,2099-01-02 08:00:00.000000 UTC,true,true,0
+mock-cluster-show-needs-execs,1,2099-01-02 01:00:00.000000 UTC,2099-01-02 07:00:00.000000 UTC,360,2099-01-02 01:00:00.000000 UTC,2099-01-02 07:00:00.000000 UTC,true,true,0
+mock-cluster-show-holding,1,2099-01-02 02:00:00.000000 UTC,2099-01-02 09:00:00.000000 UTC,420,2099-01-02 02:00:00.000000 UTC,2099-01-02 09:00:00.000000 UTC,true,true,0
+mock-cluster-show-ctrl-1,1,2099-01-02 01:00:00.000000 UTC,2099-01-02 06:00:00.000000 UTC,300,2099-01-02 01:00:00.000000 UTC,2099-01-02 06:00:00.000000 UTC,true,true,0
+mock-cluster-show-ctrl-2,1,2099-01-02 02:00:00.000000 UTC,2099-01-02 07:00:00.000000 UTC,300,2099-01-02 02:00:00.000000 UTC,2099-01-02 07:00:00.000000 UTC,true,true,0
+mock-cluster-show-ctrl-3,1,2099-01-02 03:00:00.000000 UTC,2099-01-02 08:00:00.000000 UTC,300,2099-01-02 03:00:00.000000 UTC,2099-01-02 08:00:00.000000 UTC,true,true,0

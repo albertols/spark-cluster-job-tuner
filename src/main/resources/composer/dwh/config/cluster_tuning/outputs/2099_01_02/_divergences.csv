@@ -1,0 +1,5 @@
+cluster,recipe,metric,reference_value,current_value,z_score,is_outlier
+mock-cluster-show-needs-execs,_DWH_NEEDS_MORE_EXECUTORS.json,delta_avg_executors_per_job,6,12,3.7417,true
+mock-cluster-show-needs-execs,_DWH_NEEDS_MORE_EXECUTORS.json,delta_p95_run_max_executors,12,14,3.7417,true
+mock-cluster-show-needs-execs,_DWH_NEEDS_MORE_EXECUTORS.json,delta_avg_job_duration_ms,300000,12000000,3.7413,true
+mock-cluster-show-needs-execs,_DWH_NEEDS_MORE_EXECUTORS.json,delta_p95_job_duration_ms,480000,19200000,3.7413,true

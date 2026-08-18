@@ -1,0 +1,52 @@
+name: 🐛 Bug report
+description: Report a defect (something doesn't work as documented)
+title: "[Bug] "
+labels: ["bug", "triage"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences on what's broken.
+      placeholder: e.g. "ClusterMachineAndRecipeTuner crashes on b21 with empty CSV."
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Numbered list — what did you run, in what order?
+      placeholder: |
+        1. `./mvnw -Pserve package`
+        2. `./serve.sh --api`
+        3. Click "Start Tuning" with date 2099_01_01
+        4. Observe stacktrace
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: Stacktrace, error message, screenshot — whatever shows the failure.
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS / Java / Maven version / branch or commit.
+      placeholder: |
+        macOS 14.4, Java 11.0.21, Maven 3.9.6 (via wrapper), main @ <SHA>
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / output (optional)
+      description: Wrap long pastes in `<details>` to keep the issue scannable.
